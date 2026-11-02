@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Agent Chat</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="top">
+        <h1>AI Agent Chat</h1>
+        <span id="mode" class="badge" title="현재 AI 제공자">연결 중…</span>
+      </header>
+
+      <main id="log" class="log" aria-live="polite" aria-label="대화">
+        <p id="empty" class="empty">무엇이든 물어보세요. 답이 만들어지는 대로 바로 보여 드려요.</p>
+      </main>
+
+      <form id="composer" class="composer" autocomplete="off">
+        <label for="input" class="sr-only">메시지</label>
+        <textarea
+          id="input"
+          rows="1"
+          maxlength="4000"
+          placeholder="메시지를 입력하세요 (Enter 전송 · Shift+Enter 줄바꿈)"
+        ></textarea>
+        <button id="send" type="submit">전송</button>
+      </form>
+    </div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

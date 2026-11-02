@@ -93,9 +93,9 @@ flowchart LR
 
 | ID | Feature | Status | Owner Folder | Last Updated | Notes |
 |----|---------|--------|--------------|--------------|-------|
-| F-001 | 실시간 스트리밍 채팅 | 🔄 In Progress | `/src/server`, `/src/agent`, `/public` | 2026-11-02 | |
-| F-002 | 대화 맥락 유지 | ⏳ Pending | `/src/server`, `/public` | - | |
-| F-003 | 응답 중단 | ⏳ Pending | `/src/server`, `/src/agent`, `/public` | - | |
+| F-001 | 실시간 스트리밍 채팅 | ✅ Done | `/src/server`, `/src/agent`, `/public` | 2026-11-02 | AC1~AC5 자동 테스트 통과 (28개). 화면 렌더링은 브라우저에서 수동 확인 |
+| F-002 | 대화 맥락 유지 | ⏳ Pending | `/src/server`, `/public` | - | AC1은 F-001 구현으로 충족 (테스트 있음). AC2·AC3 남음 |
+| F-003 | 응답 중단 | ⏳ Pending | `/src/server`, `/src/agent`, `/public` | - | 서버 쪽 취소 전달(AC2 기반)은 F-001에 포함 |
 | F-004 | 오류 처리와 재시도 | ⏳ Pending | `/src/server`, `/src/agent`, `/public` | - | |
 | F-005 | 에이전트 페르소나 설정 | ⏳ Pending | - | - | Phase 2 |
 | F-006 | 도구 사용 (Tool use) | ⏳ Pending | - | - | Phase 2 |
@@ -106,7 +106,6 @@ flowchart LR
 
 ## Next Roadmap
 
-1. F-001 실시간 스트리밍 채팅 → `/src/server`, `/src/agent`, `/public`
-2. F-002 대화 맥락 유지 → `/src/server`, `/public`
-3. F-003 응답 중단 → `/src/server`, `/src/agent`, `/public`
-4. F-004 오류 처리와 재시도 → `/src/server`, `/src/agent`, `/public`
+1. F-002 대화 맥락 유지 (AC2 최근 20턴 정리 · AC3 새 대화 버튼) → `/src/server`, `/public`
+2. F-003 응답 중단 → `/public` (중단 버튼), `/src/server`·`/src/agent` (취소 전달은 구현됨)
+3. F-004 오류 처리와 재시도 → `/public` (다시 시도 버튼), `/src/agent` (오류 문구는 구현됨)
