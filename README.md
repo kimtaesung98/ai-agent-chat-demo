@@ -93,7 +93,7 @@ flowchart LR
 
 | ID | Feature | Status | Owner Folder | Last Updated | Notes |
 |----|---------|--------|--------------|--------------|-------|
-| F-001 | 실시간 스트리밍 채팅 | ⏳ Pending | `/src/server`, `/src/agent`, `/public` | - | |
+| F-001 | 실시간 스트리밍 채팅 | 🔄 In Progress | `/src/server`, `/src/agent`, `/public` | 2026-11-02 | |
 | F-002 | 대화 맥락 유지 | ⏳ Pending | `/src/server`, `/public` | - | |
 | F-003 | 응답 중단 | ⏳ Pending | `/src/server`, `/src/agent`, `/public` | - | |
 | F-004 | 오류 처리와 재시도 | ⏳ Pending | `/src/server`, `/src/agent`, `/public` | - | |
