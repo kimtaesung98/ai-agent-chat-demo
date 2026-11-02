@@ -4,6 +4,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { validateChatRequest } from './validate.js';
+import { trimToRecentTurns } from './context.js';
 import { ProviderError } from '../agent/errors.js';
 
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -63,6 +64,7 @@ async function handleChat(req, res, provider) {
 
   const result = validateChatRequest(body);
   if (!result.ok) return sendJson(res, 400, error(result.code, result.message));
+  const messages = trimToRecentTurns(result.messages); // F-002 AC2
 
   res.writeHead(200, {
     'content-type': 'text/event-stream; charset=utf-8',
@@ -79,7 +81,7 @@ async function handleChat(req, res, provider) {
   });
 
   try {
-    for await (const chunk of provider.stream(result.messages, { signal: controller.signal })) {
+    for await (const chunk of provider.stream(messages, { signal: controller.signal })) {
       if (controller.signal.aborted) break;
       if (chunk.type === 'delta') writeEvent(res, 'delta', { text: chunk.text });
       else if (chunk.type === 'done') writeEvent(res, 'done', { stopReason: chunk.stopReason });

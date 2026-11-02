@@ -30,13 +30,13 @@ src/server, 방문자
 ```mermaid
 flowchart LR
     User([방문자]) -->|"입력 · Enter"| App[app.js<br>DOM 연결]
-    App -->|"send(text)"| Controller[chat-controller.js<br>대화 상태 · 화면 상태]
+    App -->|"send(text) · reset()"| Controller[chat-controller.js<br>대화 상태 · 화면 상태]
     Controller -->|"빈 메시지면 중단"| App
     Controller -->|"history[]"| Client[chat-client.js<br>streamChat]
     Client -->|"POST /api/chat"| Server[[src/server]]
     Server -->|"SSE"| Client
     Client -->|"onDelta · onDone · onError"| Controller
-    Controller -->|"ui.appendDelta · setBusy"| App
+    Controller -->|"ui.appendDelta · setBusy · clear"| App
     App -->|"화면 갱신"| User
     App -->|"GET /api/config"| Server
 ```

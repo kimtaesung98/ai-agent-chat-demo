@@ -94,7 +94,7 @@ flowchart LR
 | ID | Feature | Status | Owner Folder | Last Updated | Notes |
 |----|---------|--------|--------------|--------------|-------|
 | F-001 | 실시간 스트리밍 채팅 | ✅ Done | `/src/server`, `/src/agent`, `/public` | 2026-11-02 | AC1~AC5 자동 테스트 통과 (28개). 화면 렌더링은 브라우저에서 수동 확인 |
-| F-002 | 대화 맥락 유지 | 🔄 In Progress | `/src/server`, `/public` | 2026-11-02 | AC1은 F-001 구현으로 충족 (테스트 있음). AC2·AC3 남음 |
+| F-002 | 대화 맥락 유지 | ✅ Done | `/src/server`, `/public` | 2026-11-02 | AC1~AC3 자동 테스트 통과. 응답 중 새 대화 버튼은 비활성 (중단은 F-003) |
 | F-003 | 응답 중단 | ⏳ Pending | `/src/server`, `/src/agent`, `/public` | - | 서버 쪽 취소 전달(AC2 기반)은 F-001에 포함 |
 | F-004 | 오류 처리와 재시도 | ⏳ Pending | `/src/server`, `/src/agent`, `/public` | - | |
 | F-005 | 에이전트 페르소나 설정 | ⏳ Pending | - | - | Phase 2 |
@@ -106,6 +106,5 @@ flowchart LR
 
 ## Next Roadmap
 
-1. F-002 대화 맥락 유지 (AC2 최근 20턴 정리 · AC3 새 대화 버튼) → `/src/server`, `/public`
-2. F-003 응답 중단 → `/public` (중단 버튼), `/src/server`·`/src/agent` (취소 전달은 구현됨)
-3. F-004 오류 처리와 재시도 → `/public` (다시 시도 버튼), `/src/agent` (오류 문구는 구현됨)
+1. F-003 응답 중단 → `/public` (중단 버튼), `/src/server`·`/src/agent` (취소 전달은 구현됨)
+2. F-004 오류 처리와 재시도 → `/public` (다시 시도 버튼), `/src/agent` (오류 문구는 구현됨)

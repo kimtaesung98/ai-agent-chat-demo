@@ -35,7 +35,8 @@ flowchart LR
     Router -->|"POST /api/chat"| Body[본문 읽기<br>1MB 제한]
     Body -->|"JSON"| Validate[validateChatRequest]
     Validate -->|"400 오류"| Browser
-    Validate -->|"messages[]"| Agent[[src/agent<br>provider.stream]]
+    Validate -->|"messages[]"| Trim[trimToRecentTurns<br>최근 20턴]
+    Trim -->|"messages[]"| Agent[[src/agent<br>provider.stream]]
     Agent -->|"delta · done"| SSE[SSE 쓰기]
     Agent -->|"ProviderError"| SSE
     SSE -->|"event: delta / done / error"| Browser
@@ -69,6 +70,7 @@ flowchart LR
 ### 필수 (Required)
 
 - 입력 검증 규칙은 `validate.js` 한 곳에서만 정의 (SPEC.md §7.2 ChatMessage 제약과 일치)
+- 맥락 길이 정책(최근 20턴)은 `context.js` 한 곳에서만 정의 (SPEC.md F-002 AC2)
 - SSE 이벤트 이름은 SPEC.md API-001과 일치 (`delta`, `done`, `error`)
 - 클라이언트 연결이 끊기면 제공자에 취소 신호 전달
 - 작업 완료 시 `/README.md` Progress Tracker 업데이트
