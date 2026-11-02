@@ -27,18 +27,20 @@
 > 사람이 이 파일을 프로젝트에 복사할 때 `[[ ]]`를 채웁니다.
 
 ```
-[[ 프로젝트 루트 경로 ]]/
+ai-agent-chat-demo/
 ├── SPEC.md                    ← 기능 명세 · 수용 기준 (기능 ID의 원천)
 ├── README.md                  ← Level 0 DFD + Progress Tracker (소유자)
 ├── CLAUDE.md                  ← 세션 프로토콜 (자동 로딩)
 ├── AGENT_STATE.md             ← 세션 인계 파일 (이 파일 삭제 후 생성)
 ├── CONTRIBUTING.md            ← 에이전트 행동 강령
-└── [[ 주요 폴더들 ]]/
-    └── README.md              ← Level N DFD + Context (실행자, Tracker 없음)
+├── src/                       ← 묶음 폴더 (README 없음, 레벨 소비 안 함)
+│   ├── server/README.md       ← Level 1 DFD (실행자)
+│   └── agent/README.md        ← Level 1 DFD (실행자)
+└── public/README.md           ← Level 1 DFD (실행자)
 ```
 
-**소유자 폴더** (Progress Tracker 보유): `[[ 경로 나열 ]]`  
-**실행자 폴더** (DFD만 보유): `[[ 경로 나열 ]]`
+**소유자 폴더** (Progress Tracker 보유): `/`  
+**실행자 폴더** (DFD만 보유): `/src/server`, `/src/agent`, `/public` (F-001 작업 시 생성)
 
 ---
 
@@ -64,10 +66,13 @@
 > 초기화 시 에이전트가 이 내용을 AGENT_STATE.md Active Rules로 옮깁니다.
 
 **허용:**
-- [[ 전역 허용 규칙 ]]
+- Node.js 기본 모듈과 브라우저 표준 API
+- `node:test` 기반 테스트 추가
 
 **금지:**
-- [[ 전역 금지 규칙 ]]
+- 외부 npm 패키지 추가 금지
+- 비밀값(`ANTHROPIC_API_KEY`)을 코드·로그·응답에 포함 금지
+- 대화 메시지 본문을 서버 로그에 기록 금지
 
 **필수:**
 - 기능 작업 전 SPEC.md 해당 기능 ID의 수용 기준 확인
