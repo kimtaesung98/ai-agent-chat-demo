@@ -25,7 +25,6 @@ AGENT_BOOTSTRAP.md 존재?
 | 질문 | 정의 위치 |
 |---|---|
 | 무엇을 만드나? 언제 완료인가? | `SPEC.md` (기능 ID · 수용 기준) |
-| 무엇으로 만드나? 부품은 어떻게 나뉘나? 왜 그렇게 정했나? | `ARCHITECTURE.md` (기술 스택 · 구성도 · ADR) |
 | 얼마나 됐나? 다음은? | 루트 `README.md` Progress Tracker · Next Roadmap |
 | 어떻게 흐르나? 무엇이 금지인가? | 각 폴더 `README.md` DFD · Agent Control |
 | 지난 세션에서 무엇을 했나? | `AGENT_STATE.md` |
@@ -71,8 +70,7 @@ AGENT_BOOTSTRAP.md 존재?
 <!-- 프로젝트마다 꼭 지켜야 할 규칙 3~7개만. 상세 규칙은 각 폴더 README.md Agent Control에 둡니다 -->
 
 - 실행: `npm start` (키 없으면 모의 모드) · 테스트: `npm test` (네트워크 없이 통과해야 함)
-- 외부 npm 패키지 추가 금지 — Node.js 22 기본 모듈만 (ARCHITECTURE.md ADR-001)
-- 새 기술·외부 서비스·모듈 경계 변경은 `ARCHITECTURE.md` ADR을 먼저 추가하고 사용자 승인 후 진행
+- 외부 npm 패키지 추가 금지 — Node.js 22 기본 모듈만 (SPEC.md ADR-001)
 - `ANTHROPIC_API_KEY`를 코드·로그·응답·테스트 픽스처에 넣지 않음
 - 테스트 이름에 기능 ID와 AC 번호 포함 (예: `F-001 AC3 ...`)
 - 테스트는 모의 제공자 또는 가짜 업스트림 서버로 작성, 실제 Claude API 호출 금지
@@ -85,6 +83,5 @@ AGENT_BOOTSTRAP.md 존재?
 |------|------|
 | `AGENT_STATE.md` | 현재 집중 작업 · 누적 요구사항 · 세션 로그 |
 | `SPEC.md` | 기능 명세 · 수용 기준 (기능 ID 블록 단위로 읽음) |
-| `ARCHITECTURE.md` | 기술 스택 · 시스템 구성도 · 모듈 경계 · 설계 결정 (ADR) |
 | `BLUEPRINT.md` | 프레임워크 전체 명세 (세션 중 읽지 않음) |
 | `CONTRIBUTING.md` | 상세 프로토콜 · DFD 드리프트 감지 · 팀 규칙 (세션 중 읽지 않음) |
