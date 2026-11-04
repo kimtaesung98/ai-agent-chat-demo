@@ -42,10 +42,9 @@ flowchart LR
 
 ## Tech Stack
 
-- Node.js 22+ (ES Modules) — 기본 모듈만 사용: `node:http`, 전역 `fetch`, `node:test`
-- 브라우저: HTML · CSS · JavaScript (빌드 도구 없음)
-- 외부 서비스: Claude API (Messages API, 스트리밍)
-- 외부 npm 패키지: 없음 (SPEC.md ADR-001)
+> 기술 스택 · 시스템 구성도 · 설계 결정(ADR)은 [`ARCHITECTURE.md`](ARCHITECTURE.md)가 원본입니다. 여기에는 요약만 둡니다.
+
+- Node.js 22+ 기본 모듈 · 빌드 없는 HTML/CSS/JS · Claude API · 외부 npm 패키지 없음 (ARCHITECTURE.md §2)
 
 ---
 
@@ -60,7 +59,7 @@ flowchart LR
 
 ### 금지 (Prohibit)
 
-- 외부 npm 패키지 추가 금지 (필요하면 SPEC.md ADR 갱신을 사용자에게 먼저 제안)
+- 외부 npm 패키지 추가 금지 (필요하면 ARCHITECTURE.md ADR 갱신을 사용자에게 먼저 제안)
 - `ANTHROPIC_API_KEY` 등 비밀값을 코드·로그·클라이언트 응답에 포함 금지
 - 대화 메시지 본문을 서버 로그에 기록 금지
 - SPEC.md에 없는 기능을 임의로 구현 금지 (먼저 사용자에게 제안)

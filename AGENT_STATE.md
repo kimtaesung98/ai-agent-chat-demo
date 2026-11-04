@@ -28,8 +28,9 @@
 
 | # | 요구사항 요약 | 반영 날짜 | 변경된 파일 |
 |---|--------------|-----------|-------------|
-| 1 | 외부 npm 패키지 없이 Node.js 22 기본 모듈만 사용 (SPEC ADR-001) | 2026-11-02 | `SPEC.md`, `README.md`, `CLAUDE.md` |
+| 1 | 외부 npm 패키지 없이 Node.js 22 기본 모듈만 사용 (ARCHITECTURE ADR-001) | 2026-11-02 | `SPEC.md`, `README.md`, `CLAUDE.md` |
 | 2 | 화면 로직(`chat-controller.js`)과 DOM(`app.js`) 분리 — 화면 동작은 가짜 ui로 테스트 | 2026-11-02 | `public/*` |
+| 3 | 기술 스택 · 구성도 · ADR을 `ARCHITECTURE.md` 한 곳에서 관리 (DFD는 README 유지, ADR-005) | 2026-11-04 | `ARCHITECTURE.md`, `README.md`, `SPEC.md`, `CLAUDE.md` |
 
 ---
 
@@ -74,6 +75,7 @@
 |------|---------|-----------|-----------|---------------------|
 | 2026-11-02 | - | 초기화 — BOOTSTRAP 실행, STATE 생성 | `AGENT_STATE.md` 생성, `AGENT_BOOTSTRAP.md` 삭제 | — |
 | 2026-11-02 | F-001 | 폴더 README 3개 생성, SSE 서버·Claude/모의 제공자·채팅 화면 구현, 테스트 28개 통과, 실제 서버 구동 확인 | `src/**`, `public/**`, `tests/**`, `package.json`, `README.md` | 브라우저 화면 수동 확인 필요. 실제 Claude 모드는 API 키로 확인 필요 (테스트는 가짜 업스트림) |
+| 2026-11-04 | - | `ARCHITECTURE.md` 신설 (스택 · 구성도 · 모듈 경계 · ADR), README Tech Stack · SPEC §8을 링크로 대체 | `ARCHITECTURE.md`, `README.md`, `SPEC.md`, `CLAUDE.md`, `src/*/README.md` | 다음: 음성 대화 계획 1단계 (SPEC에 음성 기능 추가, ARCHITECTURE에 Web Speech ADR) — 사용자 계획 승인 대기 |
 
 ---
 
