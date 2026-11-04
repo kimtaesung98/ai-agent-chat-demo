@@ -14,7 +14,6 @@
 
 | 기능 ID | 작업 내용 | 담당 폴더 | 이어받을 지점 |
 |---------|-----------|-----------|---------------|
-| F-009 | 서버 계약 테스트 (전환 단계 1) | `/server` | 구현·Node 통과 완료. PR의 CI 첫 실행이 초록이면 Tracker ✅ |
 | (단계 2) | Go 서버 | `/server` | SPEC에 기능 ID로 등록 → ADR-008·013 승인 확인 → `internal/chat`부터. 완료 기준: 같은 계약 테스트가 Go 서버에 통과 |
 
 ---
@@ -79,7 +78,7 @@
 | 2026-11-02 | F-001 | 폴더 README 3개 생성, SSE 서버·Claude/모의 제공자·채팅 화면 구현, 테스트 28개 통과, 실제 서버 구동 확인 | `src/**`, `public/**`, `tests/**`, `package.json`, `README.md` | 브라우저 화면 수동 확인 필요. 실제 Claude 모드는 API 키로 확인 필요 (테스트는 가짜 업스트림) |
 | 2026-11-02 | F-002 | 사용자가 로컬 실행 완료를 알림. 최근 20턴 정리(`context.js`), 새 대화 버튼·`reset()` 구현, 테스트 35개 통과, DFD 갱신 | `src/server/*`, `public/*`, `tests/context.test.js`, `README.md` | 브랜치 `feat/F-002-context` PR 머지 후 F-003 착수 |
 | 2026-11-04 | - | ARCHITECTURE.md 작성 (현재 Node MVP + 목표 Go·Flutter, ADR-001~013, 전환 5단계), SPEC ADR 이관, 프레임워크 v2.1 반영 | `ARCHITECTURE.md`, `SPEC.md`, `README.md`, `CLAUDE.md`, `templates/*` | Q-004 결정 전에는 F-003 착수 보류. 제안 ADR(007~013) 사용자 승인 대기 |
-| 2026-11-04 | F-009 | 사용자 계획 승인(전환 먼저, 음성은 Flutter 뒤). Q-004 결정 기록, ADR-012 승인. `server/contract` Go 계약 테스트 17개 시나리오, `npm run test:contract`, CI 워크플로 추가. Node 서버에 통과, 모의 모드 아니면 실패 확인 | `server/**`, `scripts/contract-node.js`, `.github/workflows/ci.yml`, `package.json`, `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `CLAUDE.md` | CI 첫 실행 확인. ADR-007·008·013 등 나머지 제안 ADR은 단계 2 전에 사용자 승인 필요 |
+| 2026-11-04 | F-009 | 사용자 계획 승인(전환 먼저, 음성은 Flutter 뒤). Q-004 결정 기록, ADR-012 승인. `server/contract` Go 계약 테스트 17개 시나리오, `npm run test:contract`, CI 워크플로 추가. Node 서버에 통과, 모의 모드 아니면 실패 확인 | `server/**`, `scripts/contract-node.js`, `.github/workflows/ci.yml`, `package.json`, `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `CLAUDE.md` | CI 초록 확인 후 ✅. ADR-007·008·013 등 나머지 제안 ADR은 단계 2 전에 사용자 승인 필요 |
 
 ---
 
