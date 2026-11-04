@@ -14,8 +14,8 @@
 
 | 기능 ID | 작업 내용 | 담당 폴더 | 이어받을 지점 |
 |---------|-----------|-----------|---------------|
-| F-002 | 대화 맥락 유지 | `/src/server`, `/public` | AC1 완료. AC2: `validate.js` 다음 단계에서 최근 20턴만 남기기 · AC3: `index.html`에 새 대화 버튼 + 컨트롤러 `reset()` |
-| F-003 | 응답 중단 | `/public` | 서버 취소 전달은 완료. `streamChat`에 `signal` 연결, 중단 버튼, 부분 응답에 "중단됨" 표시 |
+| F-003 | 응답 중단 (Q-004 결정 대기) | `/public` | 서버 취소 전달은 완료. `streamChat`에 `signal` 연결, 중단 버튼, 부분 응답에 "중단됨" 표시. 중단 후 `reset()`이 동작하도록 busy 해제 확인 |
+| F-004 | 오류 처리와 재시도 | `/public`, `/src/agent` | 사용자용 오류 문구는 완료. 컨트롤러가 실패한 질문을 내역에서 빼는 부분을 "다시 시도"용으로 보관하도록 변경 |
 
 ---
 
@@ -28,8 +28,10 @@
 
 | # | 요구사항 요약 | 반영 날짜 | 변경된 파일 |
 |---|--------------|-----------|-------------|
-| 1 | 외부 npm 패키지 없이 Node.js 22 기본 모듈만 사용 (SPEC ADR-001) | 2026-11-02 | `SPEC.md`, `README.md`, `CLAUDE.md` |
+| 1 | 현재 MVP는 외부 npm 패키지 없이 Node.js 22 기본 모듈만 사용 (ARCHITECTURE ADR-001) | 2026-11-02 | `SPEC.md`, `README.md`, `CLAUDE.md` |
 | 2 | 화면 로직(`chat-controller.js`)과 DOM(`app.js`) 분리 — 화면 동작은 가짜 ui로 테스트 | 2026-11-02 | `public/*` |
+| 3 | 기능 단위로 브랜치를 만들고 PR로 main에 합친다 (SPEC §13 GitHub Flow) | 2026-11-02 | — |
+| 4 | 사용자 선호 언어(C/C++/Go/Flutter) 기준 목표 스택: 서버 Go, 클라이언트 Flutter (승인). C/C++ 미사용은 제안 상태. ADR은 ARCHITECTURE.md로 이동 | 2026-11-04 | `ARCHITECTURE.md`, `SPEC.md`, `README.md`, `CLAUDE.md` |
 
 ---
 
@@ -39,7 +41,8 @@
 > 규칙 변경 시 원본(루트 README.md Agent Control 또는 CLAUDE.md)을 먼저 고치고 이 목록을 맞춥니다.
 
 **절대 금지:**
-- 외부 npm 패키지 추가
+- ARCHITECTURE.md §2.2 허용 목록 밖의 의존성 추가 (현재 Node MVP는 0개)
+- §10 전환 단계가 SPEC에 등록되기 전에 Go·Flutter 코드 작성
 - 비밀값을 코드·로그·응답에 포함
 - 대화 메시지 본문을 서버 로그에 기록
 
@@ -74,6 +77,8 @@
 |------|---------|-----------|-----------|---------------------|
 | 2026-11-02 | - | 초기화 — BOOTSTRAP 실행, STATE 생성 | `AGENT_STATE.md` 생성, `AGENT_BOOTSTRAP.md` 삭제 | — |
 | 2026-11-02 | F-001 | 폴더 README 3개 생성, SSE 서버·Claude/모의 제공자·채팅 화면 구현, 테스트 28개 통과, 실제 서버 구동 확인 | `src/**`, `public/**`, `tests/**`, `package.json`, `README.md` | 브라우저 화면 수동 확인 필요. 실제 Claude 모드는 API 키로 확인 필요 (테스트는 가짜 업스트림) |
+| 2026-11-02 | F-002 | 사용자가 로컬 실행 완료를 알림. 최근 20턴 정리(`context.js`), 새 대화 버튼·`reset()` 구현, 테스트 35개 통과, DFD 갱신 | `src/server/*`, `public/*`, `tests/context.test.js`, `README.md` | 브랜치 `feat/F-002-context` PR 머지 후 F-003 착수 |
+| 2026-11-04 | - | ARCHITECTURE.md 작성 (현재 Node MVP + 목표 Go·Flutter, ADR-001~013, 전환 5단계), SPEC ADR 이관, 프레임워크 v2.1 반영 | `ARCHITECTURE.md`, `SPEC.md`, `README.md`, `CLAUDE.md`, `templates/*` | Q-004 결정 전에는 F-003 착수 보류. 제안 ADR(007~013) 사용자 승인 대기 |
 
 ---
 

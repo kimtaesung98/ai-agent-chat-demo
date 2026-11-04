@@ -1,6 +1,6 @@
 /**
  * POST /api/chat 호출과 SSE 파싱. DOM에 접근하지 않는다 (public/README.md Agent Control).
- * EventSource는 GET만 지원해서 fetch + ReadableStream으로 읽는다 (SPEC.md ADR-002).
+ * EventSource는 GET만 지원해서 fetch + ReadableStream으로 읽는다 (ARCHITECTURE.md ADR-002).
  *
  * @param {{
  *   messages: { role: string, content: string }[],

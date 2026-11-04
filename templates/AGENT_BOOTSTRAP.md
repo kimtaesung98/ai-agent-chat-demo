@@ -14,6 +14,9 @@
 3. SPEC.md 존재 여부 확인
      있으면 → §4.1 기능 목록과 Tracker의 ID·Feature가 일치하는지 확인, 불일치는 사용자에게 보고
      없으면 → templates/SPEC_TEMPLATE.md를 루트 SPEC.md로 복사하고 사용자에게 작성 요청
+   ARCHITECTURE.md 존재 여부 확인
+     있으면 → §2.1 스택과 루트 README Tech Stack 요약이 맞는지, §3.2 모듈 맵과 Sub-folder Map 폴더가 맞는지 확인
+     없으면 → templates/ARCHITECTURE_TEMPLATE.md를 루트 ARCHITECTURE.md로 복사하고 사용자에게 작성 요청
 4. CLAUDE.md가 없으면 templates/CLAUDE_TEMPLATE.md를 복사해 루트에 CLAUDE.md 생성
 5. templates/AGENT_STATE.md를 루트 AGENT_STATE.md로 복사하고 §4 지시대로 채운다
 6. 이 파일(AGENT_BOOTSTRAP.md)을 삭제한다
@@ -29,6 +32,7 @@
 ```
 [[ 프로젝트 루트 경로 ]]/
 ├── SPEC.md                    ← 기능 명세 · 수용 기준 (기능 ID의 원천)
+├── ARCHITECTURE.md            ← 기술 스택 · 모듈 구조 · ADR
 ├── README.md                  ← Level 0 DFD + Progress Tracker (소유자)
 ├── CLAUDE.md                  ← 세션 프로토콜 (자동 로딩)
 ├── AGENT_STATE.md             ← 세션 인계 파일 (이 파일 삭제 후 생성)
@@ -71,6 +75,7 @@
 
 **필수:**
 - 기능 작업 전 SPEC.md 해당 기능 ID의 수용 기준 확인
+- 의존성 추가 전 ARCHITECTURE.md §2.2 허용 목록 확인
 - 작업 완료마다 루트 README.md Progress Tracker 업데이트
 - 구조 변경 시 해당 레벨부터 루트까지 DFD 연쇄 업데이트
 

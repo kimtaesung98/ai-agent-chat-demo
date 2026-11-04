@@ -7,7 +7,8 @@
  *   appendDelta(text)       현재 에이전트 말풍선에 조각 이어 붙이기
  *   finishAssistant()       스트리밍 종료 표시
  *   showError(message)      현재 에이전트 말풍선을 오류 상태로 표시
- *   setBusy(isBusy)         입력창·전송 버튼 활성/비활성
+ *   setBusy(isBusy)         입력창·전송 버튼·새 대화 버튼 활성/비활성
+ *   clear()                 대화 영역 비우기 (빈 상태 안내 다시 표시)
  *
  * @param {{ ui: object, streamChat: Function }} deps
  */
@@ -22,6 +23,18 @@ export function createChatController({ ui, streamChat }) {
     },
     get busy() {
       return busy;
+    },
+
+    /**
+     * 새 대화를 시작한다 (F-002 AC3). 응답 중에는 무시하고 false를 돌려준다
+     * — 응답 중 중단은 F-003의 범위.
+     * @returns {boolean} 비웠으면 true
+     */
+    reset() {
+      if (busy) return false;
+      history.length = 0;
+      ui.clear();
+      return true;
     },
 
     /**
