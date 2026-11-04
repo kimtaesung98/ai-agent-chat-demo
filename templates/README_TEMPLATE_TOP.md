@@ -8,7 +8,8 @@
 
 이 시스템은 **[[ 전체 책임을 1~2문장으로 ]]** 을 담당합니다.
 
-> 📄 기능 명세: [`SPEC.md`](./SPEC.md) — 기능 ID(F-xxx)와 수용 기준은 SPEC.md가 정의합니다.
+> 📄 기능 명세: [`SPEC.md`](./SPEC.md) — 기능 ID(F-xxx)와 수용 기준은 SPEC.md가 정의합니다.  
+> 📐 아키텍처: [`ARCHITECTURE.md`](./ARCHITECTURE.md) — 기술 스택, 모듈 구조, 설계 결정(ADR)은 ARCHITECTURE.md가 정의합니다.
 
 ---
 
@@ -30,14 +31,15 @@ flowchart LR
 ## Tech Stack
 
 <!--
-  이 시스템 전체에서 사용하는 언어, 프레임워크, 인프라를 나열하세요.
-  하위 폴더별 특화 스택은 해당 폴더의 README에서 명시합니다.
-  선택 이유는 SPEC.md §8 설계 결정(ADR)에 기록합니다.
+  이름만 적은 요약입니다. 버전·상태·선택 이유·허용 라이브러리는 ARCHITECTURE.md §2가 원본이므로
+  여기에 버전을 적지 않습니다 (두 곳에 적으면 반드시 어긋납니다).
 -->
 
-- [[ 언어 / 런타임 버전 ]]
-- [[ 프레임워크 및 버전 ]]
-- [[ 인프라 / 외부 서비스 ]]
+> 원본: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §2 기술 스택
+
+- [[ 클라이언트: 언어 · 프레임워크 ]]
+- [[ 서버: 언어 · 프레임워크 ]]
+- [[ 저장소 · 인프라 · 외부 서비스 ]]
 
 ---
 
@@ -62,6 +64,7 @@ flowchart LR
 ### 필수 (Required)
 
 - 기능 작업 전 SPEC.md에서 해당 기능 ID의 수용 기준 확인
+- 의존성 추가·모듈 구조 변경 전 ARCHITECTURE.md 허용 목록(§2.2)·의존 규칙(§3.3) 확인
 - 모든 하위 폴더 작업 완료 시 이 파일의 **Progress Tracker** 업데이트
 - 작업할 폴더에 README.md가 없으면 `templates/README_TEMPLATE_SUB.md` 기반으로 생성
 - 구조 변경 시 관련 레벨의 DFD를 하위→상위 순서로 업데이트

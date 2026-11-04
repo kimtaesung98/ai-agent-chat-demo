@@ -15,7 +15,7 @@
        │  입력: Developer의 새 프로젝트 시작 · 새 폴더 생성 요청
        ▼
 templates/ — Level 1 DFD (아래 상세)
-       │  출력: 프로젝트에 배치된 SPEC.md · README.md · CLAUDE.md · AGENT_STATE.md
+       │  출력: 프로젝트에 배치된 SPEC.md · ARCHITECTURE.md · README.md · CLAUDE.md · AGENT_STATE.md
        ▼
 AI Agent Session
 ```
@@ -32,6 +32,7 @@ flowchart LR
 
     subgraph Templates ["templates/ 내부"]
         SPECT["SPEC_TEMPLATE.md<br>(기능 명세)"]
+        ARCHT["ARCHITECTURE_TEMPLATE.md<br>(기술 · 구조)"]
         TMPL_TOP["README_TEMPLATE_TOP.md<br>(소유자 폴더용)"]
         CHKL["FOLDER_CHECKLIST.md<br>(새 폴더 체크리스트)"]
         TMPL_SUB["README_TEMPLATE_SUB.md<br>(하위 폴더용)"]
@@ -41,9 +42,11 @@ flowchart LR
     end
 
     Developer -->|"① 프로젝트 시작"| SPECT
+    Developer -->|"① 프로젝트 시작"| ARCHT
     Developer -->|"① 프로젝트 시작"| TMPL_TOP
     Developer -->|"① 프로젝트 시작"| BOOT
     SPECT -->|"기능 ID · 수용 기준"| Spec["SPEC.md"]
+    ARCHT -->|"스택 · 모듈 · ADR"| Arch["ARCHITECTURE.md"]
     TMPL_TOP -->|"Tracker · Roadmap"| TopREADME["[소유자]/README.md<br>(Level 0)"]
     BOOT -->|"② 최초 초기화"| CLT --> Claude["CLAUDE.md"]
     BOOT -->|"② 복사 후 채움"| STATET --> State["AGENT_STATE.md"]
@@ -51,6 +54,7 @@ flowchart LR
     TMPL_SUB -->|"Context · DFD · Control"| SubREADME["[하위]/README.md<br>(Level N)"]
 
     Spec --> Agent([AI Agent Session])
+    Arch -.->|"필요한 절만"| Agent
     TopREADME --> Agent
     Claude --> Agent
     State --> Agent
@@ -84,11 +88,12 @@ flowchart LR
 - DFD 레벨 표시(`## DFD — Level [N]`) 헤더 형식 임의 변경 금지
 - `Decomposed from:` 줄 삭제 금지
 - Progress Tracker의 `ID` 열 삭제 금지 (SPEC.md와의 연결 고리)
+- `SPEC_TEMPLATE.md`·`ARCHITECTURE_TEMPLATE.md`의 절 번호 변경 금지 (다른 문서가 §번호로 참조) — 절을 없앨 때도 제목은 남김
 - 플레이스홀더를 `[[ ]]` 이외의 표기로 작성 금지
 
 ### 필수 (Required)
 
-- 템플릿 구조 변경 시 `BLUEPRINT.md`의 해당 절(§2 SPEC, §3 폴더 README, §5 Tracker)도 함께 업데이트
+- 템플릿 구조 변경 시 `BLUEPRINT.md`의 해당 절(§2-1 SPEC, §2-2 ARCHITECTURE, §3 폴더 README, §5 Tracker)도 함께 업데이트
 - 새 템플릿 파일 추가 시 아래 **파일 목록**과 루트 `README.md` 레포지토리 구조에 반영
 - 템플릿 수정 사항은 루트 `CHANGELOG.md`에 기록
 - DFD 수정 시 루트 `README.md`의 Level 0 DFD와 일관성 검토
@@ -107,6 +112,7 @@ flowchart LR
 | 파일 | 용도 | 프로젝트에서의 이름 |
 |------|------|------|
 | `SPEC_TEMPLATE.md` | 기능 ID · 사용자 스토리 · 수용 기준 · 데이터 · API 등 "무엇을 만드는가" 정의 | 루트 `SPEC.md` |
+| `ARCHITECTURE_TEMPLATE.md` | 기술 스택 · 허용 라이브러리 · 모듈 맵 · 의존 규칙 · 배포 · ADR 등 "무엇으로, 어떤 구조로" 정의 | 루트 `ARCHITECTURE.md` |
 
 ### 폴더 README 템플릿 (Folder README Templates)
 

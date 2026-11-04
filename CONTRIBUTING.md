@@ -29,6 +29,7 @@ AGENT_BOOTSTRAP.md가 존재하는가?
 1. `AGENT_BOOTSTRAP.md` 전체를 읽는다
 2. 루트 `README.md`의 Progress Tracker와 Next Roadmap을 읽는다
 3. `SPEC.md`가 있으면 기능 목록과 Tracker의 ID 일치를 확인하고, 없으면 `templates/SPEC_TEMPLATE.md`를 복사한 뒤 사용자에게 작성을 요청한다
+   `ARCHITECTURE.md`도 같은 방식으로 확인한다 (스택 요약·모듈 맵 일치, 없으면 템플릿 복사 후 작성 요청)
 4. 루트에 `CLAUDE.md`가 없으면 `templates/CLAUDE_TEMPLATE.md`를 복사해 생성한다
 5. `templates/AGENT_STATE.md`를 루트로 **복사**하고 `AGENT_BOOTSTRAP.md §4` 지시대로 채운다
 6. `AGENT_BOOTSTRAP.md`를 **삭제**한다
@@ -56,16 +57,21 @@ AGENT_BOOTSTRAP.md가 존재하는가?
 5. `SPEC.md`에서 **작업할 기능 ID의 블록만** 읽고 수용 기준을 확인한다
    - SPEC.md에 없는 기능이면 → 구현하지 말고 SPEC.md 추가를 사용자에게 제안
    - 명세가 모호하면 → SPEC.md §16 미결 사항에 질문을 기록하고 사용자에게 묻는다
-6. 작업 대상 폴더의 `README.md`를 읽는다 (Context + DFD + Agent Control)
+6. 아래 작업이 포함되면 `ARCHITECTURE.md`의 **해당 절만** 읽는다
+   - 라이브러리 추가·버전 변경 → §2 (허용 목록에 없으면 추가하지 말고 제안)
+   - 새 모듈·폴더 생성, 다른 모듈 import → §3 (의존 규칙 위반 금지)
+   - 설정·배포 변경 → §6 / 오류·로그·인증 등 공통 처리 → §7
+   - 기존 결정과 다른 방식 → §9에 "제안" 상태 ADR 추가 후 사용자에게 질문
+7. 작업 대상 폴더의 `README.md`를 읽는다 (Context + DFD + Agent Control)
    - **작업할 폴더에 README.md가 없으면** → `templates/README_TEMPLATE_SUB.md`로 즉시 생성하고 소유자 README의 Sub-folder Map에 등록
-7. Agent Control **금지 규칙** 위반 여부 확인 후 코드 작성
-8. 구조 변경 시 → 해당 레벨부터 루트까지 DFD 연쇄 업데이트
+8. Agent Control **금지 규칙** 위반 여부 확인 후 코드 작성
+9. 구조 변경 시 → 해당 레벨부터 루트까지 DFD 연쇄 업데이트, 모듈·스택이 바뀌었으면 `ARCHITECTURE.md` §2·§3도 갱신
 
 ### 세션 종료 (갱신)
 
-9. 루트 `README.md` **Progress Tracker** 업데이트 (🔄 시작, 수용 기준 통과 시 ✅)
-10. 루트 `README.md` **Next Roadmap** 갱신
-11. `AGENT_STATE.md`를 아래 순서로 갱신한다:
+10. 루트 `README.md` **Progress Tracker** 업데이트 (🔄 시작, 수용 기준 통과 시 ✅)
+11. 루트 `README.md` **Next Roadmap** 갱신
+12. `AGENT_STATE.md`를 아래 순서로 갱신한다:
 
 ```
 a. Current Focus         → 끝난 작업 행 삭제, 다음 작업을 Roadmap에서 가져와 최대 3개 유지
@@ -113,6 +119,9 @@ e. 세션 로그             → 날짜, 기능 ID, 수행 작업, 변경 파일
 |-----------|------|
 | 매 세션 `BLUEPRINT.md` · `SPEC.md` 전체 읽기 | 불필요한 토큰 낭비 (SPEC은 해당 기능 블록만) |
 | SPEC.md에 없는 기능을 임의로 구현 | 범위 확장, 검증 기준 없음 |
+| ARCHITECTURE.md 허용 목록에 없는 라이브러리 추가 | 세션마다 다른 기술이 섞여 구조가 무너짐 |
+| 승인된 ADR을 사용자 확인 없이 뒤집기 | 이미 검토된 결정의 근거가 사라짐 |
+| 매 세션 `ARCHITECTURE.md` 전체 읽기 | 작업 종류별 해당 절만 읽으면 충분 |
 | 수용 기준 확인 없이 `✅ Done` 처리 | "완료"의 의미 붕괴 |
 | `AGENT_BOOTSTRAP.md` 삭제 없이 세션 종료 | 다음 세션이 중복 초기화 실행 |
 | `AGENT_STATE.md` 미갱신 세션 종료 | 맥락 단절, 다음 세션이 처음부터 재파악 |
@@ -131,7 +140,7 @@ e. 세션 로그             → 날짜, 기능 ID, 수행 작업, 변경 파일
 |------|-----------|
 | `feat` | 새 기능 추가 |
 | `fix` | 버그 수정 |
-| `docs` | 문서 수정 (SPEC, README, DFD, AGENT_STATE 등) |
+| `docs` | 문서 수정 (SPEC, ARCHITECTURE, README, DFD, AGENT_STATE 등) |
 | `refactor` | 기능 변경 없는 구조 개선 |
 | `chore` | 빌드, 의존성 등 기타 |
 

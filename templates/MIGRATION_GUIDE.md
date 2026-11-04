@@ -58,17 +58,36 @@ Claude Code에 다음 프롬프트를 입력하세요:
 수용 기준은 내가 확인할 수 있게 초안으로만 제안해줘.
 ```
 
-### Step 1-4. CLAUDE.md 설치
+### Step 1-4. ARCHITECTURE.md 작성 (최소 범위)
+
+`templates/ARCHITECTURE_TEMPLATE.md`를 복사해 루트에 `ARCHITECTURE.md`를 만듭니다.  
+기존 프로젝트는 **이미 쓰고 있는 것을 그대로 기록**하는 데서 시작합니다:
+
+- §2.1 스택 (의존성 파일에서 추출), §2.2 허용 목록 (현재 의존성 그대로)
+- §3.2 모듈 맵과 §3.3 의존 규칙 (실제 import 관계에서 추출)
+- §9 ADR: 이유를 아는 결정만. 모르면 "이유 미상 — 기존 결정" 상태로 남겨 둡니다
+
+역공학 프롬프트:
+
+```
+이 코드베이스의 의존성 파일과 import 관계를 분석해서 ARCHITECTURE.md 초안을 만들어줘.
+- §2.1 기술 스택과 §2.2 허용 라이브러리 목록 (현재 쓰는 것 그대로)
+- §3.2 모듈 맵과 §3.3 의존 규칙 (실제 import 방향 기준, 규칙을 어기는 곳은 §11 기술 부채로)
+- 코드에서 보이는 주요 설계 결정을 §9 ADR "제안" 상태로
+루트 README.md Tech Stack은 이름만 남기고 ARCHITECTURE.md를 링크해줘.
+```
+
+### Step 1-5. CLAUDE.md 설치
 
 `templates/CLAUDE_TEMPLATE.md`를 복사해 프로젝트 루트에 `CLAUDE.md`로 저장합니다.  
 "이 프로젝트 전용 규칙" 섹션의 `[[ ]]`를 이 프로젝트에 맞게 채웁니다.
 
-### Step 1-5. AGENT_BOOTSTRAP.md 설치
+### Step 1-6. AGENT_BOOTSTRAP.md 설치
 
 `templates/AGENT_BOOTSTRAP.md`를 복사해 루트에 저장합니다.  
 §1~§3을 이 프로젝트 구조로 채웁니다.
 
-**Phase 1 완료 기준**: 루트에 `README.md`, `SPEC.md`, `CLAUDE.md`, `AGENT_BOOTSTRAP.md` 네 파일 존재
+**Phase 1 완료 기준**: 루트에 `README.md`, `SPEC.md`, `ARCHITECTURE.md`, `CLAUDE.md`, `AGENT_BOOTSTRAP.md` 다섯 파일 존재
 
 ---
 
@@ -106,7 +125,7 @@ Claude Code에 다음 프롬프트를 입력하세요:
 에이전트가 실제로 작업을 수행할 때 README.md가 없는 폴더를 발견하면  
 그 시점에 즉시 생성합니다. 미리 모두 만들 필요 없습니다.
 
-이 규칙은 `CONTRIBUTING.md §2`(작업 중 6번)와 `CLAUDE.md` 핵심 규칙에 포함되어 있습니다:  
+이 규칙은 `CONTRIBUTING.md §2`(작업 중 7번)와 `CLAUDE.md` 핵심 규칙에 포함되어 있습니다:  
 *"작업할 폴더에 README.md가 없으면 `templates/README_TEMPLATE_SUB.md`로 즉시 생성"*
 
 ---
@@ -117,6 +136,7 @@ Claude Code에 다음 프롬프트를 입력하세요:
 
 - [ ] 루트 `README.md` 존재 (Level 0 DFD + Progress Tracker)
 - [ ] `SPEC.md` 존재 (기능 목록 + 앞으로 작업할 기능의 수용 기준), Tracker ID와 일치
+- [ ] `ARCHITECTURE.md` 존재 (스택 · 허용 목록 · 모듈 맵 · 의존 규칙), README Tech Stack은 요약 + 링크
 - [ ] `CLAUDE.md` 존재 (세션 자동 로딩용)
 - [ ] `AGENT_BOOTSTRAP.md` 존재 (최초 에이전트 세션용)
 - [ ] `CONTRIBUTING.md` 존재
