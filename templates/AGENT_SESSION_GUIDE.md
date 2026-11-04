@@ -29,7 +29,7 @@
 에이전트에게 탐색 여지를 주지 않고 명확한 목표를 전달합니다.
 
 - `SPEC.md`에 기능 목록(F-ID)과 **수용 기준**을 먼저 작성합니다 → `templates/SPEC_TEMPLATE.md`
-- 기술 스택과 전역 제약은 루트 `README.md`(Tech Stack · Agent Control)에 둡니다
+- 기술 스택·모듈 구조·설계 결정은 `ARCHITECTURE.md`에, 전역 행동 제약은 루트 `README.md` Agent Control에 둡니다 → `templates/ARCHITECTURE_TEMPLATE.md`
 - 명세가 비어 있다면 코딩 세션 대신 "SPEC.md 함께 작성하기" 세션을 먼저 엽니다 → `templates/FIRST_PROMPTS.md`
 
 ### STEP 2. 기능을 원자 단위로 분해한다
@@ -66,7 +66,7 @@ Blueprint Framework에서는 **`AGENT_STATE.md`가 세션 브리핑 역할**을 
 
 | 예전 방식 (수동 브리핑) | 프레임워크 방식 |
 |---|---|
-| 기술 스택 | 루트 `README.md` Tech Stack |
+| 기술 스택 · 허용 라이브러리 | `ARCHITECTURE.md` §2 (필요할 때만 읽음) |
 | 완료된 기능 | 루트 `README.md` Progress Tracker |
 | 지금 작업할 기능 | `AGENT_STATE.md` Current Focus |
 | 제약 조건 | `AGENT_STATE.md` Active Rules · 폴더 `README.md` Agent Control |
@@ -116,7 +116,7 @@ CLAUDE.md를 읽고 세션 시작 프로토콜을 실행해.
 ```
 
 각 단계는 SPEC.md의 기능 ID 하나 이상에 대응해야 합니다.  
-기술 스택은 팀이 익숙하고, 타입 검사가 있는 언어(TypeScript, Dart 등)를 고르면 에이전트가 오류를 스스로 잡기 쉽습니다. 선택 이유는 SPEC.md §8 ADR에 남깁니다.
+기술 스택은 팀이 익숙하고, 타입 검사가 있는 언어(TypeScript, Dart 등)를 고르면 에이전트가 오류를 스스로 잡기 쉽습니다. 선택 이유는 ARCHITECTURE.md §9 ADR에 남깁니다.
 
 ---
 
@@ -127,8 +127,8 @@ CLAUDE.md를 읽고 세션 시작 프로토콜을 실행해.
 | 명세 범위 내 코드 구현 | 기능 우선순위 결정 (SPEC.md §4.1) |
 | 에러 메시지 분석 및 수정 | 세션 분리 타이밍 판단 |
 | 보일러플레이트 생성 | 수용 기준 정의 (SPEC.md §4.2) |
-| 리팩터링, 타입 정의 | 기술 스택 선택 (SPEC.md §8) |
-| 테스트 코드 작성 | 아키텍처 방향 결정 (DFD · Agent Control) |
+| 리팩터링, 타입 정의 | 기술 스택 선택 (ARCHITECTURE.md §2 · §9) |
+| 테스트 코드 작성 | 아키텍처 방향 결정 (ARCHITECTURE.md · DFD · Agent Control) |
 
 ---
 
@@ -159,7 +159,7 @@ CLAUDE.md를 읽고 세션 시작 프로토콜을 실행해.
 | 전체 코드 파일 붙여넣기 | 즉시 토큰 급증 | 파일 경로와 변경 부분만 전달 |
 | 에러 반복 수정 무한 루프 | 같은 에러가 계속 반복됨 | 새 세션에서 에러 메시지만 요약해 전달 |
 | 완료 기준 없이 "더 잘 만들어줘" | 방향 없는 반복 수정 | SPEC.md 수용 기준 작성 후 재요청 |
-| 아키텍처 결정을 에이전트에게 위임 | 일관성 없는 코드 구조 | 구조는 개발자가 결정(DFD · Agent Control), 구현만 위임 |
+| 아키텍처 결정을 에이전트에게 위임 | 일관성 없는 코드 구조 | 구조는 개발자가 결정(ARCHITECTURE.md ADR), 에이전트는 제안만 |
 
 ---
 

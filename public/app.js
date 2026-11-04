@@ -6,7 +6,8 @@ import { streamChat } from './chat-client.js';
 import { createChatController } from './chat-controller.js';
 
 const log = document.getElementById('log');
-const empty = document.getElementById('empty');
+const emptyTemplate = document.getElementById('empty').cloneNode(true);
+const newChatButton = document.getElementById('new-chat');
 const form = document.getElementById('composer');
 const input = document.getElementById('input');
 const sendButton = document.getElementById('send');
@@ -16,7 +17,7 @@ let current = null; // 스트리밍 중인 에이전트 말풍선
 
 const ui = {
   appendUser(text) {
-    empty?.remove();
+    document.getElementById('empty')?.remove();
     addBubble('user', text);
   },
   startAssistant() {
@@ -40,11 +41,20 @@ const ui = {
   setBusy(isBusy) {
     input.disabled = isBusy;
     sendButton.disabled = isBusy;
+    newChatButton.disabled = isBusy;
     if (!isBusy) input.focus();
+  },
+  clear() {
+    current = null;
+    log.replaceChildren(emptyTemplate.cloneNode(true));
+    input.focus();
   },
 };
 
 const chat = createChatController({ ui, streamChat });
+
+// F-002 AC3: 새 대화
+newChatButton.addEventListener('click', () => chat.reset());
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();

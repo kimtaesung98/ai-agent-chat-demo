@@ -4,7 +4,7 @@
 > (진행 상태는 `/README.md` Progress Tracker에서 관리)
 
 이 폴더는 **HTTP 요청을 받아 검증하고, AI 제공자의 응답 조각을 SSE로 브라우저에 흘려보내는 일**과 정적 파일 제공을 담당합니다.  
-서버는 대화를 저장하지 않는 무상태 구조입니다 (SPEC.md ADR-004).
+서버는 대화를 저장하지 않는 무상태 구조입니다 (ARCHITECTURE.md ADR-004).
 
 ---
 
@@ -35,7 +35,8 @@ flowchart LR
     Router -->|"POST /api/chat"| Body[본문 읽기<br>1MB 제한]
     Body -->|"JSON"| Validate[validateChatRequest]
     Validate -->|"400 오류"| Browser
-    Validate -->|"messages[]"| Agent[[src/agent<br>provider.stream]]
+    Validate -->|"messages[]"| Trim[trimToRecentTurns<br>최근 20턴]
+    Trim -->|"messages[]"| Agent[[src/agent<br>provider.stream]]
     Agent -->|"delta · done"| SSE[SSE 쓰기]
     Agent -->|"ProviderError"| SSE
     SSE -->|"event: delta / done / error"| Browser
@@ -69,6 +70,7 @@ flowchart LR
 ### 필수 (Required)
 
 - 입력 검증 규칙은 `validate.js` 한 곳에서만 정의 (SPEC.md §7.2 ChatMessage 제약과 일치)
+- 맥락 길이 정책(최근 20턴)은 `context.js` 한 곳에서만 정의 (SPEC.md F-002 AC2)
 - SSE 이벤트 이름은 SPEC.md API-001과 일치 (`delta`, `done`, `error`)
 - 클라이언트 연결이 끊기면 제공자에 취소 신호 전달
 - 작업 완료 시 `/README.md` Progress Tracker 업데이트
