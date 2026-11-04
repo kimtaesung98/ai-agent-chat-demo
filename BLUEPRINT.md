@@ -18,6 +18,7 @@ flowchart TD
 
     subgraph Templates ["templates/ — 프레임워크가 제공하는 원본"]
         SPECT["SPEC_TEMPLATE.md"]
+        ARCHT["ARCHITECTURE_TEMPLATE.md"]
         TOPT["README_TEMPLATE_TOP.md"]
         SUBT["README_TEMPLATE_SUB.md"]
         CHKL["FOLDER_CHECKLIST.md"]
@@ -28,6 +29,7 @@ flowchart TD
 
     subgraph Project ["적용 프로젝트"]
         SPEC["SPEC.md<br>(무엇을 · 수용 기준)"]
+        ARCH["ARCHITECTURE.md<br>(스택 · 모듈 · ADR)"]
         RootREADME["README.md<br>(Level 0 DFD · Tracker)"]
         CLAUDE["CLAUDE.md<br>(세션 프로토콜)"]
         STATE["AGENT_STATE.md<br>(세션 인계)"]
@@ -35,6 +37,7 @@ flowchart TD
     end
 
     Developer -->|"① 명세 작성"| SPECT --> SPEC
+    Developer -->|"① 구조 결정"| ARCHT --> ARCH
     Developer -->|"② 템플릿 복사"| TOPT --> RootREADME
     CLT --> CLAUDE
     BOOT -->|"③ 최초 1회 초기화"| STATE
@@ -44,6 +47,7 @@ flowchart TD
     CLAUDE -->|"⑤ 자동 로딩"| AgentSession
     STATE -->|"⑥ 이어받기"| AgentSession
     SPEC -->|"⑦ 해당 F-ID 수용 기준"| AgentSession
+    ARCH -.->|"⑦ 의존성·모듈 변경 시 해당 절"| AgentSession
     FolderREADME -->|"⑧ DFD · Agent Control"| AgentSession
     AgentSession -->|"⑨ Tracker 갱신"| RootREADME
     AgentSession -->|"⑩ 세션 로그"| STATE
@@ -54,7 +58,9 @@ flowchart TD
 ## 목차
 
 1. [프레임워크 개요](#1-프레임워크-개요)
-2. [SPEC.md 명세 규칙](#2-specmd-명세-규칙)
+2. [명세 문서 규칙](#2-명세-문서-규칙)
+   - [2-1. SPEC.md](#2-1-specmd--무엇을-만드는가)
+   - [2-2. ARCHITECTURE.md](#2-2-architecturemd--무엇으로-어떤-구조로)
 3. [폴더 README 구조 명세](#3-폴더-readme-구조-명세)
 4. [DFD 작성 가이드](#4-dfd-작성-가이드)
    - [4-1. DFD 레벨링 규칙](#4-1-dfd-레벨링-규칙)
@@ -76,18 +82,21 @@ AI 에이전트는 단일 파일 수준에서는 탁월한 성능을 보이지�
 - 데이터 흐름을 오해해 의도치 않은 사이드 이펙트 발생
 - 이미 구현된 기능을 중복 구현하거나 미구현 기능을 건너뜀
 - 폴더별 아키텍처 원칙(Pure Function, 의존성 제한 등)을 무시
+- 아무 라이브러리나 추가하고, 이미 내린 기술 결정을 모르고 뒤집음
 
 ### 해결책
 
-Blueprint Framework는 정보를 **세 층으로 나누고, 각 정보를 한 곳에서만 정의**합니다.
+Blueprint Framework는 정보를 **네 층으로 나누고, 각 정보를 한 곳에서만 정의**합니다.
 
 | 층 | 질문 | 정의 위치 |
 |---|---|---|
 | 명세 | 무엇을 만드는가? 언제 완료인가? | 루트 `SPEC.md` |
+| 구조 | 무엇으로, 어떤 구조로 만드는가? 왜 그렇게 정했나? | 루트 `ARCHITECTURE.md` |
 | 진행 | 얼마나 됐는가? 다음은 무엇인가? | 소유자 `README.md` Progress Tracker · Next Roadmap |
-| 흐름 | 어떻게 흐르는가? 무엇이 금지인가? | 각 폴더 `README.md` DFD · Agent Control |
+| 흐름 | 폴더 안에서 어떻게 흐르는가? 무엇이 금지인가? | 각 폴더 `README.md` DFD · Agent Control |
 
-세 층은 **기능 ID(F-001)** 로 연결됩니다. 에이전트는 작업할 기능 ID를 기준으로 필요한 부분만 읽습니다.
+명세·진행·흐름은 **기능 ID(F-001)** 로, 구조는 **모듈 이름과 ADR ID**로 연결됩니다.  
+에이전트는 작업할 기능 ID를 기준으로 필요한 부분만 읽고, 의존성·모듈 구조를 바꿀 때만 ARCHITECTURE.md의 해당 절을 읽습니다.
 
 ### 프레임워크 구성 파일
 
@@ -97,6 +106,7 @@ Blueprint Framework는 정보를 **세 층으로 나누고, 각 정보를 한 �
 | `AGENT_STATE.md` | 현재 집중 작업·누적 요구사항·세션 로그 | 매 세션 시작 (CLAUDE.md 지시) |
 | 루트 `README.md` | Level 0 DFD · Progress Tracker · Roadmap | 매 세션 시작 |
 | `SPEC.md` | 기능 명세 · 수용 기준 | 작업할 **기능 ID 블록만** |
+| `ARCHITECTURE.md` | 기술 스택 · 모듈 경계 · 의존 규칙 · 배포 · ADR | 의존성·모듈·설정을 바꿀 때 **해당 절만** |
 | `[폴더]/README.md` | 폴더별 Context·DFD·Agent Control | 작업 대상 폴더 진입 시 |
 | `AGENT_BOOTSTRAP.md` | 최초 1회 초기화 지시 | **최초 1회 후 삭제** |
 | `BLUEPRINT.md` | 프레임워크 전체 명세 (이 파일) | **세션 중 읽지 않음** |
@@ -104,37 +114,87 @@ Blueprint Framework는 정보를 **세 층으로 나누고, 각 정보를 한 �
 
 ---
 
-## 2. SPEC.md 명세 규칙
+## 2. 명세 문서 규칙
 
-### 목적
+프로젝트 루트에는 두 개의 명세 문서가 있습니다. 둘 다 **사람이 결정하고, 에이전트는 읽고 제안**합니다.
+
+| 문서 | 다루는 것 | 다루지 않는 것 |
+|---|---|---|
+| `SPEC.md` | 기능, 사용자, 수용 기준, 화면, 데이터, API 계약, 비기능 요구사항 | 기술 선택, 모듈 구조 |
+| `ARCHITECTURE.md` | 기술 스택, 구성도, 모듈 맵·의존 규칙, 내부 인터페이스, 배포, 횡단 관심사, ADR | 기능 정의, 진행 상태 |
+
+---
+
+### 2-1. SPEC.md — 무엇을 만드는가
+
+#### 목적
 
 Progress Tracker의 Feature가 "이름"만 있으면 에이전트는 **언제 끝났는지** 판단할 수 없습니다.  
 `SPEC.md`는 기능마다 사용자 스토리와 **수용 기준(Acceptance Criteria)** 을 정의해 "완료"의 기준을 고정합니다.
 
 템플릿: `templates/SPEC_TEMPLATE.md` → 프로젝트 루트 `SPEC.md`
 
-### 기능 ID 규칙
+#### 기능 ID 규칙
 
 - 형식: `F-001`, `F-002`, … (3자리, 순차 증가)
 - **SPEC.md §4.1 기능 목록이 ID의 원천**입니다. 새 기능은 SPEC에 먼저 추가하고, Tracker에 같은 ID로 행을 추가합니다.
 - ID는 재사용하지 않습니다. 삭제된 기능의 ID는 비워 둡니다.
-- 화면(`S-001`), API(`API-001`), 결정(`ADR-001`), 리스크(`R-001`), 질문(`Q-001`)도 같은 방식으로 ID를 붙입니다.
+- 화면(`S-001`), API(`API-001`), 리스크(`R-001`), 질문(`Q-001`)도 같은 방식으로 ID를 붙입니다. 설계 결정(`ADR-001`)과 기술 부채(`TD-001`)는 ARCHITECTURE.md에서 붙입니다.
 
-### 중복 금지 규칙
+#### 중복 금지 규칙
 
 | 정보 | SPEC.md에 쓰는가? | 쓰는 곳 |
 |---|---|---|
 | 기능 정의 · 수용 기준 | ✅ | SPEC.md |
 | 진행 상태 (✅🔄⏳❌) | ❌ | 소유자 README Tracker |
-| 기술 스택 · 시스템 구성도 | ❌ (선택 이유인 ADR만) | 루트 README Tech Stack · Level 0 DFD |
+| 기술 스택 · 시스템 구성도 · 설계 결정(ADR) | ❌ | ARCHITECTURE.md §2 · §3 · §9 |
 | 다음 작업 순서 | ❌ (날짜 있는 마일스톤만) | 소유자 README Next Roadmap |
 | 모듈 내부 데이터 흐름 | ❌ (사용자 흐름만) | 폴더 README DFD |
 
-### 에이전트 사용 규칙
+#### 에이전트 사용 규칙
 
 - 세션마다 SPEC.md 전체를 읽지 않습니다. **작업할 기능 ID의 §4.2 블록**과 그 블록이 참조하는 항목만 읽습니다.
 - 명세가 모호하면 추측해서 구현하지 않고, SPEC.md §16 미결 사항에 질문을 추가한 뒤 사용자에게 묻습니다.
 - 수용 기준을 바꾸는 것은 **사용자의 결정**입니다. 에이전트는 변경을 제안만 합니다.
+
+---
+
+### 2-2. ARCHITECTURE.md — 무엇으로, 어떤 구조로
+
+#### 목적
+
+SPEC이 "무엇을"을 고정해도, 기술 선택과 모듈 경계가 문서로 없으면 에이전트는 세션마다 다른 라이브러리를 고르고  
+모듈 사이에 아무 방향으로나 import를 추가합니다. `ARCHITECTURE.md`는 **기술 스택, 모듈 경계, 의존 규칙, 그리고 그렇게 정한 이유(ADR)** 를 한 곳에 고정합니다.
+
+템플릿: `templates/ARCHITECTURE_TEMPLATE.md` → 프로젝트 루트 `ARCHITECTURE.md`
+
+#### DFD와 무엇이 다른가
+
+| | DFD (폴더 README) | ARCHITECTURE.md |
+|---|---|---|
+| 관점 | 데이터가 어디서 들어와 어디로 나가는가 | 구성 요소가 무엇이고 누가 누구에 의존하는가 |
+| 범위 | 폴더 하나 | 시스템 전체 |
+| 성격 | 동적 (흐름) | 정적 구조 + 핵심 런타임 시나리오 몇 개 |
+| 바뀌는 때 | 폴더 안 흐름이 바뀔 때 | 기술·모듈 경계·배포 방식이 바뀔 때 |
+
+#### 정보 소유 규칙
+
+| 정보 | 원본 | 다른 곳에서는 |
+|---|---|---|
+| 기술 스택 (이름·버전·상태) | ARCHITECTURE.md §2.1 | 루트 README Tech Stack은 **이름만 적은 요약 + 링크** (버전 금지) |
+| 허용·금지 라이브러리 | ARCHITECTURE.md §2.2 | 폴더 README Tech Stack은 이 목록 안에서 그 폴더가 쓰는 것만 |
+| 모듈 ↔ 폴더 · 의존 규칙 | ARCHITECTURE.md §3.2 · §3.3 | 폴더 README Agent Control은 규칙을 참조만 |
+| 모듈 ↔ 기능 ID | 루트 README Sub-folder Map | ARCHITECTURE.md에 쓰지 않음 |
+| 외부 API 요청/응답 형식 | SPEC.md §9 | ARCHITECTURE.md §4는 계약을 지키는 방법만 |
+| 설계 결정 (ADR) | ARCHITECTURE.md §9 | SPEC.md §8은 링크만 |
+
+#### 에이전트 사용 규칙
+
+- 세션마다 읽지 않습니다. 파일 머리의 **"이런 작업을 할 때 → 읽을 절"** 표에 해당하는 작업을 할 때만 그 절을 읽습니다.
+- §2.2 허용 목록에 없는 라이브러리는 추가하지 않고 사용자에게 제안합니다.
+- §3.3 의존 규칙을 어기는 import는 작성하지 않습니다. 필요하면 구조 변경을 제안합니다.
+- ADR은 에이전트가 **"제안" 상태로만** 추가할 수 있습니다. 승인·대체는 사용자의 결정입니다.
+- 기존 ADR과 다른 방식이 낫다고 판단되면, 코드를 바꾸기 전에 새 ADR을 제안합니다.
 
 ---
 
@@ -150,7 +210,7 @@ Progress Tracker와 Roadmap을 **소유**하는 폴더입니다.
 ```
 ## [시스템명] Overview         # 시스템 전체 책임 (1~2문장) + SPEC.md 링크
 ## DFD — Level 0 (Context)    # 시스템을 단일 버블로, 외부 액터만 표시
-## Tech Stack                  # 전체 스택 정의
+## Tech Stack                  # 스택 이름 요약 + ARCHITECTURE.md §2 링크
 ## Agent Control               # 전체 시스템 최상위 제약 (하위 상속)
 ## Sub-folder Map              # 하위 폴더 ↔ 기능 ID 매핑 테이블
 ## Progress Tracker            # ← 진행도 유일 정의 지점 (기능 ID 기준)
@@ -165,12 +225,13 @@ DFD로 구현 흐름을 상세화하는 폴더입니다. **Tracker·Roadmap 없�
 ## [폴더명] Overview           # 이 폴더의 책임 (1~2문장)
 ## Context — 상위 흐름과의 연결 # 담당 기능 ID + 입출력 명시
 ## DFD — Level N (레벨명)      # 상위 버블을 분해한 상세 흐름
-## Tech Stack                  # 상위에서 미명시된 추가 스택만
+## Tech Stack                  # 이 폴더가 쓰는 추가 라이브러리만 (ARCHITECTURE §2.2 허용 목록 안에서)
 ## Agent Control               # 상위 규칙 상속 + 이 폴더 추가 제약
 ```
 
 > ⚠️ 에이전트는 BLUEPRINT.md를 세션 중 읽지 않습니다.  
-> 세션 시작 시 `CLAUDE.md` → `AGENT_STATE.md` → 루트 `README.md` → (해당 기능의 `SPEC.md` 블록) → 작업 대상 폴더 `README.md` 순으로만 읽습니다.
+> 세션 시작 시 `CLAUDE.md` → `AGENT_STATE.md` → 루트 `README.md` → (해당 기능의 `SPEC.md` 블록) → 작업 대상 폴더 `README.md` 순으로만 읽습니다.  
+> `ARCHITECTURE.md`는 의존성·모듈·설정을 바꿀 때 해당 절만 읽습니다.
 
 ### README가 없는 폴더
 
@@ -432,8 +493,8 @@ flowchart LR
 
 ### 핵심 원칙
 
-> **"무엇을 만드나(What)"는 SPEC.md에서, "얼마나 됐나(Progress)"는 소유자 폴더에서만 정의하고,**  
-> **"어떻게 흐르는가(How)"는 하위로 내려갈수록 상세해진다.**
+> **"무엇을 만드나(What)"는 SPEC.md에서, "무엇으로·어떤 구조로(With)"는 ARCHITECTURE.md에서,**  
+> **"얼마나 됐나(Progress)"는 소유자 폴더에서만 정의하고, "어떻게 흐르는가(How)"는 하위로 내려갈수록 상세해진다.**
 
 Progress Tracker와 Roadmap은 **최상위 폴더(소유자)에만 존재**합니다.  
 하위 폴더는 상위의 정의를 참조하며, DFD를 통해 자신의 구현 흐름을 상세화합니다.
@@ -441,13 +502,14 @@ Progress Tracker와 Roadmap은 **최상위 폴더(소유자)에만 존재**합�
 ### 폴더 유형별 README 구성
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  📄 SPEC.md (루트)                                           │
-│     ✅ 기능 목록 (F-ID)        ← 기능 ID의 원천              │
-│     ✅ 수용 기준               ← "Done"의 정의               │
-└──────────────────┬──────────────────────────────────────────┘
-                   │  기능 ID로 연결
-┌──────────────────▼──────────────────────────────────────────┐
+┌──────────────────────────────┐  ┌───────────────────────────────┐
+│  📄 SPEC.md (루트)            │  │  📐 ARCHITECTURE.md (루트)     │
+│     ✅ 기능 목록 (F-ID)       │  │     ✅ 기술 스택 · 허용 목록   │
+│     ✅ 수용 기준 ← Done 정의  │  │     ✅ 모듈 맵 · 의존 규칙     │
+│     ✅ API 계약               │  │     ✅ 배포 · ADR              │
+└──────────────┬───────────────┘  └───────────────┬───────────────┘
+               │ 기능 ID로 연결                     │ 모듈 · ADR로 연결
+┌──────────────▼──────────────────────────────────▼───────────┐
 │  📁 최상위 폴더 (소유자) — Level 0                            │
 │     템플릿: README_TEMPLATE_TOP.md                           │
 │                                                             │
@@ -515,7 +577,8 @@ Level 2 DFD 업데이트 (새 노드 추가)
     → Level 1 DFD 업데이트 (버블의 입출력 화살표 반영)
         → Level 0 DFD 업데이트 (외부 시스템 노드 추가)
             → SPEC.md §10 외부 연동 표에 행 추가
-                → 최상위 Progress Tracker Notes에 의존성 기재
+                → ARCHITECTURE.md §2.1 스택 · §3.1 구성도 갱신 (+ 필요하면 ADR 제안)
+                    → 최상위 Progress Tracker Notes에 의존성 기재
 ```
 
 ---
@@ -573,8 +636,9 @@ flowchart LR
 ```
 
 ## Tech Stack
-- Node.js 20 / Express 4 / TypeScript 5
-- PostgreSQL 16, Redis 7
+> 버전·선택 이유·허용 라이브러리는 [`ARCHITECTURE.md`](./ARCHITECTURE.md) §2가 원본입니다.
+- Node.js · Express · TypeScript
+- PostgreSQL · Redis
 
 ## Agent Control
 ### 금지

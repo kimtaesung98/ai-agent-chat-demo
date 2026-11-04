@@ -25,8 +25,9 @@ AGENT_BOOTSTRAP.md 존재?
 | 질문 | 정의 위치 |
 |---|---|
 | 무엇을 만드나? 언제 완료인가? | `SPEC.md` (기능 ID · 수용 기준) |
+| 무엇으로, 어떤 구조로? 왜? | `ARCHITECTURE.md` (기술 스택 · 모듈 · 의존 규칙 · ADR) |
 | 얼마나 됐나? 다음은? | 루트 `README.md` Progress Tracker · Next Roadmap |
-| 어떻게 흐르나? 무엇이 금지인가? | 각 폴더 `README.md` DFD · Agent Control |
+| 폴더 안에서 어떻게 흐르나? 무엇이 금지인가? | 각 폴더 `README.md` DFD · Agent Control |
 | 지난 세션에서 무엇을 했나? | `AGENT_STATE.md` |
 
 ---
@@ -44,6 +45,12 @@ AGENT_BOOTSTRAP.md 존재?
 - SPEC.md에 없는 기능은 구현하지 않고 먼저 사용자에게 제안
 - 명세가 모호하면 추측하지 말고 SPEC.md §16 미결 사항에 기록 후 질문
 - 수용 기준을 모두 통과해야 `✅ Done`
+
+**구조** (`ARCHITECTURE.md` — 세션마다 읽지 않고, 아래 작업 때 해당 절만)
+- 라이브러리 추가·버전 변경 → §2 확인. **허용 목록에 없으면 추가하지 않고 제안**
+- 새 모듈·폴더, 다른 모듈 import → §3 모듈 맵·의존 규칙 확인. 규칙을 어기는 import 금지
+- 설정·환경변수·배포 변경 → §6 · 공통 처리(오류·로그·인증) 변경 → §7
+- 기존 ADR과 다른 방식이 필요하면 코드보다 먼저 §9에 "제안" ADR을 추가하고 사용자에게 묻는다
 
 **폴더 구조**
 - Progress Tracker · Roadmap은 **소유자(최상위) 폴더 README.md에만** 존재
@@ -70,7 +77,8 @@ AGENT_BOOTSTRAP.md 존재?
 <!-- 프로젝트마다 꼭 지켜야 할 규칙 3~7개만. 상세 규칙은 각 폴더 README.md Agent Control에 둡니다 -->
 
 - 실행: `npm start` (키 없으면 모의 모드) · 테스트: `npm test` (네트워크 없이 통과해야 함)
-- 외부 npm 패키지 추가 금지 — Node.js 22 기본 모듈만 (SPEC.md ADR-001)
+- 현재 Node MVP: 외부 npm 패키지 추가 금지 — 기본 모듈만 (ARCHITECTURE.md ADR-001)
+- 목표 스택은 Go 서버 + Flutter 클라이언트 (ADR-005·006). C/C++·cgo 사용 안 함 (ADR-007, 제안). Go·Flutter 코드는 ARCHITECTURE.md §10 단계가 SPEC.md에 등록된 뒤에만 작성
 - `ANTHROPIC_API_KEY`를 코드·로그·응답·테스트 픽스처에 넣지 않음
 - 테스트 이름에 기능 ID와 AC 번호 포함 (예: `F-001 AC3 ...`)
 - 테스트는 모의 제공자 또는 가짜 업스트림 서버로 작성, 실제 Claude API 호출 금지
@@ -83,5 +91,6 @@ AGENT_BOOTSTRAP.md 존재?
 |------|------|
 | `AGENT_STATE.md` | 현재 집중 작업 · 누적 요구사항 · 세션 로그 |
 | `SPEC.md` | 기능 명세 · 수용 기준 (기능 ID 블록 단위로 읽음) |
+| `ARCHITECTURE.md` | 기술 스택 · 모듈 구조 · ADR · 전환 계획 (작업 종류별로 해당 절만 읽음) |
 | `BLUEPRINT.md` | 프레임워크 전체 명세 (세션 중 읽지 않음) |
 | `CONTRIBUTING.md` | 상세 프로토콜 · DFD 드리프트 감지 · 팀 규칙 (세션 중 읽지 않음) |
