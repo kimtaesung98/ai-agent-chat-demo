@@ -5,7 +5,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v1.1 |
+| 문서 버전 | v1.2 |
 | 상태 | 승인됨 (MVP 범위) |
 | 작성자 | kimtaesung98 |
 | 최종 수정일 | 2026-11-04 |
@@ -109,6 +109,7 @@
 | F-006 | 도구 사용 (Tool use) | 에이전트가 정의된 도구(예: 시간 조회)를 호출 | P2 | Phase 2 |
 | F-007 | 대화 기록 저장 | 새로고침해도 대화가 남음 | P2 | Phase 2 |
 | F-008 | 사용자 로그인 | 사용자별 대화 분리 | P2 | Phase 3 |
+| F-009 | 서버 계약 테스트 | HTTP 수준 계약 테스트로 Node·Go 서버가 같은 API를 지키는지 검증 (ARCHITECTURE §10 단계 1) | P0 | 전환 |
 
 ### 4.2 기능 상세
 
@@ -156,6 +157,22 @@
   - [ ] AC2. Given 오류 메시지 표시, When "다시 시도" 클릭, Then 마지막 사용자 메시지로 다시 요청한다
   - [ ] AC3. Given 오류, Then API 키 등 비밀값이 화면·응답에 노출되지 않는다
 - **Owner Folder**: `/src/server`, `/src/agent`, `/public`
+
+#### F-009. 서버 계약 테스트
+- **사용자 스토리**: 개발자로서, 나는 서버를 Go로 바꿔도 화면이 보는 API가 그대로인지 같은 테스트로 확인하고 싶다. 왜냐하면 전환 중에 동작이 몰래 바뀌면 안 되기 때문이다.
+- **상세 동작**:
+  1. `server/contract`의 Go 테스트가 `-base-url`로 받은 서버에 실제 HTTP 요청을 보낸다.
+  2. 서버는 모의 모드로 떠 있어야 한다. 테스트는 `/api/config`로 모의 모드인지 먼저 확인하고, 아니면 실패한다 (실제 Claude 호출 방지).
+  3. `npm run test:contract`가 Node 서버를 모의 모드로 띄워 계약 테스트를 실행하고 서버를 내린다.
+- **수용 기준**:
+  - [ ] AC1. Given `server/contract`, Then API-001·API-002 계약(SSE 이벤트 이름·`data` 형식·순서, 오류 JSON 형식, 상태 코드 400·404·405)과 F-001 AC1·AC3·AC4·AC5, F-002 AC1·AC2를 HTTP 시나리오로 검사하는 테스트가 있고, 테스트 이름에 해당 기능 ID와 AC 번호가 들어 있다
+  - [ ] AC2. Given Node 서버, When `npm run test:contract` 실행, Then 계약 테스트가 모두 통과한다
+  - [ ] AC3. Given 모의 모드가 아닌 서버, When 계약 테스트 실행, Then `/api/config` 확인 뒤 채팅 요청을 보내기 전에 실패한다
+  - [ ] AC4. Given GitHub에 push 또는 PR, Then CI가 `npm test`와 계약 테스트를 실행한다
+  - [ ] AC5. Given 네트워크 없음, Then 계약 테스트는 외부 네트워크 없이 통과한다 (Go 표준 라이브러리만 사용)
+- **참고**: F-002 AC1·AC2는 모의 제공자가 답에 "이 대화의 N번째 질문"을 넣는 동작으로 확인한다. 이 문구는 모의 제공자 계약으로 보고 Go 모의 제공자도 똑같이 만든다.
+- **관련 항목**: API API-001, API-002 · ARCHITECTURE.md §4.1, ADR-012
+- **Owner Folder**: `/server`
 
 <!-- F-005 ~ F-008은 Phase 2 이후 착수 시 상세를 작성한다 -->
 
@@ -350,7 +367,7 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | Q-001 | 공개 배포 여부와 시점 | F-008 | kimtaesung98 | |
 | Q-002 | 기본 페르소나(시스템 프롬프트) 문구 | F-005 | kimtaesung98 | |
 | Q-003 | 호스팅 환경 (클라우드 컨테이너 / 사내 서버 등) | ARCHITECTURE §6 | kimtaesung98 | |
-| Q-004 | 남은 MVP 기능 F-003·F-004를 현재 Node MVP에서 먼저 만들지, Go + Flutter 전환(ARCHITECTURE §10) 뒤에 만들지 | F-003, F-004 | kimtaesung98 | |
+| Q-004 | 남은 MVP 기능 F-003·F-004를 현재 Node MVP에서 먼저 만들지, Go + Flutter 전환(ARCHITECTURE §10) 뒤에 만들지 | F-003, F-004 | kimtaesung98 | 전환 뒤에 만든다. F-003은 §10 단계 3(Flutter 웹)에서 구현. 음성 대화도 Flutter 전환 뒤에 만든다 (2026-11-04) |
 
 ---
 
@@ -371,3 +388,4 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 |---|---|---|---|
 | v1.0 | 2026-11-02 | kimtaesung98 | 최초 작성, MVP 범위 확정 |
 | v1.1 | 2026-11-04 | kimtaesung98 | ADR을 ARCHITECTURE.md로 이동, 목표 스택(Go + Flutter) 반영, 계약 테스트 추가, Q-003·Q-004 추가 |
+| v1.2 | 2026-11-04 | kimtaesung98 | F-009 서버 계약 테스트(전환 단계 1) 등록, Q-004 결정 기록 |

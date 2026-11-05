@@ -14,7 +14,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v1.0 |
+| 문서 버전 | v1.1 |
 | 상태 | 검토 중 — 현재 MVP 기록은 확정, 목표 아키텍처의 "제안" ADR은 승인 대기 |
 | 작성자 | kimtaesung98 |
 | 최종 수정일 | 2026-11-04 |
@@ -122,8 +122,8 @@
 | 빌드 | (없음) | `CGO_ENABLED=0 go build ./cmd/chatd` | `flutter build web` |
 | 테스트 | `npm test` | `go test ./...` | `flutter test` |
 | 정적 분석·포맷 | (없음) | `gofmt`, `go vet` | `dart format`, `flutter analyze` |
-| 계약 테스트 | — | `go test ./contract -base-url=…` (§4.1) | — |
-| CI | 없음 | GitHub Actions — 단계 1에서 도입 제안 | 같은 워크플로 |
+| 계약 테스트 | `npm run test:contract` (Node 서버를 모의 모드로 띄워 실행) | `go test ./contract -base-url=…` (§4.1) | — |
+| CI | GitHub Actions `.github/workflows/ci.yml` — `npm test` + 계약 테스트 (F-009) | 같은 워크플로에 `go test ./...` 추가 (단계 2) | 같은 워크플로 (단계 3) |
 
 ---
 
@@ -404,7 +404,7 @@ flowchart LR
 | ADR-009 | Flutter 웹은 `fetch_client`, 모바일·데스크톱은 `package:http` 기본 클라이언트 (조건부 import) | `package:http`만 사용, WebSocket, `EventSource` | `package:http`의 웹 클라이언트는 응답을 다 받은 뒤 한 번에 돌려줘 스트리밍이 안 됨 → F-001 실패. `fetch_client`는 Fetch API 기반으로 웹에서 스트리밍·취소 지원. WebSocket은 ADR-002와 충돌 | 제안 | 2026-11-04 |
 | ADR-010 | Flutter 상태 관리는 내장 `ChangeNotifier` | Riverpod, Bloc | 화면 1개 규모, 의존성 최소. 현재 `chat-controller.js` 구조(상태 + 화면 인터페이스 분리)를 그대로 옮길 수 있음. 화면이 늘어 상태가 복잡해지면 재검토 | 제안 | 2026-11-04 |
 | ADR-011 | 웹은 **같은 출처** 배포: Go 서버가 Flutter 웹 빌드를 정적 파일로 제공 | 웹을 CDN에 따로 배포 + CORS | CORS 설정 불필요, 배포 단위 1개. 모바일 앱은 `API_BASE_URL`로 같은 API 호출 | 제안 | 2026-11-04 |
-| ADR-012 | HTTP 수준 계약 테스트(`server/contract`)를 Go로 작성해 **Node·Go 서버 모두에** 실행 | 서버마다 따로 테스트, Node 테스트 재사용 | 전환 중 계약이 바뀌지 않았음을 같은 테스트로 증명. 기존 Node 테스트 시나리오(F-001·F-002 AC)를 옮김 | 제안 | 2026-11-04 |
+| ADR-012 | HTTP 수준 계약 테스트(`server/contract`)를 Go로 작성해 **Node·Go 서버 모두에** 실행 | 서버마다 따로 테스트, Node 테스트 재사용 | 전환 중 계약이 바뀌지 않았음을 같은 테스트로 증명. 기존 Node 테스트 시나리오(F-001·F-002 AC)를 옮김 | 승인 (사용자가 전환 1단계 착수 승인, 2026-11-04) | 2026-11-04 |
 | ADR-013 | Go 서버는 표준 라이브러리 우선 — `net/http` ServeMux 패턴 라우팅, `log/slog`, 웹 프레임워크 없음 | gin, echo, chi | 엔드포인트 2개 + 정적 파일, 표준 라우팅(메서드·경로 패턴)으로 충분. 원칙 5 | 제안 | 2026-11-04 |
 
 ---
@@ -412,7 +412,7 @@ flowchart LR
 ## 10. 진화 계획
 
 현재 Node MVP → 목표 Go + Flutter. **각 단계는 따로 배포 가능하고, 끝날 때마다 계약 테스트가 통과해야 합니다.**  
-단계를 실제로 시작할 때는 SPEC.md에 기능 ID로 등록하고 Tracker로 관리합니다 (아직 등록 전).
+단계를 실제로 시작할 때는 SPEC.md에 기능 ID로 등록하고 Tracker로 관리합니다. 단계 1 = F-009 (2026-11-04 등록).
 
 | 단계 | 내용 | 완료 기준 | 관련 ADR |
 |---|---|---|---|
@@ -422,7 +422,7 @@ flowchart LR
 | 4 | **Node MVP 제거** — `src/`, `public/`, `package.json`, Node 테스트 삭제 | 단계 1~3 완료 기준 유지, 루트 README·폴더 README·DFD를 새 구조로 갱신, ADR-001 "대체됨" | ADR-001 |
 | 5 | (선택) **모바일 빌드** — iOS·Android. **SPEC §1.4 비목표를 사용자가 바꾼 뒤에만** | 같은 코드로 빌드, `API_BASE_URL` 주입, 실제 기기에서 스트리밍 확인 | ADR-006 |
 
-**남은 MVP 기능(F-003·F-004)을 어디서 만들지**는 SPEC §16 Q-004에서 결정합니다.
+**남은 MVP 기능(F-003·F-004)과 음성 대화는 전환 뒤에 만듭니다** (SPEC §16 Q-004 결정). F-003은 단계 3에서 구현합니다.
 
 ```mermaid
 flowchart LR
@@ -454,3 +454,4 @@ flowchart LR
 | 버전 | 날짜 | 작성자 | 변경 내용 |
 |---|---|---|---|
 | v1.0 | 2026-11-04 | kimtaesung98 | 최초 작성 — 현재 Node MVP 기록, SPEC §8 ADR-001~004 이관, Go + Flutter 목표 아키텍처와 전환 계획 |
+| v1.1 | 2026-11-04 | kimtaesung98 | ADR-012 승인, §10 단계 1을 F-009로 등록, Q-004 결정 반영 |

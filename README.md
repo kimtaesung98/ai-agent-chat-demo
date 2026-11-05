@@ -13,6 +13,7 @@ API 키가 없으면 모의 모드로 동작해, 설치나 키 없이도 전체 
 npm start                                   # 모의 모드 (키 불필요)
 ANTHROPIC_API_KEY=sk-ant-... npm start      # 실제 Claude와 대화
 npm test                                    # 테스트
+npm run test:contract                       # 서버 계약 테스트 (Go 1.25 이상 필요)
 ```
 
 브라우저에서 `http://localhost:3000`을 엽니다. 외부 패키지가 없어서 `npm install`이 필요 없습니다 (Node.js 22 이상).
@@ -89,6 +90,7 @@ flowchart LR
 | `/src/server` | Level 1 | F-001 ~ F-004 | HTTP 서버, 입력 검증, SSE 응답 |
 | `/src/agent` | Level 1 | F-001, F-003, F-004 | AI 제공자 (Claude · 모의 모드) |
 | `/public` | Level 1 | F-001 ~ F-004 | 채팅 화면 (브라우저) |
+| `/server` | Level 1 | F-009 | 목표 Go 서버 자리. 지금은 HTTP 계약 테스트(`contract/`)만 |
 
 ---
 
@@ -106,10 +108,15 @@ flowchart LR
 | F-006 | 도구 사용 (Tool use) | ⏳ Pending | - | - | Phase 2 |
 | F-007 | 대화 기록 저장 | ⏳ Pending | - | - | Phase 2 |
 | F-008 | 사용자 로그인 | ⏳ Pending | - | - | Phase 3 |
+| F-009 | 서버 계약 테스트 (전환 단계 1) | ✅ Done | `/server` | 2026-11-04 | AC1~AC5 통과. 계약 시나리오 17개가 Node 서버에 통과, 모의 모드 아니면 실패, 표준 라이브러리만, GitHub Actions CI 초록 (PR #3) |
 
 ---
 
 ## Next Roadmap
 
-1. F-003 응답 중단 → `/public` (중단 버튼), `/src/server`·`/src/agent` (취소 전달은 구현됨)
-2. F-004 오류 처리와 재시도 → `/public` (다시 시도 버튼), `/src/agent` (오류 문구는 구현됨)
+<!-- SPEC §16 Q-004 결정 (2026-11-04): 남은 MVP 기능과 음성 대화는 Go + Flutter 전환 뒤에 만든다 -->
+
+1. ARCHITECTURE §10 단계 2 — Go 서버 (SPEC 등록 후) → `/server`
+2. ARCHITECTURE §10 단계 3 — Flutter 웹 클라이언트 + F-003 응답 중단 → `/app`
+3. 음성 대화 (SPEC 등록과 STT/TTS ADR 먼저) → `/app`
+4. F-004 오류 처리와 재시도 → 전환 뒤 `/server`, `/app`
