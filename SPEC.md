@@ -5,7 +5,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v1.2 |
+| 문서 버전 | v1.3 |
 | 상태 | 승인됨 (MVP 범위) |
 | 작성자 | kimtaesung98 |
 | 최종 수정일 | 2026-11-04 |
@@ -110,6 +110,7 @@
 | F-007 | 대화 기록 저장 | 새로고침해도 대화가 남음 | P2 | Phase 2 |
 | F-008 | 사용자 로그인 | 사용자별 대화 분리 | P2 | Phase 3 |
 | F-009 | 서버 계약 테스트 | HTTP 수준 계약 테스트로 Node·Go 서버가 같은 API를 지키는지 검증 (ARCHITECTURE §10 단계 1) | P0 | 전환 |
+| F-010 | Go 서버 | Node 서버와 같은 API를 Go로 구현 (ARCHITECTURE §10 단계 2) | P0 | 전환 |
 
 ### 4.2 기능 상세
 
@@ -172,6 +173,22 @@
   - [ ] AC5. Given 네트워크 없음, Then 계약 테스트는 외부 네트워크 없이 통과한다 (Go 표준 라이브러리만 사용)
 - **참고**: F-002 AC1·AC2는 모의 제공자가 답에 "이 대화의 N번째 질문"을 넣는 동작으로 확인한다. 이 문구는 모의 제공자 계약으로 보고 Go 모의 제공자도 똑같이 만든다.
 - **관련 항목**: API API-001, API-002 · ARCHITECTURE.md §4.1, ADR-012
+- **Owner Folder**: `/server`
+
+#### F-010. Go 서버
+- **사용자 스토리**: 운영자로서, 나는 지금 화면을 그대로 쓰면서 서버를 Go 단일 바이너리로 바꾸고 싶다. 왜냐하면 Flutter 클라이언트와 앞으로의 기능(음성 대화)을 Go 서버 위에 쌓기 위해서다.
+- **상세 동작**:
+  1. `server/cmd/chatd`가 환경변수(`PORT`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `STATIC_DIR`)를 읽고, 키가 없으면 모의 제공자, 있으면 Claude 제공자로 서버를 띄운다.
+  2. API-001·API-002, 입력 검증, 최근 20턴 정리, SSE 전송, 정적 파일 제공을 Node 서버와 같은 동작으로 처리한다.
+  3. 클라이언트가 연결을 끊으면 요청 `context`가 취소되고 Claude 요청도 멈춘다.
+- **수용 기준**:
+  - [ ] AC1. Given Go 서버를 모의 모드로 실행, When 계약 테스트(F-009) 실행, Then 모두 통과한다 (`npm run test:contract:go`)
+  - [ ] AC2. Given `server/`, When `go test ./...` 실행, Then 네트워크 없이 통과한다. Claude 제공자는 가짜 업스트림 서버로 테스트한다
+  - [ ] AC3. Given `STATIC_DIR=../public`로 Go 서버 실행, When 브라우저로 접속, Then 기존 채팅 화면(S-001)이 Go 서버로 동작한다
+  - [ ] AC4. Given 클라이언트가 스트리밍 중 연결을 끊음, Then 제공자에 취소가 전달되고 이후 이벤트를 쓰지 않는다
+  - [ ] AC5. Given 업스트림 오류(인증 실패, 과부하 등), Then SSE `error` 이벤트로 Node와 같은 사용자용 문장이 전달되고, 업스트림 원문·API 키는 응답과 로그에 나오지 않는다
+  - [ ] AC6. Given `CGO_ENABLED=0 go build ./cmd/chatd`, Then 빌드되고, ARCHITECTURE §3.3 의존 규칙을 검사하는 테스트가 통과한다
+- **관련 항목**: API API-001, API-002 · ARCHITECTURE.md §3.2·§3.3·§4.2·§6.3·§7, ADR-005·007·008·013
 - **Owner Folder**: `/server`
 
 <!-- F-005 ~ F-008은 Phase 2 이후 착수 시 상세를 작성한다 -->
@@ -389,3 +406,4 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | v1.0 | 2026-11-02 | kimtaesung98 | 최초 작성, MVP 범위 확정 |
 | v1.1 | 2026-11-04 | kimtaesung98 | ADR을 ARCHITECTURE.md로 이동, 목표 스택(Go + Flutter) 반영, 계약 테스트 추가, Q-003·Q-004 추가 |
 | v1.2 | 2026-11-04 | kimtaesung98 | F-009 서버 계약 테스트(전환 단계 1) 등록, Q-004 결정 기록 |
+| v1.3 | 2026-11-05 | kimtaesung98 | F-010 Go 서버(전환 단계 2) 등록 |

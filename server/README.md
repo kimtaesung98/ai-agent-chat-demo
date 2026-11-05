@@ -1,9 +1,10 @@
 # server — Overview
 
-> **담당 기능**: `SPEC.md`의 `F-009` (전환 단계 1). 단계 2에서 Go 서버가 이 폴더에 들어오면 F-001 ~ F-004 서버 부분을 넘겨받습니다.  
+> **담당 기능**: `SPEC.md`의 `F-009` (계약 테스트), `F-010` (Go 서버). 단계 4에서 Node 서버가 빠지면 F-001 ~ F-004 서버 부분을 모두 맡습니다.  
 > (진행 상태는 `/README.md` Progress Tracker에서 관리)
 
-이 폴더는 **목표 Go 서버의 자리**입니다. 지금은 Node·Go 서버에 똑같이 실행하는 **HTTP 계약 테스트**(`contract/`)만 있습니다 (ARCHITECTURE.md ADR-012).
+이 폴더는 **Go 서버 `chatd`** 와 Node·Go 서버에 똑같이 실행하는 **HTTP 계약 테스트**(`contract/`)를 담당합니다.  
+Go 서버는 Node 서버(`src/`)와 같은 API(SPEC.md §9)를 제공하며, 무상태입니다 (ARCHITECTURE.md ADR-004).
 
 ---
 
@@ -11,48 +12,67 @@
 
 ```
 루트(/) — Level 0 DFD
-└─ [AI Agent Chat] 버블 중 "브라우저와 주고받는" 경계 (API-001 · API-002)
-       │  입력: 계약 테스트가 보내는 HTTP 요청 (브라우저와 같은 형식)
+└─ [AI Agent Chat] 버블 (Go 서버로 구현한 경우)
+       │  입력: 브라우저의 HTTP 요청 (POST /api/chat 의 messages[], GET 정적 파일), 운영자의 환경변수
        ▼
 server — Level 1 DFD (아래 상세)
-       │  출력: 테스트 결과 (통과/실패). 시스템의 데이터 흐름은 바꾸지 않음
+       │  출력: SSE 스트림 (delta · done · error), 오류 JSON(400/404/405/413), 정적 파일, Claude API 요청
        ▼
-개발자 · CI
+방문자 브라우저 · Claude API
 ```
 
 ---
 
 ## DFD — Level 1 (Main Processes)
 
-> Decomposed from: `/` Level 0 — `AI Agent Chat` 버블 (방문자와 주고받는 경계를 검증)
+> Decomposed from: `/` Level 0 — `AI Agent Chat` 버블 (Go 서버 구현)
 
 ```mermaid
 flowchart LR
-    Dev([개발자 · CI]) -->|"npm run test:contract"| Runner[scripts/contract-node.js<br>Node 서버를 모의 모드로 실행]
-    Runner -->|"-base-url"| Contract[contract/<br>Go 계약 테스트]
-    Contract -->|"GET /api/config<br>모의 모드 확인"| Target[[대상 서버<br>Node 지금 · Go 단계 2]]
-    Contract -->|"POST /api/chat · 오류 요청"| Target
-    Target -->|"SSE delta · done<br>오류 JSON"| Contract
-    Contract -->|"PASS / FAIL"| Dev
+    Operator([운영자]) -->|"환경변수"| Config[config<br>Load]
+    Config -->|"키 유무 · 모델 · 포트 · STATIC_DIR"| Main[cmd/chatd<br>조립]
+    Main -->|"키 없음"| Mock[provider/mock]
+    Main -->|"키 있음"| Anthropic[provider/anthropic]
+    Browser([브라우저]) -->|"HTTP 요청"| HTTP[httpapi<br>라우팅 · 로그]
+    HTTP -->|"GET /, /*.js, /*.css"| Static[정적 파일<br>os.Root]
+    HTTP -->|"POST /api/chat 본문<br>1MB 제한"| Chat[chat<br>ParseRequest · TrimToRecentTurns]
+    Chat -->|"400 오류"| HTTP
+    Chat -->|"messages[]"| Stream[[Provider.Stream<br>ctx]]
+    Stream --> Mock
+    Stream --> Anthropic
+    Anthropic -->|"SDK · stream"| Claude[[Claude API]]
+    Claude -->|"스트리밍 이벤트"| Anthropic
+    Mock -->|"Chunk"| SSE[SSE 쓰기<br>이벤트마다 flush]
+    Anthropic -->|"Chunk 또는 *provider.Error"| SSE
+    SSE -->|"event: delta / done / error"| Browser
+    Browser -.->|"연결 종료"| Cancel[r.Context 취소]
+    Cancel -.-> Stream
 ```
 
-| 파일 | 역할 |
+| 폴더 | 역할 |
 |---|---|
-| `go.mod` | Go 모듈 (`go 1.25`, 의존성 없음) |
-| `contract/doc.go` | 패키지 설명, 실행 방법 |
-| `contract/helpers_test.go` | `-base-url` 플래그, 모의 모드 확인, SSE 읽기, 계약 검사 도우미 |
-| `contract/contract_test.go` | F-001 · F-002 · API-001 · API-002 시나리오 |
+| `cmd/chatd` | 진입점: 설정 → 제공자 → HTTP 조립, 시작 로그(모드만), 종료 신호 처리 |
+| `internal/config` | 환경변수 읽기·검증 (잘못된 `PORT`면 기동 중단) |
+| `internal/chat` | 도메인: `Message`, 입력 검증, 최근 20턴 정리 (순수 함수) |
+| `internal/provider` | `Provider` 인터페이스, `Chunk`, 사용자용 오류(`Error`, `UserMessage`) |
+| `internal/provider/mock` | 모의 제공자 (Node와 같은 답 문구) |
+| `internal/provider/anthropic` | Claude 어댑터 (공식 Go SDK — 이 폴더에서만 import) |
+| `internal/httpapi` | 라우팅, 요청 파싱, SSE 쓰기, 정적 파일, 요청 로그(`log/slog` JSON) |
+| `internal/archtest` | ARCHITECTURE.md §3.3 의존 규칙 검사 테스트 |
+| `contract` | HTTP 계약 테스트 (Node·Go 서버 공통) |
 
-**실행**
-- Node 서버에 대해: `npm run test:contract` (루트에서, Go 1.25 이상 필요)
-- 이미 떠 있는 서버에 대해: `cd server && go test ./contract -count=1 -base-url=http://127.0.0.1:3000`
-- `-base-url`이 없으면 계약 테스트는 건너뜁니다 (`go test ./...`가 서버 없이도 통과)
+**실행** (`server/`에서, 키가 없으면 모의 모드)
+- `STATIC_DIR=../public go run ./cmd/chatd` → http://localhost:3000 에서 기존 채팅 화면
+- 테스트: `go test ./...` (네트워크 없음, Claude는 가짜 업스트림)
+- 계약 테스트 (루트에서): `npm run test:contract:go` (Go 서버) · `npm run test:contract` (Node 서버)
+- 빌드: `CGO_ENABLED=0 go build ./cmd/chatd`
 
 ---
 
 ## Tech Stack
 
-- Go 표준 라이브러리만: `testing`, `net/http`, `encoding/json`, `bufio` (ARCHITECTURE.md §2.2)
+- Go 표준 라이브러리 (`net/http`, `log/slog`, `iter`, `os.Root`)
+- `github.com/anthropics/anthropic-sdk-go/v2` — `internal/provider/anthropic`에서만 (ARCHITECTURE.md ADR-008)
 
 ---
 
@@ -64,17 +84,23 @@ flowchart LR
 ### 허용 (Allow)
 
 - 계약 테스트에 새 시나리오 추가 — SPEC.md §9 API 명세나 기능 수용 기준에 근거가 있을 때만
+- Claude 제공자 테스트는 `httptest` 가짜 업스트림으로 작성
 
 ### 금지 (Prohibit)
 
 - `contract/`에서 서버 내부 코드(Node `src/`, Go `internal/`)를 import하거나 호출 — HTTP로만 검사
 - 계약 테스트를 서버 하나에만 맞추기 (Node와 Go 모두 통과해야 하는 계약만 적음)
 - 모의 모드 확인을 건너뛰거나, 실제 Claude API를 부르는 서버에 계약 테스트 실행
-- 표준 라이브러리 밖의 Go 모듈 추가 (단계 2의 `anthropic-sdk-go`는 `internal/provider/anthropic`에서만, ADR-008 승인 후)
+- `httpapi`에서 `provider/mock`·`provider/anthropic` import (조립은 `cmd/chatd`)
+- SDK를 `internal/provider/anthropic` 밖에서 import, 웹 프레임워크(gin·echo·chi 등), cgo
+- SDK 오류의 `Error()` 원문(요청 URL·응답 본문 포함)을 응답이나 로그에 쓰기 — 코드·상태만 기록
+- 메시지 본문·API 키를 로그에 기록
 
 ### 필수 (Required)
 
 - 작업 완료 시 `/README.md` Progress Tracker 업데이트
 - 이 폴더 내 구조 변경 시 위 DFD와 상위 DFD 동시 업데이트
+- 새 패키지를 만들면 ARCHITECTURE.md §3.2·§3.3과 `internal/archtest`의 허용 표를 함께 고침
 - 계약을 바꾸면 SPEC.md §9와 ARCHITECTURE.md §4.1을 먼저 고치고 사용자 승인을 받음
-- 푸시 전 `gofmt -l .`가 비어 있고 `go vet ./...`가 통과해야 함
+- 사용자용 오류 문장·모의 응답 문구를 바꾸면 Node(`src/`)도 같이 바꿈 (계약 테스트로 확인)
+- 푸시 전 `gofmt -l .`가 비어 있고 `go vet ./...` · `go test ./...`가 통과해야 함
