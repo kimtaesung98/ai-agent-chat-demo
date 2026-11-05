@@ -119,7 +119,7 @@ flowchart LR
 | F-007 | 대화 기록 저장 | ⏳ Pending | - | - | Phase 2 |
 | F-008 | 사용자 로그인 | ⏳ Pending | - | - | Phase 3 |
 | F-009 | 서버 계약 테스트 (전환 단계 1) | ✅ Done | `/server` | 2026-11-04 | AC1~AC5 통과. 계약 시나리오 17개가 Node 서버에 통과, 모의 모드 아니면 실패, 표준 라이브러리만, GitHub Actions CI 초록 (PR #3) |
-| F-010 | Go 서버 (전환 단계 2) | 🔄 In Progress | `/server` | 2026-11-05 | AC1~AC6 로컬 확인: 계약 테스트 Go 서버 통과, `go test ./...` 통과, 기존 화면이 Go 서버로 동작(브라우저 확인), 취소·오류 처리·의존 규칙 테스트. CI 첫 실행 확인 필요 |
+| F-010 | Go 서버 (전환 단계 2) | ✅ Done | `/server` | 2026-11-05 | AC1~AC6 통과: 계약 테스트 Go 서버 통과, `go test ./...` 통과, 기존 화면이 Go 서버로 동작(브라우저 확인), 취소·오류 처리·의존 규칙 테스트, CI 초록 (PR #4). 실제 키로 Claude 모드 수동 확인은 남음 |
 
 ---
 
@@ -127,7 +127,6 @@ flowchart LR
 
 <!-- SPEC §16 Q-004 결정 (2026-11-04): 남은 MVP 기능과 음성 대화는 Go + Flutter 전환 뒤에 만든다 -->
 
-1. F-010 Go 서버 마무리 (CI 확인) → `/server`
-2. ARCHITECTURE §10 단계 3 — Flutter 웹 클라이언트 + F-003 응답 중단 → `/app`
-3. 음성 대화 (SPEC 등록과 STT/TTS ADR 먼저) → `/app`
-4. F-004 오류 처리와 재시도 → 전환 뒤 `/server`, `/app`
+1. ARCHITECTURE §10 단계 3 — Flutter 웹 클라이언트 + F-003 응답 중단 → `/app`
+2. 음성 대화 (SPEC 등록과 STT/TTS ADR 먼저) → `/app`
+3. F-004 오류 처리와 재시도 → 전환 뒤 `/server`, `/app`
