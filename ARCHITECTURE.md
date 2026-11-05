@@ -14,7 +14,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v1.1 |
+| 문서 버전 | v1.2 |
 | 상태 | 검토 중 — 현재 MVP 기록은 확정, 목표 아키텍처의 "제안" ADR은 승인 대기 |
 | 작성자 | kimtaesung98 |
 | 최종 수정일 | 2026-11-04 |
@@ -82,8 +82,8 @@
 |---|---|---|---|---|
 | 서버 (현재) | Node.js — `node:http`, 전역 `fetch`, `node:test` | 22 이상 | 사용 중 → §10 단계 4에서 폐기 | ADR-001 |
 | 클라이언트 (현재) | HTML · CSS · JavaScript (ES Modules) | — | 사용 중 → §10 단계 3에서 폐기 | ADR-001 |
-| 서버 (목표) | Go — `net/http`, `log/slog`, `context`, `iter` | 1.27 (최소 1.25) | 목표 | ADR-005, ADR-013 |
-| Claude 연동 (목표) | `github.com/anthropics/anthropic-sdk-go/v2` | v2 (Go 1.25 이상 필요) | 목표 | ADR-008 |
+| 서버 (목표) | Go — `net/http`, `log/slog`, `context`, `iter`, `os.Root` | `go.mod`: 1.25 (최신 stable 권장) | 구현됨 (F-010) — 단계 3에서 기본 서버가 됨 | ADR-005, ADR-013 |
+| Claude 연동 (목표) | `github.com/anthropics/anthropic-sdk-go/v2` | v2.6.0 (`go.mod`로 고정, Go 1.25 이상) | 구현됨 (F-010) | ADR-008 |
 | 클라이언트 (목표) | Flutter · Dart | Flutter 3.47 이상 stable (번들 Dart) — 단계 3 착수 시 최신 stable로 고정 | 목표 | ADR-006 |
 | HTTP·스트리밍 (목표) | `package:http` + 웹 전용 `fetch_client` | http 1.x · fetch_client 1.2 | 목표 | ADR-009 |
 | 상태 관리 (목표) | Flutter 내장 `ChangeNotifier` | Flutter 번들 | 목표 | ADR-010 |
@@ -118,12 +118,12 @@
 
 | 용도 | 현재 (Node) | 목표 (Go) | 목표 (Flutter) |
 |---|---|---|---|
-| 실행 | `npm start` | `go run ./cmd/chatd` | `flutter run -d chrome` |
+| 실행 | `npm start` | `STATIC_DIR=../public go run ./cmd/chatd` (`server/`에서) | `flutter run -d chrome` |
 | 빌드 | (없음) | `CGO_ENABLED=0 go build ./cmd/chatd` | `flutter build web` |
 | 테스트 | `npm test` | `go test ./...` | `flutter test` |
 | 정적 분석·포맷 | (없음) | `gofmt`, `go vet` | `dart format`, `flutter analyze` |
 | 계약 테스트 | `npm run test:contract` (Node 서버를 모의 모드로 띄워 실행) | `go test ./contract -base-url=…` (§4.1) | — |
-| CI | GitHub Actions `.github/workflows/ci.yml` — `npm test` + 계약 테스트 (F-009) | 같은 워크플로에 `go test ./...` 추가 (단계 2) | 같은 워크플로 (단계 3) |
+| CI | GitHub Actions `.github/workflows/ci.yml` — `npm test` + 계약 테스트 (F-009) | 같은 워크플로: `gofmt`·`go vet`·`go test ./...`·정적 빌드·Go 서버 계약 테스트 (F-010) | 같은 워크플로 (단계 3) |
 
 ---
 
@@ -180,6 +180,7 @@ flowchart LR
 | provider/mock | `/server/internal/provider/mock` | 모의 제공자 | provider, chat | `src/agent/mock.js` |
 | httpapi | `/server/internal/httpapi` | 라우팅, 요청 파싱, SSE 쓰기, 정적 파일 | chat, provider | `src/server/app.js` |
 | contract | `/server/contract` | HTTP 수준 계약 테스트 (어느 서버에나 실행) | (표준 라이브러리만) | `tests/server.test.js` 일부 |
+| archtest | `/server/internal/archtest` | §3.3 의존 규칙 검사 테스트 (모듈 맵에 없는 패키지도 실패) | (표준 라이브러리만) | — |
 | app/api | `/app/lib/api` | `/api/chat` 호출, SSE 파싱 (웹·모바일 클라이언트 분기) | (없음) | `public/chat-client.js` |
 | app/chat | `/app/lib/chat` | `ChatController` (`ChangeNotifier`): 내역·바쁨 상태 | api | `public/chat-controller.js` |
 | app/ui | `/app/lib/ui` | 위젯: 대화 목록, 입력창, 모드 배지 | chat | `public/app.js`, `index.html` |
@@ -214,7 +215,7 @@ flowchart TD
 - Flutter `api`는 `chat`·`ui`를 import하지 않는다
 - 앱과 서버는 코드를 공유하지 않는다 — HTTP 계약으로만 연결
 - 현재 Node: `src/agent`는 `src/server`를 import하지 않는다, `public/`은 서버 코드를 import하지 않는다
-- 검사 방법: Go는 `go vet` + import 검사 테스트(단계 2에서 추가), Flutter는 `flutter analyze` + import 검사 테스트(단계 3에서 추가)
+- 검사 방법: Go는 `go vet` + import 검사 테스트(`internal/archtest`, F-010), Flutter는 `flutter analyze` + import 검사 테스트(단계 3에서 추가)
 
 ---
 
@@ -399,20 +400,20 @@ flowchart LR
 | ADR-004 | 대화 내역은 클라이언트가 보관하고 매 요청마다 전송, 서버는 무상태 | 서버 세션 저장 | MVP 단순화, 수평 확장 쉬움. F-007(기록 저장) 착수 시 재검토 | 승인 | 2026-11-02 |
 | ADR-005 | 목표 서버 언어는 **Go** | C++ (Drogon · Boost.Beast), Node 유지 | 사용자 선호 언어. goroutine과 `context`로 스트림 중계·취소가 자연스러움. 정적 단일 바이너리 배포. 공식 Anthropic Go SDK 존재 | 승인 (사용자 선호, 2026-11-04) | 2026-11-04 |
 | ADR-006 | 목표 클라이언트는 **Flutter** — 웹 우선, 같은 코드로 iOS·Android | 현재 HTML/JS 유지, React | 사용자 선호. 한 코드베이스로 웹·모바일 지원. 단, SPEC §1.4 비목표에 "모바일 앱은 만들지 않는다"가 있으므로 모바일 빌드(§10 단계 5)는 SPEC 변경 후에만 | 승인 (사용자 선호, 2026-11-04) | 2026-11-04 |
-| ADR-007 | **C/C++는 사용하지 않음**, Go는 `CGO_ENABLED=0`으로 빌드 | 서버 일부를 C++로, cgo 확장 | 병목은 AI API 대기(I/O)라 C/C++의 성능 이점이 없음. 네트워크에 노출되는 서버에서 메모리 안전성 위험만 늘어남. 정적 빌드가 깨짐. 기기 내 처리(로컬 오디오·토크나이저 등)가 필요해지면 Flutter의 Dart FFI 플러그인으로 재검토 | 제안 | 2026-11-04 |
-| ADR-008 | Claude 호출은 공식 Go SDK `anthropic-sdk-go/v2`를 `provider/anthropic` 어댑터 안에서만 사용 | `net/http`로 직접 구현 (Node MVP 방식) | 공식 유지보수, 타입과 재시도 지원, 스트리밍 API(`Messages.NewStreaming`) 제공. 어댑터로 격리해 SDK 메이저 변경 영향을 한 폴더로 제한 | 제안 | 2026-11-04 |
+| ADR-007 | **C/C++는 사용하지 않음**, Go는 `CGO_ENABLED=0`으로 빌드 | 서버 일부를 C++로, cgo 확장 | 병목은 AI API 대기(I/O)라 C/C++의 성능 이점이 없음. 네트워크에 노출되는 서버에서 메모리 안전성 위험만 늘어남. 정적 빌드가 깨짐. 기기 내 처리(로컬 오디오·토크나이저 등)가 필요해지면 Flutter의 Dart FFI 플러그인으로 재검토 | 승인 (사용자, 2026-11-05) | 2026-11-04 |
+| ADR-008 | Claude 호출은 공식 Go SDK `anthropic-sdk-go/v2`를 `provider/anthropic` 어댑터 안에서만 사용 | `net/http`로 직접 구현 (Node MVP 방식) | 공식 유지보수, 타입과 재시도 지원, 스트리밍 API(`Messages.NewStreaming`) 제공. 어댑터로 격리해 SDK 메이저 변경 영향을 한 폴더로 제한 | 승인 (사용자, 2026-11-05) | 2026-11-04 |
 | ADR-009 | Flutter 웹은 `fetch_client`, 모바일·데스크톱은 `package:http` 기본 클라이언트 (조건부 import) | `package:http`만 사용, WebSocket, `EventSource` | `package:http`의 웹 클라이언트는 응답을 다 받은 뒤 한 번에 돌려줘 스트리밍이 안 됨 → F-001 실패. `fetch_client`는 Fetch API 기반으로 웹에서 스트리밍·취소 지원. WebSocket은 ADR-002와 충돌 | 제안 | 2026-11-04 |
 | ADR-010 | Flutter 상태 관리는 내장 `ChangeNotifier` | Riverpod, Bloc | 화면 1개 규모, 의존성 최소. 현재 `chat-controller.js` 구조(상태 + 화면 인터페이스 분리)를 그대로 옮길 수 있음. 화면이 늘어 상태가 복잡해지면 재검토 | 제안 | 2026-11-04 |
 | ADR-011 | 웹은 **같은 출처** 배포: Go 서버가 Flutter 웹 빌드를 정적 파일로 제공 | 웹을 CDN에 따로 배포 + CORS | CORS 설정 불필요, 배포 단위 1개. 모바일 앱은 `API_BASE_URL`로 같은 API 호출 | 제안 | 2026-11-04 |
 | ADR-012 | HTTP 수준 계약 테스트(`server/contract`)를 Go로 작성해 **Node·Go 서버 모두에** 실행 | 서버마다 따로 테스트, Node 테스트 재사용 | 전환 중 계약이 바뀌지 않았음을 같은 테스트로 증명. 기존 Node 테스트 시나리오(F-001·F-002 AC)를 옮김 | 승인 (사용자가 전환 1단계 착수 승인, 2026-11-04) | 2026-11-04 |
-| ADR-013 | Go 서버는 표준 라이브러리 우선 — `net/http` ServeMux 패턴 라우팅, `log/slog`, 웹 프레임워크 없음 | gin, echo, chi | 엔드포인트 2개 + 정적 파일, 표준 라우팅(메서드·경로 패턴)으로 충분. 원칙 5 | 제안 | 2026-11-04 |
+| ADR-013 | Go 서버는 표준 라이브러리 우선 — `net/http` ServeMux 패턴 라우팅, `log/slog`, 웹 프레임워크 없음 | gin, echo, chi | 엔드포인트 2개 + 정적 파일, 표준 라우팅(메서드·경로 패턴)으로 충분. 원칙 5 | 승인 (사용자, 2026-11-05) | 2026-11-04 |
 
 ---
 
 ## 10. 진화 계획
 
 현재 Node MVP → 목표 Go + Flutter. **각 단계는 따로 배포 가능하고, 끝날 때마다 계약 테스트가 통과해야 합니다.**  
-단계를 실제로 시작할 때는 SPEC.md에 기능 ID로 등록하고 Tracker로 관리합니다. 단계 1 = F-009 (2026-11-04 등록).
+단계를 실제로 시작할 때는 SPEC.md에 기능 ID로 등록하고 Tracker로 관리합니다. 단계 1 = F-009 (2026-11-04 등록), 단계 2 = F-010 (2026-11-05 등록).
 
 | 단계 | 내용 | 완료 기준 | 관련 ADR |
 |---|---|---|---|
@@ -446,6 +447,9 @@ flowchart LR
 | R-A03 | Flutter 웹 접근성은 Semantics를 명시해야 함 | SPEC §5 접근성 미충족 | 응답 영역 `Semantics(liveRegion: true)`, 단계 3에서 스크린 리더 확인 |
 | R-A04 | Anthropic Go SDK 메이저 버전 변경 | 어댑터 수정 필요 | ADR-008 어댑터 격리, 버전 고정 |
 | R-A05 | 리버스 프록시가 SSE를 버퍼링 | 스트리밍이 한 번에 몰려 옴 | `X-Accel-Buffering: no`, 호스팅 결정(Q-003) 시 프록시 설정 확인 |
+| TD-003 | 입력 검증·턴 정리·모의 응답·사용자용 오류 문장이 Node(`src/`)와 Go(`server/internal`)에 두 벌 존재 | 한쪽만 고치면 서버마다 동작이 다름 | 계약 테스트(F-009)로 두 서버를 같이 검사, 단계 4에서 Node 제거 |
+| R-A06 | Go SDK v2가 끌고 오는 간접 의존성 16개 (`tidwall/gjson`·`sjson`, OpenTelemetry API, `invopop/jsonschema`, `go.yaml.in/yaml/v4` RC, `golang.org/x/sync` 등) | 공급망·업데이트 부담, 바이너리 크기 | 직접 의존은 SDK 하나, `go.sum`으로 고정. SDK 업데이트 때 `go mod tidy` 결과 검토. OpenTelemetry는 설정하지 않으면 no-op |
+| R-A07 | Claude 제공자는 가짜 업스트림으로만 자동 테스트 (실제 API 호출 금지) | 실제 API와의 차이를 놓칠 수 있음 | 실제 키로 수동 확인(운영자), SDK 버전 고정 |
 
 ---
 
@@ -455,3 +459,4 @@ flowchart LR
 |---|---|---|---|
 | v1.0 | 2026-11-04 | kimtaesung98 | 최초 작성 — 현재 Node MVP 기록, SPEC §8 ADR-001~004 이관, Go + Flutter 목표 아키텍처와 전환 계획 |
 | v1.1 | 2026-11-04 | kimtaesung98 | ADR-012 승인, §10 단계 1을 F-009로 등록, Q-004 결정 반영 |
+| v1.2 | 2026-11-05 | kimtaesung98 | ADR-007·008·013 승인, §10 단계 2를 F-010으로 등록 |

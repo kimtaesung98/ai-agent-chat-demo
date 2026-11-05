@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node src/server/index.js",
     "test": "node --test \"tests/**/*.test.js\"",
-    "test:contract": "node scripts/contract-node.js"
+    "test:contract": "node scripts/contract.js",
+    "test:contract:go": "node scripts/contract.js --go"
   }
 }

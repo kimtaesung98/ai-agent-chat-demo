@@ -13,7 +13,16 @@ API 키가 없으면 모의 모드로 동작해, 설치나 키 없이도 전체 
 npm start                                   # 모의 모드 (키 불필요)
 ANTHROPIC_API_KEY=sk-ant-... npm start      # 실제 Claude와 대화
 npm test                                    # 테스트
-npm run test:contract                       # 서버 계약 테스트 (Go 1.25 이상 필요)
+npm run test:contract                       # 서버 계약 테스트 — Node 서버 (Go 1.25 이상 필요)
+npm run test:contract:go                    # 서버 계약 테스트 — Go 서버
+```
+
+**Go 서버로 실행** (같은 화면, 같은 API — `server/README.md`)
+
+```bash
+cd server
+STATIC_DIR=../public go run ./cmd/chatd     # 모의 모드
+go test ./...                               # Go 테스트 (네트워크 없음)
 ```
 
 브라우저에서 `http://localhost:3000`을 엽니다. 외부 패키지가 없어서 `npm install`이 필요 없습니다 (Node.js 22 이상).
@@ -23,6 +32,7 @@ npm run test:contract                       # 서버 계약 테스트 (Go 1.25 �
 | `PORT` | `3000` | 서버 포트 |
 | `ANTHROPIC_API_KEY` | (없음) | 있으면 Claude 모드, 없으면 모의 모드 |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Claude 모드에서 쓸 모델 |
+| `STATIC_DIR` | `./web` | Go 서버만: 화면 파일 폴더 (지금은 `../public`) |
 
 ---
 
@@ -90,7 +100,7 @@ flowchart LR
 | `/src/server` | Level 1 | F-001 ~ F-004 | HTTP 서버, 입력 검증, SSE 응답 |
 | `/src/agent` | Level 1 | F-001, F-003, F-004 | AI 제공자 (Claude · 모의 모드) |
 | `/public` | Level 1 | F-001 ~ F-004 | 채팅 화면 (브라우저) |
-| `/server` | Level 1 | F-009 | 목표 Go 서버 자리. 지금은 HTTP 계약 테스트(`contract/`)만 |
+| `/server` | Level 1 | F-009, F-010 | Go 서버 `chatd` (Node와 같은 API) · HTTP 계약 테스트(`contract/`) |
 
 ---
 
@@ -109,6 +119,7 @@ flowchart LR
 | F-007 | 대화 기록 저장 | ⏳ Pending | - | - | Phase 2 |
 | F-008 | 사용자 로그인 | ⏳ Pending | - | - | Phase 3 |
 | F-009 | 서버 계약 테스트 (전환 단계 1) | ✅ Done | `/server` | 2026-11-04 | AC1~AC5 통과. 계약 시나리오 17개가 Node 서버에 통과, 모의 모드 아니면 실패, 표준 라이브러리만, GitHub Actions CI 초록 (PR #3) |
+| F-010 | Go 서버 (전환 단계 2) | ✅ Done | `/server` | 2026-11-05 | AC1~AC6 통과: 계약 테스트 Go 서버 통과, `go test ./...` 통과, 기존 화면이 Go 서버로 동작(브라우저 확인), 취소·오류 처리·의존 규칙 테스트, CI 초록 (PR #4). 실제 키로 Claude 모드 수동 확인은 남음 |
 
 ---
 
@@ -116,7 +127,6 @@ flowchart LR
 
 <!-- SPEC §16 Q-004 결정 (2026-11-04): 남은 MVP 기능과 음성 대화는 Go + Flutter 전환 뒤에 만든다 -->
 
-1. ARCHITECTURE §10 단계 2 — Go 서버 (SPEC 등록 후) → `/server`
-2. ARCHITECTURE §10 단계 3 — Flutter 웹 클라이언트 + F-003 응답 중단 → `/app`
-3. 음성 대화 (SPEC 등록과 STT/TTS ADR 먼저) → `/app`
-4. F-004 오류 처리와 재시도 → 전환 뒤 `/server`, `/app`
+1. ARCHITECTURE §10 단계 3 — Flutter 웹 클라이언트 + F-003 응답 중단 → `/app`
+2. 음성 대화 (SPEC 등록과 STT/TTS ADR 먼저) → `/app`
+3. F-004 오류 처리와 재시도 → 전환 뒤 `/server`, `/app`
