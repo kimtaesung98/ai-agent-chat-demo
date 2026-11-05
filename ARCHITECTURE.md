@@ -14,7 +14,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v1.2 |
+| 문서 버전 | v1.3 |
 | 상태 | 검토 중 — 현재 MVP 기록은 확정, 목표 아키텍처의 "제안" ADR은 승인 대기 |
 | 작성자 | kimtaesung98 |
 | 최종 수정일 | 2026-11-04 |
@@ -81,12 +81,12 @@
 | 영역 | 기술 | 버전 | 상태 | 근거 ADR |
 |---|---|---|---|---|
 | 서버 (현재) | Node.js — `node:http`, 전역 `fetch`, `node:test` | 22 이상 | 사용 중 → §10 단계 4에서 폐기 | ADR-001 |
-| 클라이언트 (현재) | HTML · CSS · JavaScript (ES Modules) | — | 사용 중 → §10 단계 3에서 폐기 | ADR-001 |
+| 클라이언트 (현재) | HTML · CSS · JavaScript (ES Modules) | — | 사용 중 (Node 서버용) → §10 단계 4에서 제거 | ADR-001 |
 | 서버 (목표) | Go — `net/http`, `log/slog`, `context`, `iter`, `os.Root` | `go.mod`: 1.25 (최신 stable 권장) | 구현됨 (F-010) — 단계 3에서 기본 서버가 됨 | ADR-005, ADR-013 |
 | Claude 연동 (목표) | `github.com/anthropics/anthropic-sdk-go/v2` | v2.6.0 (`go.mod`로 고정, Go 1.25 이상) | 구현됨 (F-010) | ADR-008 |
-| 클라이언트 (목표) | Flutter · Dart | Flutter 3.47 이상 stable (번들 Dart) — 단계 3 착수 시 최신 stable로 고정 | 목표 | ADR-006 |
-| HTTP·스트리밍 (목표) | `package:http` + 웹 전용 `fetch_client` | http 1.x · fetch_client 1.2 | 목표 | ADR-009 |
-| 상태 관리 (목표) | Flutter 내장 `ChangeNotifier` | Flutter 번들 | 목표 | ADR-010 |
+| 클라이언트 (목표) | Flutter · Dart | Flutter 3.47.9 stable (Dart 3.13.7) — CI에서 고정 | 구현됨 (F-011) | ADR-006 |
+| HTTP·스트리밍 (목표) | `package:http` (`AbortableRequest`로 중단) + 웹 전용 `fetch_client` (`RequestMode.cors`) | http 1.6 · fetch_client 1.2 (`pubspec.lock`) | 구현됨 (F-011) | ADR-009 |
+| 상태 관리 (목표) | Flutter 내장 `ChangeNotifier` | Flutter 번들 | 구현됨 (F-011) | ADR-010 |
 | 외부 서비스 | Claude Messages API (`stream: true`) | `anthropic-version: 2023-06-01` | 사용 중 | ADR-003 |
 | 기본 모델 | `claude-sonnet-5-5` (환경변수로 변경) | — | 사용 중 | — |
 | 데이터 저장 | 없음 (대화는 클라이언트 메모리) | — | F-007 착수 시 결정 | ADR-004 |
@@ -118,12 +118,12 @@
 
 | 용도 | 현재 (Node) | 목표 (Go) | 목표 (Flutter) |
 |---|---|---|---|
-| 실행 | `npm start` | `STATIC_DIR=../public go run ./cmd/chatd` (`server/`에서) | `flutter run -d chrome` |
-| 빌드 | (없음) | `CGO_ENABLED=0 go build ./cmd/chatd` | `flutter build web` |
+| 실행 | `npm start` | `STATIC_DIR=../app/build/web go run ./cmd/chatd` (`server/`에서, 기존 화면은 `../public`) | 웹 빌드를 Go 서버로 제공 (같은 출처) |
+| 빌드 | (없음) | `CGO_ENABLED=0 go build ./cmd/chatd` | `flutter build web --no-web-resources-cdn` (CanvasKit를 CDN 대신 빌드에 포함) |
 | 테스트 | `npm test` | `go test ./...` | `flutter test` |
 | 정적 분석·포맷 | (없음) | `gofmt`, `go vet` | `dart format`, `flutter analyze` |
 | 계약 테스트 | `npm run test:contract` (Node 서버를 모의 모드로 띄워 실행) | `go test ./contract -base-url=…` (§4.1) | — |
-| CI | GitHub Actions `.github/workflows/ci.yml` — `npm test` + 계약 테스트 (F-009) | 같은 워크플로: `gofmt`·`go vet`·`go test ./...`·정적 빌드·Go 서버 계약 테스트 (F-010) | 같은 워크플로 (단계 3) |
+| CI | GitHub Actions `.github/workflows/ci.yml` — `npm test` + 계약 테스트 (F-009) | 같은 워크플로: `gofmt`·`go vet`·`go test ./...`·정적 빌드·Go 서버 계약 테스트 (F-010) | `flutter` 작업: `flutter analyze` · `flutter test` · `flutter build web` (F-011) |
 
 ---
 
@@ -355,7 +355,7 @@ flowchart LR
 | `PORT` | N | `3000` | N | 서버 포트 | 둘 다 |
 | `ANTHROPIC_API_KEY` | N | (없음 → 모의 모드) | **Y** | Claude API 키 | 둘 다 |
 | `ANTHROPIC_MODEL` | N | `claude-sonnet-5-5` | N | 사용할 모델 | 둘 다 |
-| `STATIC_DIR` | N | `./web` | N | Flutter 웹 빌드 위치 | 목표 |
+| `STATIC_DIR` | N | `./web` | N | 정적 파일 위치 — Flutter 웹 빌드(`../app/build/web`) 또는 기존 화면(`../public`) | Go |
 | `API_BASE_URL` | N | (웹: 같은 출처) | N | 모바일 앱이 호출할 서버 주소 — **빌드 시** `--dart-define`으로 주입, 키는 절대 주입 금지 | 목표 (Flutter) |
 
 ---
@@ -402,9 +402,9 @@ flowchart LR
 | ADR-006 | 목표 클라이언트는 **Flutter** — 웹 우선, 같은 코드로 iOS·Android | 현재 HTML/JS 유지, React | 사용자 선호. 한 코드베이스로 웹·모바일 지원. 단, SPEC §1.4 비목표에 "모바일 앱은 만들지 않는다"가 있으므로 모바일 빌드(§10 단계 5)는 SPEC 변경 후에만 | 승인 (사용자 선호, 2026-11-04) | 2026-11-04 |
 | ADR-007 | **C/C++는 사용하지 않음**, Go는 `CGO_ENABLED=0`으로 빌드 | 서버 일부를 C++로, cgo 확장 | 병목은 AI API 대기(I/O)라 C/C++의 성능 이점이 없음. 네트워크에 노출되는 서버에서 메모리 안전성 위험만 늘어남. 정적 빌드가 깨짐. 기기 내 처리(로컬 오디오·토크나이저 등)가 필요해지면 Flutter의 Dart FFI 플러그인으로 재검토 | 승인 (사용자, 2026-11-05) | 2026-11-04 |
 | ADR-008 | Claude 호출은 공식 Go SDK `anthropic-sdk-go/v2`를 `provider/anthropic` 어댑터 안에서만 사용 | `net/http`로 직접 구현 (Node MVP 방식) | 공식 유지보수, 타입과 재시도 지원, 스트리밍 API(`Messages.NewStreaming`) 제공. 어댑터로 격리해 SDK 메이저 변경 영향을 한 폴더로 제한 | 승인 (사용자, 2026-11-05) | 2026-11-04 |
-| ADR-009 | Flutter 웹은 `fetch_client`, 모바일·데스크톱은 `package:http` 기본 클라이언트 (조건부 import) | `package:http`만 사용, WebSocket, `EventSource` | `package:http`의 웹 클라이언트는 응답을 다 받은 뒤 한 번에 돌려줘 스트리밍이 안 됨 → F-001 실패. `fetch_client`는 Fetch API 기반으로 웹에서 스트리밍·취소 지원. WebSocket은 ADR-002와 충돌 | 제안 | 2026-11-04 |
-| ADR-010 | Flutter 상태 관리는 내장 `ChangeNotifier` | Riverpod, Bloc | 화면 1개 규모, 의존성 최소. 현재 `chat-controller.js` 구조(상태 + 화면 인터페이스 분리)를 그대로 옮길 수 있음. 화면이 늘어 상태가 복잡해지면 재검토 | 제안 | 2026-11-04 |
-| ADR-011 | 웹은 **같은 출처** 배포: Go 서버가 Flutter 웹 빌드를 정적 파일로 제공 | 웹을 CDN에 따로 배포 + CORS | CORS 설정 불필요, 배포 단위 1개. 모바일 앱은 `API_BASE_URL`로 같은 API 호출 | 제안 | 2026-11-04 |
+| ADR-009 | Flutter 웹은 `fetch_client`, 모바일·데스크톱은 `package:http` 기본 클라이언트 (조건부 import) | `package:http`만 사용, WebSocket, `EventSource` | `package:http`의 웹 클라이언트는 응답을 다 받은 뒤 한 번에 돌려줘 스트리밍이 안 됨 → F-001 실패. `fetch_client`는 Fetch API 기반으로 웹에서 스트리밍·취소 지원. WebSocket은 ADR-002와 충돌 | 승인 (사용자, 2026-11-05) | 2026-11-04 |
+| ADR-010 | Flutter 상태 관리는 내장 `ChangeNotifier` | Riverpod, Bloc | 화면 1개 규모, 의존성 최소. 현재 `chat-controller.js` 구조(상태 + 화면 인터페이스 분리)를 그대로 옮길 수 있음. 화면이 늘어 상태가 복잡해지면 재검토 | 승인 (사용자, 2026-11-05) | 2026-11-04 |
+| ADR-011 | 웹은 **같은 출처** 배포: Go 서버가 Flutter 웹 빌드를 정적 파일로 제공 | 웹을 CDN에 따로 배포 + CORS | CORS 설정 불필요, 배포 단위 1개. 모바일 앱은 `API_BASE_URL`로 같은 API 호출 | 승인 (사용자, 2026-11-05) | 2026-11-04 |
 | ADR-012 | HTTP 수준 계약 테스트(`server/contract`)를 Go로 작성해 **Node·Go 서버 모두에** 실행 | 서버마다 따로 테스트, Node 테스트 재사용 | 전환 중 계약이 바뀌지 않았음을 같은 테스트로 증명. 기존 Node 테스트 시나리오(F-001·F-002 AC)를 옮김 | 승인 (사용자가 전환 1단계 착수 승인, 2026-11-04) | 2026-11-04 |
 | ADR-013 | Go 서버는 표준 라이브러리 우선 — `net/http` ServeMux 패턴 라우팅, `log/slog`, 웹 프레임워크 없음 | gin, echo, chi | 엔드포인트 2개 + 정적 파일, 표준 라우팅(메서드·경로 패턴)으로 충분. 원칙 5 | 승인 (사용자, 2026-11-05) | 2026-11-04 |
 
@@ -413,7 +413,7 @@ flowchart LR
 ## 10. 진화 계획
 
 현재 Node MVP → 목표 Go + Flutter. **각 단계는 따로 배포 가능하고, 끝날 때마다 계약 테스트가 통과해야 합니다.**  
-단계를 실제로 시작할 때는 SPEC.md에 기능 ID로 등록하고 Tracker로 관리합니다. 단계 1 = F-009 (2026-11-04 등록), 단계 2 = F-010 (2026-11-05 등록).
+단계를 실제로 시작할 때는 SPEC.md에 기능 ID로 등록하고 Tracker로 관리합니다. 단계 1 = F-009 (2026-11-04 등록), 단계 2 = F-010 (2026-11-05 등록), 단계 3 = F-011 (2026-11-05 등록).
 
 | 단계 | 내용 | 완료 기준 | 관련 ADR |
 |---|---|---|---|
@@ -450,6 +450,7 @@ flowchart LR
 | TD-003 | 입력 검증·턴 정리·모의 응답·사용자용 오류 문장이 Node(`src/`)와 Go(`server/internal`)에 두 벌 존재 | 한쪽만 고치면 서버마다 동작이 다름 | 계약 테스트(F-009)로 두 서버를 같이 검사, 단계 4에서 Node 제거 |
 | R-A06 | Go SDK v2가 끌고 오는 간접 의존성 16개 (`tidwall/gjson`·`sjson`, OpenTelemetry API, `invopop/jsonschema`, `go.yaml.in/yaml/v4` RC, `golang.org/x/sync` 등) | 공급망·업데이트 부담, 바이너리 크기 | 직접 의존은 SDK 하나, `go.sum`으로 고정. SDK 업데이트 때 `go mod tidy` 결과 검토. OpenTelemetry는 설정하지 않으면 no-op |
 | R-A07 | Claude 제공자는 가짜 업스트림으로만 자동 테스트 (실제 API 호출 금지) | 실제 API와의 차이를 놓칠 수 있음 | 실제 키로 수동 확인(운영자), SDK 버전 고정 |
+| R-A08 | Flutter 웹은 한글 글리프가 없어 브라우저가 실행 중에 `fonts.gstatic.com`에서 Noto Sans KR 조각을 받음 | 외부 요청(개인정보·오프라인 동작), 첫 글자 표시 지연 | 공개 배포(Q-001) 전에 한글 폰트를 앱 자산으로 포함할지 결정 — 제안 필요 |
 
 ---
 
@@ -460,3 +461,4 @@ flowchart LR
 | v1.0 | 2026-11-04 | kimtaesung98 | 최초 작성 — 현재 Node MVP 기록, SPEC §8 ADR-001~004 이관, Go + Flutter 목표 아키텍처와 전환 계획 |
 | v1.1 | 2026-11-04 | kimtaesung98 | ADR-012 승인, §10 단계 1을 F-009로 등록, Q-004 결정 반영 |
 | v1.2 | 2026-11-05 | kimtaesung98 | ADR-007·008·013 승인, §10 단계 2를 F-010으로 등록 |
+| v1.3 | 2026-11-05 | kimtaesung98 | ADR-009·010·011 승인, §10 단계 3을 F-011로 등록, Flutter 스택·도구·위험(R-A08) 반영 |

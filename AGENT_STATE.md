@@ -14,7 +14,7 @@
 
 | 기능 ID | 작업 내용 | 담당 폴더 | 이어받을 지점 |
 |---------|-----------|-----------|---------------|
-| (단계 3) | Flutter 웹 클라이언트 + F-003 | `/app` | SPEC 등록, ADR-009·010·011 사용자 승인 필요. Flutter SDK 설치 여부 확인 |
+| F-011 · F-003 | Flutter 웹 클라이언트 + 응답 중단 | `/app` | 구현·로컬 확인 완료. PR CI 초록이면 ✅. 다음: 음성 대화 — SPEC 등록 + STT/TTS ADR 제안부터 (Flutter 패키지는 §2.2 허용 목록 밖이라 사용자 승인 필요) |
 
 ---
 
@@ -80,6 +80,7 @@
 | 2026-11-04 | - | ARCHITECTURE.md 작성 (현재 Node MVP + 목표 Go·Flutter, ADR-001~013, 전환 5단계), SPEC ADR 이관, 프레임워크 v2.1 반영 | `ARCHITECTURE.md`, `SPEC.md`, `README.md`, `CLAUDE.md`, `templates/*` | Q-004 결정 전에는 F-003 착수 보류. 제안 ADR(007~013) 사용자 승인 대기 |
 | 2026-11-04 | F-009 | 사용자 계획 승인(전환 먼저, 음성은 Flutter 뒤). Q-004 결정 기록, ADR-012 승인. `server/contract` Go 계약 테스트 17개 시나리오, `npm run test:contract`, CI 워크플로 추가. Node 서버에 통과, 모의 모드 아니면 실패 확인 | `server/**`, `scripts/contract-node.js`, `.github/workflows/ci.yml`, `package.json`, `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `CLAUDE.md` | CI 초록 확인 후 ✅. ADR-007·008·013 등 나머지 제안 ADR은 단계 2 전에 사용자 승인 필요 |
 | 2026-11-05 | F-010 | 사용자 ADR-007·008·013 승인. Go 서버 구현(config·chat·provider·mock·anthropic(SDK v2.6.0)·httpapi·cmd/chatd), 의존 규칙 테스트, `npm run test:contract:go`, CI 확장. 계약 테스트 Node·Go 둘 다 통과, 브라우저로 기존 화면 확인 | `server/**`, `scripts/contract.js`(이름 변경), `.github/workflows/ci.yml`, `package.json`, `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `CLAUDE.md` | SDK v2는 `Authorization: Bearer`로 키 전송 — 실제 키로 Claude 모드 수동 확인 필요 (테스트는 가짜 업스트림) |
+| 2026-11-05 | F-011, F-003 | 사용자 ADR-009·010·011 승인. Flutter 3.47.9 설치, `app/` 구현(api·chat·ui), 중단 버튼, 위젯·단위·의존 규칙 테스트 33개, Go 서버가 Flutter 빌드 파일 형식 제공, CI에 flutter 작업 추가, 브라우저로 Go 서버 + Flutter 스트리밍 확인 | `app/**`, `server/internal/httpapi/*`, `.github/workflows/ci.yml`, `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `CLAUDE.md` | 한글 폰트를 gstatic에서 받음 (R-A08) — 공개 전 결정. `public/`·Node는 단계 4에서 제거 |
 
 ---
 

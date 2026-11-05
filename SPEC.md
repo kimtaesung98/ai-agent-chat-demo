@@ -5,7 +5,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v1.3 |
+| 문서 버전 | v1.4 |
 | 상태 | 승인됨 (MVP 범위) |
 | 작성자 | kimtaesung98 |
 | 최종 수정일 | 2026-11-04 |
@@ -111,6 +111,7 @@
 | F-008 | 사용자 로그인 | 사용자별 대화 분리 | P2 | Phase 3 |
 | F-009 | 서버 계약 테스트 | HTTP 수준 계약 테스트로 Node·Go 서버가 같은 API를 지키는지 검증 (ARCHITECTURE §10 단계 1) | P0 | 전환 |
 | F-010 | Go 서버 | Node 서버와 같은 API를 Go로 구현 (ARCHITECTURE §10 단계 2) | P0 | 전환 |
+| F-011 | Flutter 웹 클라이언트 | S-001 채팅 화면을 Flutter 웹으로 구현, Go 서버가 제공 (ARCHITECTURE §10 단계 3) | P0 | 전환 |
 
 ### 4.2 기능 상세
 
@@ -149,7 +150,7 @@
   - [ ] AC1. Given 응답 스트리밍 중, When "중단" 클릭, Then 화면 갱신이 즉시 멈추고 입력창이 활성화된다
   - [ ] AC2. Given 클라이언트 연결 종료, Then 서버는 AI 제공자 요청을 취소한다
   - [ ] AC3. Given 중단된 응답, Then 그때까지 받은 내용은 대화에 남고 "중단됨" 표시가 붙는다
-- **Owner Folder**: `/src/server`, `/src/agent`, `/public`
+- **Owner Folder**: `/app` (화면 — Q-004 결정에 따라 Flutter에서 구현), `/server` · `/src/server` (취소 전달은 구현됨)
 
 #### F-004. 오류 처리와 재시도
 - **사용자 스토리**: 방문자로서, 나는 오류가 나면 무엇이 잘못됐는지 알고 다시 시도하고 싶다.
@@ -190,6 +191,21 @@
   - [ ] AC6. Given `CGO_ENABLED=0 go build ./cmd/chatd`, Then 빌드되고, ARCHITECTURE §3.3 의존 규칙을 검사하는 테스트가 통과한다
 - **관련 항목**: API API-001, API-002 · ARCHITECTURE.md §3.2·§3.3·§4.2·§6.3·§7, ADR-005·007·008·013
 - **Owner Folder**: `/server`
+
+#### F-011. Flutter 웹 클라이언트
+- **사용자 스토리**: 방문자로서, 나는 지금과 같은 채팅 화면을 Flutter 앱으로 쓰고 싶다. 왜냐하면 같은 코드로 웹과 (나중에) 모바일, 그리고 음성 대화를 붙이기 위해서다.
+- **상세 동작**:
+  1. `app/`의 Flutter 웹 앱이 S-001 화면(헤더 · 모드 배지 · 새 대화 · 대화 영역 · 입력창 · 전송)을 그린다.
+  2. `POST /api/chat`을 같은 출처로 호출하고, 응답 조각을 받는 대로 말풍선에 이어 붙인다 (웹은 `fetch_client`, ADR-009).
+  3. Go 서버가 `flutter build web` 결과를 정적 파일로 제공한다 (ADR-011, `STATIC_DIR`).
+- **수용 기준**:
+  - [ ] AC1. Given 위젯·단위 테스트, Then F-001 AC1·AC2·AC3·AC4와 F-002 AC1·AC3의 화면 쪽 동작, F-003 AC1·AC3을 검사하고 `flutter test`가 네트워크 없이 통과한다
+  - [ ] AC2. Given Go 서버가 웹 빌드를 제공, When 브라우저에서 메시지 전송, Then 응답이 한 번에 몰려 오지 않고 조각조각 표시된다 (실시간 스트리밍)
+  - [ ] AC3. Given `flutter analyze`, Then 경고 없이 통과하고, ARCHITECTURE §3.3 Flutter 의존 규칙(`chat`은 위젯 import 금지, `api`는 `chat`·`ui` import 금지)을 테스트가 검사한다
+  - [ ] AC4. Given 응답 영역, Then 스트리밍 중인 말풍선이 `Semantics(liveRegion: true)`로 스크린 리더에 알려진다
+  - [ ] AC5. Given CI, Then `flutter analyze`·`flutter test`·`flutter build web`이 실행된다
+- **관련 항목**: 화면 S-001 · API API-001, API-002 · ARCHITECTURE.md §3.2·§3.3·§4.2, ADR-006·009·010·011
+- **Owner Folder**: `/app`, `/server` (정적 파일 제공)
 
 <!-- F-005 ~ F-008은 Phase 2 이후 착수 시 상세를 작성한다 -->
 
@@ -407,3 +423,4 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | v1.1 | 2026-11-04 | kimtaesung98 | ADR을 ARCHITECTURE.md로 이동, 목표 스택(Go + Flutter) 반영, 계약 테스트 추가, Q-003·Q-004 추가 |
 | v1.2 | 2026-11-04 | kimtaesung98 | F-009 서버 계약 테스트(전환 단계 1) 등록, Q-004 결정 기록 |
 | v1.3 | 2026-11-05 | kimtaesung98 | F-010 Go 서버(전환 단계 2) 등록 |
+| v1.4 | 2026-11-05 | kimtaesung98 | F-011 Flutter 웹 클라이언트(전환 단계 3) 등록, F-003 담당 폴더를 `/app`으로 |

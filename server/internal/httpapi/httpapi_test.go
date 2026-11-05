@@ -52,6 +52,10 @@ func start(t *testing.T, p provider.Provider, log *bytes.Buffer) string {
 	os.WriteFile(filepath.Join(dir, "index.html"), []byte("<!doctype html><title>chat</title>"), 0o644)
 	os.WriteFile(filepath.Join(dir, "app.js"), []byte("console.log(1)"), 0o644)
 	os.WriteFile(filepath.Join(dir, "README.md"), []byte("# doc"), 0o644)
+	for _, f := range []string{"main.dart.js", "main.dart.js.map", "canvaskit/canvaskit.wasm", "manifest.json", "assets/fonts/MaterialIcons-Regular.otf"} {
+		os.MkdirAll(filepath.Join(dir, filepath.Dir(f)), 0o755)
+		os.WriteFile(filepath.Join(dir, f), []byte("x"), 0o644)
+	}
 	os.WriteFile(filepath.Join(filepath.Dir(dir), "secret.js"), []byte("secret"), 0o644)
 	if log == nil {
 		log = &bytes.Buffer{}
@@ -234,6 +238,21 @@ func TestRoutes(t *testing.T) {
 			if res.StatusCode != c.status || !strings.HasPrefix(res.Header.Get("Content-Type"), "application/json") || !strings.Contains(b, `"error":{"code":`) {
 				t.Errorf("%s %s → %d %s", c.method, c.path, res.StatusCode, b)
 			}
+		}
+	})
+	t.Run("F-011 Flutter 웹 빌드 파일을 알맞은 형식으로 준다", func(t *testing.T) {
+		for p, ct := range map[string]string{
+			"/main.dart.js":                           "text/javascript; charset=utf-8",
+			"/canvaskit/canvaskit.wasm":               "application/wasm",
+			"/manifest.json":                          "application/json; charset=utf-8",
+			"/assets/fonts/MaterialIcons-Regular.otf": "font/otf",
+		} {
+			if res, _ := get("GET", p); res.StatusCode != 200 || res.Header.Get("Content-Type") != ct {
+				t.Errorf("%s → %d %q", p, res.StatusCode, res.Header.Get("Content-Type"))
+			}
+		}
+		if res, _ := get("GET", "/main.dart.js.map"); res.StatusCode != 404 {
+			t.Errorf("소스맵은 404여야 해요: %d", res.StatusCode)
 		}
 	})
 	t.Run("F-010 AC3 화면 파일을 주고, 문서 파일과 폴더 바깥은 막는다", func(t *testing.T) {
