@@ -1,4 +1,4 @@
-# CI — Node 테스트, Go 테스트, 두 서버에 대한 계약 테스트 (SPEC.md F-009 AC4, F-010)
+# CI — Node·Go 테스트, 두 서버 계약 테스트, Flutter 분석·테스트·웹 빌드 (SPEC.md F-009 AC4, F-010, F-011 AC5)
 name: CI
 
 on:
@@ -45,3 +45,27 @@ jobs:
 
       - name: 계약 테스트 (Go 서버, 모의 모드) (F-010 AC1)
         run: npm run test:contract:go
+
+  flutter:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.9
+          channel: stable
+
+      - run: flutter pub get
+
+      - name: 정적 분석 (F-011 AC3)
+        run: flutter analyze
+
+      - name: 단위·위젯 테스트 · 의존 규칙 (F-011 AC1·AC3)
+        run: flutter test
+
+      - name: 웹 빌드 (F-011 AC5, CDN 없이)
+        run: flutter build web --no-web-resources-cdn

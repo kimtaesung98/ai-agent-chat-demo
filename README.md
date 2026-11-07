@@ -17,12 +17,15 @@ npm run test:contract                       # 서버 계약 테스트 — Node �
 npm run test:contract:go                    # 서버 계약 테스트 — Go 서버
 ```
 
-**Go 서버로 실행** (같은 화면, 같은 API — `server/README.md`)
+**Go 서버 + Flutter 웹으로 실행** (같은 API — `server/README.md`, `app/README.md`)
 
 ```bash
+cd app && flutter build web --no-web-resources-cdn && cd ..   # Flutter 3.47.9
 cd server
-STATIC_DIR=../public go run ./cmd/chatd     # 모의 모드
-go test ./...                               # Go 테스트 (네트워크 없음)
+STATIC_DIR=../app/build/web go run ./cmd/chatd   # Flutter 화면, 모의 모드
+STATIC_DIR=../public go run ./cmd/chatd          # 기존 HTML 화면
+go test ./...                                    # Go 테스트 (네트워크 없음)
+cd ../app && flutter test                        # Flutter 테스트
 ```
 
 브라우저에서 `http://localhost:3000`을 엽니다. 외부 패키지가 없어서 `npm install`이 필요 없습니다 (Node.js 22 이상).
@@ -32,7 +35,7 @@ go test ./...                               # Go 테스트 (네트워크 없음)
 | `PORT` | `3000` | 서버 포트 |
 | `ANTHROPIC_API_KEY` | (없음) | 있으면 Claude 모드, 없으면 모의 모드 |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Claude 모드에서 쓸 모델 |
-| `STATIC_DIR` | `./web` | Go 서버만: 화면 파일 폴더 (지금은 `../public`) |
+| `STATIC_DIR` | `./web` | Go 서버만: 화면 파일 폴더 (`../app/build/web` 또는 `../public`) |
 
 ---
 
@@ -100,7 +103,8 @@ flowchart LR
 | `/src/server` | Level 1 | F-001 ~ F-004 | HTTP 서버, 입력 검증, SSE 응답 |
 | `/src/agent` | Level 1 | F-001, F-003, F-004 | AI 제공자 (Claude · 모의 모드) |
 | `/public` | Level 1 | F-001 ~ F-004 | 채팅 화면 (브라우저) |
-| `/server` | Level 1 | F-009, F-010 | Go 서버 `chatd` (Node와 같은 API) · HTTP 계약 테스트(`contract/`) |
+| `/server` | Level 1 | F-009, F-010, F-011 | Go 서버 `chatd` (Node와 같은 API, Flutter 웹 빌드 제공) · HTTP 계약 테스트(`contract/`) |
+| `/app` | Level 1 | F-011, F-003, F-001 · F-002 화면 | Flutter 웹 클라이언트 (S-001) |
 
 ---
 
@@ -112,7 +116,7 @@ flowchart LR
 |----|---------|--------|--------------|--------------|-------|
 | F-001 | 실시간 스트리밍 채팅 | ✅ Done | `/src/server`, `/src/agent`, `/public` | 2026-11-02 | AC1~AC5 자동 테스트 통과 (28개). 화면 렌더링은 브라우저에서 수동 확인 |
 | F-002 | 대화 맥락 유지 | ✅ Done | `/src/server`, `/public` | 2026-11-02 | AC1~AC3 자동 테스트 통과. 응답 중 새 대화 버튼은 비활성 (중단은 F-003) |
-| F-003 | 응답 중단 | ⏳ Pending | `/src/server`, `/src/agent`, `/public` | - | 서버 쪽 취소 전달(AC2 기반)은 F-001에 포함 |
+| F-003 | 응답 중단 | ✅ Done | `/app`, `/server` | 2026-11-05 | Flutter에서 구현 (Q-004). AC1·AC3 위젯·단위 테스트, AC2 서버 취소는 Go·Node 모두 테스트. PR #5 CI 통과 |
 | F-004 | 오류 처리와 재시도 | ⏳ Pending | `/src/server`, `/src/agent`, `/public` | - | |
 | F-005 | 에이전트 페르소나 설정 | ⏳ Pending | - | - | Phase 2 |
 | F-006 | 도구 사용 (Tool use) | ⏳ Pending | - | - | Phase 2 |
@@ -120,6 +124,7 @@ flowchart LR
 | F-008 | 사용자 로그인 | ⏳ Pending | - | - | Phase 3 |
 | F-009 | 서버 계약 테스트 (전환 단계 1) | ✅ Done | `/server` | 2026-11-04 | AC1~AC5 통과. 계약 시나리오 17개가 Node 서버에 통과, 모의 모드 아니면 실패, 표준 라이브러리만, GitHub Actions CI 초록 (PR #3) |
 | F-010 | Go 서버 (전환 단계 2) | ✅ Done | `/server` | 2026-11-05 | AC1~AC6 통과: 계약 테스트 Go 서버 통과, `go test ./...` 통과, 기존 화면이 Go 서버로 동작(브라우저 확인), 취소·오류 처리·의존 규칙 테스트, CI 초록 (PR #4). 실제 키로 Claude 모드 수동 확인은 남음 |
+| F-011 | Flutter 웹 클라이언트 (전환 단계 3) | ✅ Done | `/app`, `/server` | 2026-11-05 | `flutter test` 33개, `flutter analyze` 경고 0, 의존 규칙 테스트, Go 서버가 웹 빌드 제공·브라우저에서 스트리밍 확인, PR #5 CI(flutter 작업) 통과 |
 
 ---
 
@@ -127,6 +132,5 @@ flowchart LR
 
 <!-- SPEC §16 Q-004 결정 (2026-11-04): 남은 MVP 기능과 음성 대화는 Go + Flutter 전환 뒤에 만든다 -->
 
-1. ARCHITECTURE §10 단계 3 — Flutter 웹 클라이언트 + F-003 응답 중단 → `/app`
-2. 음성 대화 (SPEC 등록과 STT/TTS ADR 먼저) → `/app`
-3. F-004 오류 처리와 재시도 → 전환 뒤 `/server`, `/app`
+1. 음성 대화 (SPEC 등록과 STT/TTS ADR 먼저) → `/app`
+2. F-004 오류 처리와 재시도 → 전환 뒤 `/server`, `/app`

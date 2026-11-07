@@ -21,11 +21,22 @@ import (
 // MaxBodyBytes는 POST /api/chat 본문 한도다 (Node와 같음).
 const MaxBodyBytes = 1 << 20
 
+// mimeTypes는 제공하는 정적 파일 종류다. 여기 없는 확장자(문서·소스맵 등)는 404.
+// 아래쪽은 Flutter 웹 빌드(ADR-011)에 필요한 파일이다.
 var mimeTypes = map[string]string{
 	".html": "text/html; charset=utf-8",
 	".js":   "text/javascript; charset=utf-8",
+	".mjs":  "text/javascript; charset=utf-8",
 	".css":  "text/css; charset=utf-8",
 	".svg":  "image/svg+xml",
+	".json": "application/json; charset=utf-8",
+	".wasm": "application/wasm",
+	".png":  "image/png",
+	".ico":  "image/x-icon",
+	".ttf":  "font/ttf",
+	".otf":  "font/otf",
+	".bin":  "application/octet-stream",
+	".frag": "application/octet-stream",
 }
 
 type server struct {
