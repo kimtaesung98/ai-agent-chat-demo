@@ -93,12 +93,12 @@ func (s *server) handleChat(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", "요청 본문이 올바른 JSON이 아니에요.")
 		return
 	}
-	msgs, verr := chat.ParseRequest(body)
+	req, verr := chat.ParseRequest(body)
 	if verr != nil {
 		writeError(w, http.StatusBadRequest, verr.Code, verr.Message)
 		return
 	}
-	msgs = chat.TrimToRecentTurns(msgs, chat.MaxTurns) // F-002 AC2
+	msgs := chat.TrimToRecentTurns(req.Messages, chat.MaxTurns) // F-002 AC2
 
 	h := w.Header()
 	h.Set("Content-Type", "text/event-stream; charset=utf-8")
@@ -122,7 +122,7 @@ func (s *server) handleChat(w http.ResponseWriter, r *http.Request) {
 		return rc.Flush() == nil
 	}
 
-	for c, err := range s.provider.Stream(ctx, msgs) {
+	for c, err := range s.provider.Stream(ctx, req.Mode.SystemPrompt(), msgs) {
 		if err != nil {
 			msg := provider.GenericMessage
 			var pe *provider.Error

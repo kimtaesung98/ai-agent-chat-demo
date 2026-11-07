@@ -1,10 +1,11 @@
 # app — Overview
 
-> **담당 기능**: `SPEC.md`의 `F-011` (Flutter 웹 클라이언트), `F-003` (응답 중단 — 화면), F-001 · F-002의 화면 부분  
+> **담당 기능**: `SPEC.md`의 `F-011` (Flutter 웹 클라이언트), `F-003` (응답 중단 — 화면), `F-012` (음성 대화), F-001 · F-002의 화면 부분  
 > (진행 상태는 `/README.md` Progress Tracker에서 관리)
 
 이 폴더는 **Flutter로 만든 채팅 화면(S-001)** 을 담당합니다. 웹 빌드는 Go 서버가 같은 출처로 제공합니다 (ARCHITECTURE.md ADR-011).  
-상태는 `ChatController`(`ChangeNotifier`)가 갖고, 위젯은 그리기와 입력 연결만 합니다 (ADR-010).
+상태는 `ChatController`(`ChangeNotifier`)가 갖고, 위젯은 그리기와 입력 연결만 합니다 (ADR-010).  
+음성 대화는 `VoiceController`가 `ChatController` 위에서 듣기 → 자동 전송 → 문장별 읽기 → 끼어들기를 진행합니다 (ADR-014·015).
 
 ---
 
@@ -13,10 +14,10 @@
 ```
 루트(/) — Level 0 DFD
 └─ [AI Agent Chat] 버블 중 "방문자에게 보이는" 부분 (Flutter 구현)
-       │  입력: 방문자의 키보드 입력, 서버의 SSE 스트림, /api/config
+       │  입력: 방문자의 키보드 입력·목소리, 서버의 SSE 스트림, /api/config
        ▼
 app — Level 1 DFD (아래 상세)
-       │  출력: POST /api/chat 요청 (대화 내역), 요청 중단, 화면 갱신
+       │  출력: POST /api/chat 요청 (대화 내역, 음성이면 mode: voice), 요청 중단, 화면 갱신, 읽어 주는 소리
        ▼
 server (Go), 방문자
 ```
@@ -40,17 +41,29 @@ flowchart LR
     Ctrl -->|"notifyListeners"| UI
     UI -->|"화면 갱신 · liveRegion"| User
     Api -->|"GET /api/config"| Server
+    User -->|"목소리"| Engine[voice/plugin_voice_engine.dart<br>speech_to_text · flutter_tts]
+    UI -->|"마이크 버튼"| Voice[voice/voice_controller.dart<br>ChangeNotifier]
+    Engine -->|"중간 · 확정 문장"| Voice
+    Voice -->|"send(voice: true) · stop"| Ctrl
+    Ctrl -->|"답 글자 변경"| Voice
+    Voice -->|"문장 분리 (sentences.dart)<br>speak · cancelSpeech"| Engine
+    Engine -->|"소리"| User
+    Voice -->|"상태 · 미리 보기 · 안내"| UI
 ```
 
 | 파일 | 역할 |
 |---|---|
-| `lib/main.dart` | 앱 조립: `HttpChatApi` → `ChatController` → `ChatApp` (`API_BASE_URL`은 빌드 때 주입, 웹은 비움) |
+| `lib/main.dart` | 앱 조립: `HttpChatApi` → `ChatController` → `VoiceController`(`PluginVoiceEngine`) → `ChatApp` (`API_BASE_URL`은 빌드 때 주입, 웹은 비움) |
 | `lib/api/models.dart` | `Message`, `ChatEvent`(`ChatDelta`·`ChatDone`·`ChatFailed`), `ServerConfig` |
 | `lib/api/sse.dart` | SSE 파서 (바이트 → 이벤트) |
 | `lib/api/chat_api.dart` | `ChatApi` 인터페이스, `HttpChatApi` (구독 취소 시 요청 중단) |
 | `lib/api/client_factory*.dart` | 웹은 `fetch_client`, 그 밖은 `package:http` (조건부 import, ADR-009) |
 | `lib/chat/chat_controller.dart` | 말풍선 목록·바쁨·중단·새 대화·대화 내역 (위젯 없음, 테스트 대상) |
-| `lib/ui/chat_page.dart` | S-001 화면 (헤더 · 모드 배지 · 새 대화 · 대화 영역 · 입력창 · 전송/중단) |
+| `lib/voice/voice_engine.dart` | `VoiceEngine` 인터페이스와 들은 것(`HeardPartial`·`HeardFinal`·`ListenEnded`·`ListenFailed`) |
+| `lib/voice/plugin_voice_engine.dart` | `speech_to_text`·`flutter_tts`로 만든 엔진 — 패키지는 이 파일에서만 import (R-A11 특이점 처리) |
+| `lib/voice/sentences.dart` | 스트리밍 답을 읽을 문장으로 나누고 마크다운·URL·코드를 빼는 순수 함수 |
+| `lib/voice/voice_controller.dart` | 음성 대화 진행: 듣기 → 자동 전송 → 문장별 읽기 → 다시 듣기, 끼어들기·에코 무시 (위젯 없음, 테스트 대상) |
+| `lib/ui/chat_page.dart` | S-001 화면 (헤더 · 모드 배지 · 새 대화 · 대화 영역 · 음성 상태 · 입력창 · 마이크 · 전송/중단) |
 | `lib/ui/theme.dart` | 라이트·다크 색 (`public/styles.css`와 같은 값) |
 
 **실행** (`app/`에서)
@@ -62,7 +75,7 @@ flowchart LR
 
 ## Tech Stack
 
-- Flutter SDK, `package:http`, `fetch_client` (웹만), `flutter_test`, `flutter_lints` (ARCHITECTURE.md §2.2)
+- Flutter SDK, `package:http`, `fetch_client` (웹만), `speech_to_text`·`flutter_tts` (음성), `flutter_test`, `flutter_lints` (ARCHITECTURE.md §2.2)
 
 ---
 
@@ -73,11 +86,12 @@ flowchart LR
 
 ### 허용 (Allow)
 
-- 화면 동작은 `test/fakes.dart`의 가짜 `ChatApi`로 위젯·단위 테스트
+- 화면 동작은 `test/fakes.dart`의 가짜 `ChatApi`·`FakeVoiceEngine`으로 위젯·단위 테스트
 
 ### 금지 (Prohibit)
 
-- `lib/chat`에서 `material`·`widgets` import (`foundation`까지만), `lib/api`에서 `chat`·`ui`·Flutter import — `test/architecture_test.dart`가 검사
+- `lib/chat`·`lib/voice`에서 `material`·`widgets` import (`foundation`까지만), `lib/api`에서 `chat`·`ui`·Flutter import, `chat`·`api`에서 `voice` import, `plugin_voice_engine.dart` 밖에서 음성 패키지 import — `test/architecture_test.dart`가 검사
+- 플러그인 객체를 생성자·전역에서 바로 만들기 (Flutter 바인딩 전이라 앱이 시작하지 못함 — 처음 쓸 때 만든다)
 - 위젯에서 `HttpChatApi`를 직접 호출 (컨트롤러를 거침)
 - 클라이언트에서 Claude API를 직접 호출하거나 키를 빌드에 넣기 (`--dart-define`으로 키 주입 금지)
 - 상태 관리 패키지(Riverpod·Bloc·Provider), WebSocket 패키지 (ADR-010, ADR-002)

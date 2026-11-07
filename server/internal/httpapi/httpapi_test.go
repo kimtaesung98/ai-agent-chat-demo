@@ -23,11 +23,13 @@ import (
 // fakeProvider는 테스트용 제공자다. stream이 응답을 정한다.
 type fakeProvider struct {
 	stream func(ctx context.Context, msgs []chat.Message) iter.Seq2[provider.Chunk, error]
+	system string // 마지막 요청의 시스템 프롬프트
 }
 
 func (f *fakeProvider) Name() string  { return "mock" }
 func (f *fakeProvider) Model() string { return "fake" }
-func (f *fakeProvider) Stream(ctx context.Context, msgs []chat.Message) iter.Seq2[provider.Chunk, error] {
+func (f *fakeProvider) Stream(ctx context.Context, system string, msgs []chat.Message) iter.Seq2[provider.Chunk, error] {
+	f.system = system
 	return f.stream(ctx, msgs)
 }
 
@@ -88,6 +90,22 @@ func TestChat(t *testing.T) {
 		}
 		if res.Header.Get("Content-Type") != "text/event-stream; charset=utf-8" || res.Header.Get("X-Accel-Buffering") != "no" {
 			t.Fatalf("headers = %v", res.Header)
+		}
+	})
+
+	t.Run("F-012 AC6 mode가 voice면 말하기용 시스템 프롬프트를 제공자에 넘긴다", func(t *testing.T) {
+		for body, want := range map[string]string{
+			hi: "",
+			`{"messages":[{"role":"user","content":"안녕"}],"mode":"text"}`:  "",
+			`{"messages":[{"role":"user","content":"안녕"}],"mode":"voice"}`: chat.VoiceSystemPrompt,
+		} {
+			fp := &fakeProvider{stream: chunks([]provider.Chunk{{Done: true, StopReason: "end_turn"}}, nil)}
+			url := start(t, fp, nil)
+			res := post(t, url, body)
+			io.ReadAll(res.Body)
+			if res.StatusCode != 200 || fp.system != want {
+				t.Fatalf("%s → status %d, system %q", body, res.StatusCode, fp.system)
+			}
 		}
 	})
 

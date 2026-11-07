@@ -15,7 +15,7 @@ func TestMock(t *testing.T) {
 		p := &Provider{}
 		var text strings.Builder
 		deltas, done := 0, false
-		for c, err := range p.Stream(context.Background(), msgs) {
+		for c, err := range p.Stream(context.Background(), "", msgs) {
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -42,7 +42,7 @@ func TestMock(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		n := 0
-		for c, err := range New().Stream(ctx, msgs) {
+		for c, err := range New().Stream(ctx, "", msgs) {
 			if err != nil || c.Done {
 				t.Fatalf("취소 뒤에 err=%v done=%v", err, c.Done)
 			}

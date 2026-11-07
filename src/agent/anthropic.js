@@ -29,7 +29,7 @@ export function createAnthropicProvider({
   return {
     name: 'anthropic',
     model,
-    async *stream(messages, { signal } = {}) {
+    async *stream(messages, { signal, system } = {}) {
       let res;
       try {
         res = await fetchImpl(`${baseUrl}/v1/messages`, {
@@ -43,6 +43,7 @@ export function createAnthropicProvider({
             model,
             max_tokens: maxTokens,
             stream: true,
+            ...(system ? { system } : {}), // F-012 음성 말투 (빈 문자열이면 보내지 않음)
             messages: messages.map(({ role, content }) => ({ role, content })),
           }),
           signal,
