@@ -58,7 +58,8 @@ class ChatController extends ChangeNotifier {
   }
 
   /// 메시지를 보낸다. 빈 메시지이거나 응답 중이면 아무것도 하지 않고 false (F-001 AC3).
-  bool send(String text) {
+  /// [voice]면 서버에 말하기용 답을 요청한다 (F-012, API-001 `mode: "voice"`).
+  bool send(String text, {bool voice = false}) {
     if (busy || text.trim().isEmpty) return false;
     final messages = [...history, Message(Role.user, text)];
     final question = ChatEntry._(Role.user, text, EntryStatus.done);
@@ -66,7 +67,7 @@ class ChatController extends ChangeNotifier {
     _entries.addAll([question, answer]);
 
     _sub = _api
-        .stream(messages)
+        .stream(messages, mode: voice ? ChatMode.voice : ChatMode.text)
         .listen(
           (event) {
             switch (event) {

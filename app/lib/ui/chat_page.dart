@@ -5,12 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../chat/chat_controller.dart';
+import '../voice/voice_controller.dart';
 import 'theme.dart';
 
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key, required this.controller});
+  const ChatPage({super.key, required this.controller, this.voice});
 
   final ChatController controller;
+
+  /// 음성 대화 (F-012). 없으면 마이크 버튼을 그리지 않는다.
+  final VoiceController? voice;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -23,6 +27,7 @@ class _ChatPageState extends State<ChatPage> {
   bool _wasBusy = false;
 
   ChatController get _chat => widget.controller;
+  VoiceController? get _voice => widget.voice;
 
   @override
   void initState() {
@@ -56,7 +61,7 @@ class _ChatPageState extends State<ChatPage> {
   Widget build(BuildContext context) {
     final c = ChatColors.of(context);
     return ListenableBuilder(
-      listenable: _chat,
+      listenable: Listenable.merge([_chat, ?_voice]),
       builder: (context, _) => Scaffold(
         appBar: AppBar(
           backgroundColor: c.panel,
@@ -84,6 +89,7 @@ class _ChatPageState extends State<ChatPage> {
               child: Column(
                 children: [
                   Expanded(child: _log(c)),
+                  if (_voice case final voice?) _VoiceBar(voice: voice),
                   _composer(c),
                 ],
               ),
@@ -159,6 +165,7 @@ class _ChatPageState extends State<ChatPage> {
               ),
             ),
           ),
+          if (_voice case final voice?) ...[const SizedBox(width: 8), _MicButton(voice: voice)],
           const SizedBox(width: 8),
           SizedBox(
             height: 48,
@@ -172,6 +179,87 @@ class _ChatPageState extends State<ChatPage> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 마이크 버튼: 켜기 · 끄기 · 읽는 중 끼어들기 (F-012 AC5).
+class _MicButton extends StatelessWidget {
+  const _MicButton({required this.voice});
+  final VoiceController voice;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = ChatColors.of(context);
+    final (icon, tip) = switch (voice.state) {
+      VoiceState.off => (Icons.mic_none, '음성 대화 시작'),
+      VoiceState.listening => (Icons.mic, '음성 대화 끄기'),
+      VoiceState.thinking || VoiceState.speaking => (Icons.front_hand_outlined, '끼어들기 — 읽기를 멈추고 듣기'),
+    };
+    return SizedBox(
+      height: 48,
+      width: 48,
+      child: IconButton.filled(
+        key: const Key('mic'),
+        tooltip: tip,
+        isSelected: voice.active,
+        style: IconButton.styleFrom(
+          backgroundColor: voice.active ? c.user : c.panel,
+          foregroundColor: voice.active ? c.userText : c.text,
+          side: BorderSide(color: voice.active ? c.user : c.line),
+        ),
+        onPressed: voice.toggle,
+        icon: Icon(icon),
+      ),
+    );
+  }
+}
+
+/// 음성 상태와 인식 중인 문장, 안내 (F-012 상세 동작 1·2·7).
+class _VoiceBar extends StatelessWidget {
+  const _VoiceBar({required this.voice});
+  final VoiceController voice;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = ChatColors.of(context);
+    if (voice.notice case final notice?) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+        child: Text(
+          notice,
+          key: const Key('voice-notice'),
+          style: TextStyle(color: c.error, fontSize: 13),
+        ),
+      );
+    }
+    final label = switch (voice.state) {
+      VoiceState.off => null,
+      VoiceState.listening => voice.partial.isEmpty ? '듣는 중… 말씀하세요' : voice.partial,
+      VoiceState.thinking => '생각 중…',
+      VoiceState.speaking => '말하는 중 — 말하거나 손 버튼을 누르면 끼어들어요',
+    };
+    if (label == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: Semantics(
+        liveRegion: true,
+        child: Row(
+          children: [
+            Icon(voice.state == VoiceState.speaking ? Icons.volume_up : Icons.graphic_eq, size: 16, color: c.user),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                label,
+                key: const Key('voice-status'),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: voice.partial.isEmpty ? c.muted : c.text, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

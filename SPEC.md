@@ -209,7 +209,7 @@
 - **Owner Folder**: `/app`, `/server` (정적 파일 제공)
 
 #### F-012. 음성 대화
-> 상태: **제안 — 사용자 승인 대기** (ARCHITECTURE.md ADR-014·015와 함께 승인)
+> 상태: 승인 (사용자, 2026-11-07 — 음성은 `speech_to_text`·`flutter_tts` 패키지, ARCHITECTURE.md ADR-014·015)
 
 - **사용자 스토리**: 방문자로서, 나는 타이핑 없이 말로 묻고 음성으로 답을 듣고 싶다. 사람과 대화하듯 끊김 없이 주고받고, 답이 길면 중간에 끼어들고 싶다.
 - **상세 동작**:
@@ -334,7 +334,7 @@ flowchart LR
   "mode": "voice"
 }
 ```
-- `mode` (선택, F-012 — 제안): `"text"`(기본, 생략과 같음) 또는 `"voice"`. `"voice"`면 서버가 말하기용 답 지시를 시스템 프롬프트로 붙인다. 그 밖의 값은 400 `INVALID_INPUT`
+- `mode` (선택, F-012): `"text"`(기본, 생략과 같음) 또는 `"voice"`. `"voice"`면 서버가 말하기용 답 지시를 시스템 프롬프트로 붙인다. 그 밖의 값은 400 `INVALID_INPUT`
 - **응답 (200, `Content-Type: text/event-stream`)**
 ```
 event: delta
@@ -366,7 +366,7 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | 서비스 | 용도 | 연동 방식 | 비용 | 장애 시 대응 |
 |---|---|---|---|---|
 | Claude API (Anthropic) | 에이전트 응답 생성 | REST `POST /v1/messages`, `stream: true` | 토큰 사용량 기준 과금 | `error` 이벤트로 사용자 안내 (F-004), 모의 모드로 시연 지속 가능 |
-| 브라우저 음성 엔진 (Web Speech API, F-012 — 제안) | 음성 인식(STT) · 음성 합성(TTS) | 브라우저 내장 `SpeechRecognition` · `speechSynthesis` (ADR-014) | 무료 | 미지원·권한 거부 시 텍스트 채팅으로 계속 (F-012 AC7) |
+| 기기 음성 엔진 (F-012) | 음성 인식(STT) · 음성 합성(TTS) | `speech_to_text` · `flutter_tts` 패키지 — 웹은 브라우저 Web Speech API, 모바일은 OS 엔진 (ADR-014) | 무료 | 미지원·권한 거부 시 텍스트 채팅으로 계속 (F-012 AC7) |
 
 ---
 
@@ -454,4 +454,4 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | v1.2 | 2026-11-04 | kimtaesung98 | F-009 서버 계약 테스트(전환 단계 1) 등록, Q-004 결정 기록 |
 | v1.3 | 2026-11-05 | kimtaesung98 | F-010 Go 서버(전환 단계 2) 등록 |
 | v1.4 | 2026-11-05 | kimtaesung98 | F-011 Flutter 웹 클라이언트(전환 단계 3) 등록, F-003 담당 폴더를 `/app`으로 |
-| v1.5 | 2026-11-07 | kimtaesung98 | F-012 음성 대화 **제안**, API-001 `mode` 필드 제안, 브라우저 음성 엔진 연동·개인정보 항목 추가 |
+| v1.5 | 2026-11-07 | kimtaesung98 | F-012 음성 대화 등록(사용자 승인), API-001 `mode` 필드, 기기 음성 엔진 연동·개인정보 항목 추가 |

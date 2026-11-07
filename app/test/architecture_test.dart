@@ -42,6 +42,44 @@ void main() {
     }
   });
 
+  test('F-012 chat·api는 voice를 import하지 않는다', () {
+    for (final dir in ['chat', 'api']) {
+      for (final MapEntry(:key, :value) in importsOf(dir).entries) {
+        for (final p in value) {
+          expect(p.contains('voice/'), isFalse, reason: '$key → $p');
+        }
+      }
+    }
+  });
+
+  test('F-012 voice는 위젯·ui를 import하지 않는다 (foundation까지만, chat·api 모델만)', () {
+    for (final MapEntry(:key, :value) in importsOf('voice').entries) {
+      for (final p in value) {
+        final ok =
+            p.startsWith('dart:') ||
+            p == 'package:flutter/foundation.dart' ||
+            p.startsWith('../chat/') ||
+            p.startsWith('../api/models.dart') ||
+            p.startsWith('package:speech_to_text/') ||
+            p.startsWith('package:flutter_tts/') ||
+            !p.contains('/');
+        expect(ok, isTrue, reason: '$key → $p');
+      }
+    }
+  });
+
+  test('F-012 음성 패키지는 plugin_voice_engine.dart에서만 import한다 (ADR-014)', () {
+    for (final f in Directory(
+      'lib',
+    ).listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
+      final imports = importRe.allMatches(f.readAsStringSync()).map((m) => m.group(1)!);
+      final usesPackage = imports.any(
+        (p) => p.startsWith('package:speech_to_text/') || p.startsWith('package:flutter_tts/'),
+      );
+      if (usesPackage) expect(f.path, endsWith('voice/plugin_voice_engine.dart'));
+    }
+  });
+
   test('F-011 클라이언트에서 Claude API를 직접 부르지 않는다 (원칙 2)', () {
     for (final f in Directory('lib').listSync(recursive: true).whereType<File>()) {
       expect(f.readAsStringSync().contains('api.anthropic.com'), isFalse, reason: f.path);

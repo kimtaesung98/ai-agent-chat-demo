@@ -56,12 +56,15 @@ func New(o Options) (*Provider, error) {
 func (p *Provider) Name() string  { return "anthropic" }
 func (p *Provider) Model() string { return p.model }
 
-func (p *Provider) Stream(ctx context.Context, msgs []chat.Message) iter.Seq2[provider.Chunk, error] {
+func (p *Provider) Stream(ctx context.Context, system string, msgs []chat.Message) iter.Seq2[provider.Chunk, error] {
 	return func(yield func(provider.Chunk, error) bool) {
 		params := sdk.MessageNewParams{
 			Model:     p.model,
 			MaxTokens: p.maxTokens,
 			Messages:  toParams(msgs),
+		}
+		if system != "" {
+			params.System = []sdk.TextBlockParam{{Text: system}} // F-012 AC6
 		}
 		stream := p.client.Messages.NewStreaming(ctx, params)
 		defer stream.Close()

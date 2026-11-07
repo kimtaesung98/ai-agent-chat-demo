@@ -15,7 +15,7 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 버전 | v1.4 |
-| 상태 | 검토 중 — 현재 MVP 기록은 확정, 목표 아키텍처의 "제안" ADR은 승인 대기 |
+| 상태 | 검토 중 — 현재 MVP 기록은 확정, 목표 아키텍처 ADR-005~015 승인 |
 | 작성자 | kimtaesung98 |
 | 최종 수정일 | 2026-11-07 |
 | 관련 문서 | [`SPEC.md`](./SPEC.md) · [`README.md`](./README.md) |
@@ -87,8 +87,8 @@
 | 클라이언트 (목표) | Flutter · Dart | Flutter 3.47.9 stable (Dart 3.13.7) — CI에서 고정 | 구현됨 (F-011) | ADR-006 |
 | HTTP·스트리밍 (목표) | `package:http` (`AbortableRequest`로 중단) + 웹 전용 `fetch_client` (`RequestMode.cors`) | http 1.6 · fetch_client 1.2 (`pubspec.lock`) | 구현됨 (F-011) | ADR-009 |
 | 상태 관리 (목표) | Flutter 내장 `ChangeNotifier` | Flutter 번들 | 구현됨 (F-011) | ADR-010 |
-| 음성 인식·합성 (STT·TTS) | 브라우저 내장 Web Speech API (`SpeechRecognition` · `speechSynthesis`) — `package:web` + `dart:js_interop`로 호출 | web 1.1.2 (`pubspec.lock`, 현재 fetch_client의 간접 의존) | 제안 (F-012) | ADR-014 |
-| 음성 답 말투 | API-001 `mode: "voice"` → 서버가 말하기용 시스템 프롬프트를 붙임 | — | 제안 (F-012) | ADR-015 |
+| 음성 인식·합성 (STT·TTS) | `speech_to_text` · `flutter_tts` 패키지 — 웹은 브라우저 Web Speech API, 모바일은 OS 음성 엔진 | speech_to_text 7.5.0 · flutter_tts 4.2.5 (`pubspec.lock`) | 구현됨 (F-012) | ADR-014 |
+| 음성 답 말투 | API-001 `mode: "voice"` → 서버가 말하기용 시스템 프롬프트를 붙임 | — | 구현됨 (F-012) | ADR-015 |
 | 외부 서비스 | Claude Messages API (`stream: true`) | `anthropic-version: 2023-06-01` | 사용 중 | ADR-003 |
 | 기본 모델 | `claude-sonnet-5-5` (환경변수로 변경) | — | 사용 중 | — |
 | 데이터 저장 | 없음 (대화는 클라이언트 메모리) | — | F-007 착수 시 결정 | ADR-004 |
@@ -107,7 +107,7 @@
 | Go 테스트 (목표) | `testing`, `net/http/httptest` | 단위·계약 테스트 | 표준 라이브러리 |
 | Flutter (목표) | `flutter` SDK, `package:http` | UI, HTTP | |
 | Flutter (목표) | `fetch_client` | 웹 스트리밍 응답 | 웹 빌드에서만 사용 (조건부 import) |
-| Flutter (제안, F-012) | `web` (Dart 팀 공식) | 브라우저 Web Speech API 호출 | `app/lib/voice`의 웹 구현에서만 (조건부 import). 이미 간접 의존이라 새로 받는 패키지는 없음 — ADR-014 |
+| Flutter (F-012) | `speech_to_text`, `flutter_tts` | 음성 인식(STT) · 음성 합성(TTS) | `app/lib/voice/plugin_voice_engine.dart`에서만 import (의존 규칙 테스트로 검사) — ADR-014. 간접 의존: `speech_to_text_platform_interface`, `speech_to_text_windows`, `plugin_platform_interface`, `json_annotation`, `flutter_web_plugins` |
 | Flutter 개발 (목표) | `flutter_test`, `flutter_lints` | 테스트, 린트 | dev_dependencies |
 
 **금지:**
@@ -186,7 +186,7 @@ flowchart LR
 | archtest | `/server/internal/archtest` | §3.3 의존 규칙 검사 테스트 (모듈 맵에 없는 패키지도 실패) | (표준 라이브러리만) | — |
 | app/api | `/app/lib/api` | `/api/chat` 호출, SSE 파싱 (웹·모바일 클라이언트 분기) | (없음) | `public/chat-client.js` |
 | app/chat | `/app/lib/chat` | `ChatController` (`ChangeNotifier`): 내역·바쁨 상태 | api | `public/chat-controller.js` |
-| app/voice (제안, F-012) | `/app/lib/voice` | `VoiceEngine` 인터페이스(듣기·읽기)와 웹 구현, 문장 분리기, `VoiceController` (듣기 → 자동 전송 → 문장별 읽기 → 끼어들기) | chat, api(모델만) | — |
+| app/voice | `/app/lib/voice` | `VoiceEngine` 인터페이스(듣기·읽기)와 패키지 구현(`PluginVoiceEngine`), 문장 분리기, `VoiceController` (듣기 → 자동 전송 → 문장별 읽기 → 끼어들기) | chat | — |
 | app/ui | `/app/lib/ui` | 위젯: 대화 목록, 입력창, 모드 배지, 마이크 버튼 | chat, voice | `public/app.js`, `index.html` |
 
 ### 3.3 의존 규칙
@@ -207,7 +207,7 @@ flowchart TD
     end
     subgraph App ["app/ (Flutter)"]
         UI[ui] --> CTRL[chat]
-        UI --> VOICE["voice (제안)"]
+        UI --> VOICE[voice]
         VOICE --> CTRL
         CTRL --> API[api]
     end
@@ -219,7 +219,7 @@ flowchart TD
 - `anthropic-sdk-go`는 `provider/anthropic`에서만 import한다
 - Flutter `chat`은 `package:flutter/foundation.dart`까지만 import한다 — `material`·`widgets` 금지 (위젯 없이 단위 테스트)
 - Flutter `api`는 `chat`·`ui`를 import하지 않는다
-- Flutter `voice`(제안)는 `chat`을 쓰고 `ui`를 import하지 않는다. `chat`은 `voice`를 모른다. `voice`도 `foundation.dart`까지만 (위젯 없이 단위 테스트). `package:web`은 `voice`의 웹 구현 파일에서만 import한다
+- Flutter `voice`는 `chat`을 쓰고 `ui`를 import하지 않는다. `chat`·`api`는 `voice`를 모른다. `voice`도 `foundation.dart`까지만 (위젯 없이 단위 테스트). `speech_to_text`·`flutter_tts`는 `voice/plugin_voice_engine.dart`에서만 import한다. 조립은 `main.dart`
 - 앱과 서버는 코드를 공유하지 않는다 — HTTP 계약으로만 연결
 - 현재 Node: `src/agent`는 `src/server`를 import하지 않는다, `public/`은 서버 코드를 import하지 않는다
 - 검사 방법: Go는 `go vet` + import 검사 테스트(`internal/archtest`, F-010), Flutter는 `flutter analyze` + import 검사 테스트(단계 3에서 추가)
@@ -232,7 +232,7 @@ flowchart TD
 
 - **원본**: SPEC.md §9 (API-001 `POST /api/chat`, API-002 `GET /api/config`)
 - **고정 사항**: SSE 이벤트 이름(`delta`, `done`, `error`)과 `data` JSON 형식, 오류 응답 JSON 형식, 상태 코드(400·404·405·413)
-- **추가 제안 (F-012, ADR-015)**: 요청 본문의 선택 필드 `mode` — `"text"`(기본) · `"voice"`. 하위 호환(생략하면 지금과 같음). 계약 테스트에 `mode` 시나리오를 추가해 Node·Go 모두 검사
+- **선택 필드 (F-012, ADR-015)**: 요청 본문의 `mode` — `"text"`(기본) · `"voice"`. 하위 호환(생략하면 지금과 같음). 계약 테스트에 `mode` 시나리오를 추가해 Node·Go 모두 검사
 - **버전 정책**: MVP 동안 경로 버전 없음. 하위 호환을 깨는 변경이 필요하면 `/api/v2/…`를 추가하고 기존 경로는 한 단계 동안 유지
 - **계약 검증**: `server/contract` 계약 테스트를 **Node 서버와 Go 서버에 똑같이** 실행 (ADR-012). 둘 다 통과해야 전환 단계 완료
 
@@ -250,9 +250,9 @@ flowchart TD
 | 서버 ↔ AI 제공자 (목표) | 아래 `Provider` | `server/internal/provider` | 같은 규칙. `ctx` 취소 시 즉시 반환 |
 | 컨트롤러 ↔ 화면 (현재) | `ui` 객체 (`appendDelta`, `setBusy`, `clear` …) | `public/chat-controller.js` | 컨트롤러는 DOM을 직접 만지지 않음 |
 | 컨트롤러 ↔ 화면 (목표) | `ChatController extends ChangeNotifier` | `app/lib/chat` | 위젯은 `ListenableBuilder`로 구독만 |
-| 컨트롤러 ↔ 통신 (목표) | `ChatApi.stream(List<Message>, {mode}) → Stream<ChatEvent>` | `app/lib/api` | 구독 취소 = 요청 중단. `mode`는 F-012 제안 |
-| 음성 컨트롤러 ↔ 음성 엔진 (제안, F-012) | `VoiceEngine` — `listen()` → 인식 이벤트(중간·최종·말 시작) 스트림, `speak(문장)` → 끝나면 완료되는 Future, `cancelSpeech()`, `stopListening()`, `supported` | `app/lib/voice` | 테스트는 가짜 엔진. 웹 구현만 `package:web` 사용 |
-| 서버 ↔ AI 제공자 시스템 프롬프트 (제안, F-012) | `Stream(ctx, system string, msgs)` — `system`이 비면 지금과 같음 | `server/internal/provider` | 말하기용 지시 문구는 `chat` 패키지(도메인)가 가진다. Node도 `stream(messages, { signal, system })` |
+| 컨트롤러 ↔ 통신 (목표) | `ChatApi.stream(List<Message>, {mode}) → Stream<ChatEvent>` | `app/lib/api` | 구독 취소 = 요청 중단. `mode`는 F-012 |
+| 음성 컨트롤러 ↔ 음성 엔진 (F-012) | `VoiceEngine` — `prepare()`, `startListening()` → `heard` 스트림(중간 · 확정 · 끝남 · 실패), `speak(문장)` → 다 읽거나 멈추면 완료되는 Future, `cancelSpeech()`, `stopListening()` | `app/lib/voice` | 테스트는 가짜 엔진. 패키지는 `PluginVoiceEngine`만 사용 |
+| 서버 ↔ AI 제공자 시스템 프롬프트 (F-012) | `Stream(ctx, system string, msgs)` — `system`이 비면 지금과 같음 | `server/internal/provider` | 말하기용 지시 문구는 `chat` 패키지(도메인)가 가진다. Node도 `stream(messages, { signal, system })` |
 
 ```go
 // server/internal/provider — 목표 인터페이스 (현재 Node 인터페이스를 그대로 옮김)
@@ -326,12 +326,12 @@ sequenceDiagram
     Note over S,P: 이후 이벤트를 쓰지 않음 · 로그에 "client closed"
 ```
 
-### 5.3 음성 대화 한 턴 (F-012 — 제안)
+### 5.3 음성 대화 한 턴 (F-012)
 
 ```mermaid
 sequenceDiagram
     participant U as 사용자
-    participant E as VoiceEngine<br>(브라우저)
+    participant E as VoiceEngine<br>(speech_to_text · flutter_tts)
     participant V as VoiceController
     participant C as ChatController
     participant S as 서버
@@ -442,8 +442,8 @@ flowchart LR
 | ADR-011 | 웹은 **같은 출처** 배포: Go 서버가 Flutter 웹 빌드를 정적 파일로 제공 | 웹을 CDN에 따로 배포 + CORS | CORS 설정 불필요, 배포 단위 1개. 모바일 앱은 `API_BASE_URL`로 같은 API 호출 | 승인 (사용자, 2026-11-05) | 2026-11-04 |
 | ADR-012 | HTTP 수준 계약 테스트(`server/contract`)를 Go로 작성해 **Node·Go 서버 모두에** 실행 | 서버마다 따로 테스트, Node 테스트 재사용 | 전환 중 계약이 바뀌지 않았음을 같은 테스트로 증명. 기존 Node 테스트 시나리오(F-001·F-002 AC)를 옮김 | 승인 (사용자가 전환 1단계 착수 승인, 2026-11-04) | 2026-11-04 |
 | ADR-013 | Go 서버는 표준 라이브러리 우선 — `net/http` ServeMux 패턴 라우팅, `log/slog`, 웹 프레임워크 없음 | gin, echo, chi | 엔드포인트 2개 + 정적 파일, 표준 라우팅(메서드·경로 패턴)으로 충분. 원칙 5 | 승인 (사용자, 2026-11-05) | 2026-11-04 |
-| ADR-014 | 음성 인식·합성은 **브라우저 내장 Web Speech API**를 `package:web`로 직접 호출하고, `VoiceEngine` 인터페이스 뒤에 둔다 | ① `speech_to_text` + `flutter_tts` 패키지 (웹에서는 같은 Web Speech API를 감쌈, 모바일 지원) ② 서버를 거치는 클라우드 STT·TTS (더 자연스러운 목소리, 별도 키·비용·지연) | 키·비용 없이 바로 동작, 서버·API 변경 없음, 기기 안에서 바로 읽기 시작해 지연이 가장 짧음. 새 외부 패키지 없음 (`web`은 Dart 팀 공식, 이미 간접 의존). 인터페이스 뒤에 두어 목소리 품질이 부족하면 ②로, 모바일(§10 단계 5)에서는 ①로 바꿀 수 있음. 단점: Firefox는 음성 인식 미지원, 목소리 품질은 브라우저·OS에 따라 다름 (Edge의 한국어 자연 음성이 가장 좋음), R-A09·R-A10 | 제안 | 2026-11-07 |
-| ADR-015 | 음성 답 말투는 서버가 정한다 — API-001 `mode: "voice"`면 말하기용 시스템 프롬프트(마크다운 없이 짧은 구어체)를 붙인다 | ① 클라이언트가 읽기 전에 마크다운만 제거 ② F-005 페르소나를 먼저 만들고 그 안에서 처리 ③ 클라이언트가 시스템 프롬프트를 보냄 | 자연스러운 대화는 **짧은 구어체 답**이 핵심이라 읽기 전 정리(①)만으로는 길고 목록 많은 답이 그대로 남음. ③은 클라이언트가 프롬프트를 조작할 수 있어 원칙 2(비밀·제어는 서버)에 어긋남. 하위 호환 선택 필드라 기존 화면 영향 없음. F-005 페르소나가 생기면 페르소나 + 음성 지시를 합침 | 제안 | 2026-11-07 |
+| ADR-014 | 음성 인식·합성은 **`speech_to_text` · `flutter_tts` 패키지**로 하고, `VoiceEngine` 인터페이스 뒤(`PluginVoiceEngine`)에 둔다 | ① 브라우저 Web Speech API를 `package:web`로 직접 호출 (새 패키지 없음, 웹 전용) ② 서버를 거치는 클라우드 STT·TTS (더 자연스러운 목소리, 별도 키·비용·지연) | 웹에서는 같은 브라우저 엔진을 쓰고, 같은 코드로 모바일(§10 단계 5)의 OS 음성 엔진도 쓸 수 있음. 키·비용 없이 기기 안에서 바로 읽기 시작해 지연이 짧음. 인터페이스 뒤에 두어 목소리 품질이 부족하면 ②로 바꿀 수 있음. 단점: Firefox는 음성 인식 미지원, 목소리 품질은 브라우저·OS에 따라 다름(자연 음성 우선 선택), 웹 구현의 동작 특이점(R-A11) | 승인 (사용자 선택, 2026-11-07) | 2026-11-07 |
+| ADR-015 | 음성 답 말투는 서버가 정한다 — API-001 `mode: "voice"`면 말하기용 시스템 프롬프트(마크다운 없이 짧은 구어체)를 붙인다 | ① 클라이언트가 읽기 전에 마크다운만 제거 ② F-005 페르소나를 먼저 만들고 그 안에서 처리 ③ 클라이언트가 시스템 프롬프트를 보냄 | 자연스러운 대화는 **짧은 구어체 답**이 핵심이라 읽기 전 정리(①)만으로는 길고 목록 많은 답이 그대로 남음. ③은 클라이언트가 프롬프트를 조작할 수 있어 원칙 2(비밀·제어는 서버)에 어긋남. 하위 호환 선택 필드라 기존 화면 영향 없음. F-005 페르소나가 생기면 페르소나 + 음성 지시를 합침 | 승인 (사용자, 2026-11-07 — F-012와 함께) | 2026-11-07 |
 
 ---
 
@@ -490,6 +490,7 @@ flowchart LR
 | R-A08 | Flutter 웹은 한글 글리프가 없어 브라우저가 실행 중에 `fonts.gstatic.com`에서 Noto Sans KR 조각을 받음 | 외부 요청(개인정보·오프라인 동작), 첫 글자 표시 지연 | 공개 배포(Q-001) 전에 한글 폰트를 앱 자산으로 포함할지 결정 — 제안 필요 |
 | R-A09 | 스피커로 읽는 답을 마이크가 다시 듣고 사용자 말로 착각 (에코) | 끼어들기가 저절로 일어나 답이 끊김 | 읽는 중 인식된 문장이 지금 읽는 문장과 비슷하면 무시, 브라우저 에코 제거에 의존. 그래도 잦으면 "읽는 중에는 버튼으로만 끼어들기" 설정 — F-012 AC8 수동 확인에서 판단 |
 | R-A10 | 브라우저 음성 인식은 브라우저 회사 서버로 음성을 보낼 수 있음 (Chrome → Google), Firefox 미지원 | 개인정보 안내 필요, 일부 브라우저에서 음성 불가 | 미지원 시 텍스트로 계속 (F-012 AC7), 공개 배포(Q-001) 전 안내 문구. 필요하면 ADR-014 대안 ②로 |
+| R-A11 | `speech_to_text` 웹 구현의 특이점: ① 결과를 항상 '중간'으로 주고 멈춘 뒤 `finalTimeout`(기본 2초)이 지나야 확정 ② 상태 알림 안에서 바로 다시 `listen`하면 새 세션의 끝 알림이 오지 않음 ③ 플러그인 생성자가 Flutter 바인딩을 씀 | 말을 마치고 2초 늦게 전송, 조용한 뒤 듣기가 멈춤, 앱 시작 실패 | `PluginVoiceEngine`에서 웹은 `finalTimeout` 150ms, 다시 듣기는 다음 이벤트 차례에, 플러그인은 처음 쓸 때 생성. 패키지를 올릴 때 브라우저 확인(가짜 음성 API로 실제 웹 빌드 구동)을 다시 함 |
 
 ---
 
@@ -501,4 +502,4 @@ flowchart LR
 | v1.1 | 2026-11-04 | kimtaesung98 | ADR-012 승인, §10 단계 1을 F-009로 등록, Q-004 결정 반영 |
 | v1.2 | 2026-11-05 | kimtaesung98 | ADR-007·008·013 승인, §10 단계 2를 F-010으로 등록 |
 | v1.3 | 2026-11-05 | kimtaesung98 | ADR-009·010·011 승인, §10 단계 3을 F-011로 등록, Flutter 스택·도구·위험(R-A08) 반영 |
-| v1.4 | 2026-11-07 | kimtaesung98 | F-012 음성 대화용 ADR-014·015 **제안**, `app/voice` 모듈·의존 규칙·인터페이스·시나리오 §5.3, 위험 R-A09·R-A10 |
+| v1.4 | 2026-11-07 | kimtaesung98 | F-012 음성 대화 — ADR-014(`speech_to_text`·`flutter_tts`)·015 승인, `app/voice` 모듈·의존 규칙·인터페이스·시나리오 §5.3, 위험 R-A09·R-A10·R-A11 |

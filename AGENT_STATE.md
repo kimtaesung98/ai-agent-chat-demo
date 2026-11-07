@@ -14,7 +14,7 @@
 
 | 기능 ID | 작업 내용 | 담당 폴더 | 이어받을 지점 |
 |---------|-----------|-----------|---------------|
-| F-012 | 음성 대화 (듣기 → 자동 전송 → 문장별 읽기 → 끼어들기) | `/app`, `/server` | SPEC F-012 · ADR-014(브라우저 Web Speech) · ADR-015(`mode: "voice"` 말하기용 시스템 프롬프트) 제안, 사용자 승인 대기. 승인되면 서버 `mode` 처리(Node·Go·계약 테스트) → `app/lib/voice` |
+| F-012 | 음성 대화 (듣기 → 자동 전송 → 문장별 읽기 → 끼어들기) | `/app`, `/server` | 사용자가 `speech_to_text`·`flutter_tts` 선택(ADR-014), F-012·ADR-015 승인. 구현·자동 테스트·가짜 음성 API 브라우저 확인 완료. 남은 것: AC8 실제 마이크 확인(사용자) → ✅. 다음: §10 단계 4 Node 제거 |
 
 ---
 
@@ -82,6 +82,7 @@
 | 2026-11-05 | F-010 | 사용자 ADR-007·008·013 승인. Go 서버 구현(config·chat·provider·mock·anthropic(SDK v2.6.0)·httpapi·cmd/chatd), 의존 규칙 테스트, `npm run test:contract:go`, CI 확장. 계약 테스트 Node·Go 둘 다 통과, 브라우저로 기존 화면 확인 | `server/**`, `scripts/contract.js`(이름 변경), `.github/workflows/ci.yml`, `package.json`, `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `CLAUDE.md` | SDK v2는 `Authorization: Bearer`로 키 전송 — 실제 키로 Claude 모드 수동 확인 필요 (테스트는 가짜 업스트림) |
 | 2026-11-05 | F-011, F-003 | 사용자 ADR-009·010·011 승인. Flutter 3.47.9 설치, `app/` 구현(api·chat·ui), 중단 버튼, 위젯·단위·의존 규칙 테스트 33개, Go 서버가 Flutter 빌드 파일 형식 제공, CI에 flutter 작업 추가, 브라우저로 Go 서버 + Flutter 스트리밍 확인 | `app/**`, `server/internal/httpapi/*`, `.github/workflows/ci.yml`, `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `CLAUDE.md` | 한글 폰트를 gstatic에서 받음 (R-A08) — 공개 전 결정. `public/`·Node는 단계 4에서 제거 |
 | 2026-11-07 | F-012 | PR #5 병합 확인. 음성 대화를 SPEC F-012로 제안, ARCHITECTURE ADR-014·015 제안 (STT·TTS 방식, 음성용 말투), `app/voice` 모듈·인터페이스·시나리오·위험 R-A09·R-A10 | `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `AGENT_STATE.md` | 사용자 승인 전에는 계약(`mode`) 변경 코드 작성 안 함 |
+| 2026-11-07 | F-012 | 사용자가 Flutter 음성 패키지 선택. `app/lib/voice`(문장 분리기·엔진·컨트롤러)·마이크 UI, Go·Node `mode: "voice"` + 말하기용 시스템 프롬프트, 계약 시나리오 2개. 브라우저 확인 중 웹 플러그인 특이점 3개 발견·처리 (R-A11) | `app/**`, `server/**`, `src/server/*`, `src/agent/anthropic.js`, `tests/*`, 문서 | 실제 마이크·실제 Claude로 AC8 확인 필요. 에코 끼어들기(R-A09)는 실제 스피커로만 판단 가능 |
 
 ---
 

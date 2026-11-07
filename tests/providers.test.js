@@ -6,6 +6,7 @@ import { createAnthropicProvider } from '../src/agent/anthropic.js';
 import { createProvider, DEFAULT_MODEL } from '../src/agent/index.js';
 import { ProviderError } from '../src/agent/errors.js';
 import { describeMode } from '../src/server/mode.js';
+import { VOICE_SYSTEM_PROMPT } from '../src/server/voice.js';
 
 const FAKE_KEY = 'test-key-not-real';
 const messages = [{ role: 'user', content: '안녕하세요' }];
@@ -109,6 +110,21 @@ test('F-001 AC1 Claude 스트림의 text_delta를 순서대로 delta로 바꾸�
     assert.equal(up.seen.body.stream, true);
     assert.equal(up.seen.body.model, 'claude-sonnet-5-5');
     assert.deepEqual(up.seen.body.messages, messages);
+    assert.equal('system' in up.seen.body, false, '텍스트 모드에는 system을 보내지 않는다');
+  } finally {
+    await up.close();
+  }
+});
+
+test('F-012 AC6 system이 있으면 Claude 요청에 시스템 프롬프트로 보낸다', async () => {
+  const up = await fakeUpstream((req, res) => {
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    res.end(sse('message_stop', { type: 'message_stop' }));
+  });
+  try {
+    const provider = createAnthropicProvider({ apiKey: FAKE_KEY, model: 'claude-sonnet-5-5', baseUrl: up.baseUrl });
+    await collect(provider.stream(messages, { system: VOICE_SYSTEM_PROMPT }));
+    assert.equal(up.seen.body.system, VOICE_SYSTEM_PROMPT);
   } finally {
     await up.close();
   }

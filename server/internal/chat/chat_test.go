@@ -7,14 +7,15 @@ import (
 )
 
 func TestParseRequest(t *testing.T) {
-	ok := func(t *testing.T, body string) []Message {
+	parse := func(t *testing.T, body string) Request {
 		t.Helper()
-		msgs, err := ParseRequest([]byte(body))
+		req, err := ParseRequest([]byte(body))
 		if err != nil {
 			t.Fatalf("ParseRequest(%s) 오류 %v", body, err)
 		}
-		return msgs
+		return req
 	}
+	ok := func(t *testing.T, body string) []Message { t.Helper(); return parse(t, body).Messages }
 	fail := func(t *testing.T, body, code string) {
 		t.Helper()
 		_, err := ParseRequest([]byte(body))
@@ -54,6 +55,35 @@ func TestParseRequest(t *testing.T) {
 			`{"messages":[{"role":"user","content":"a"},{"role":"assistant","content":"b"}]}`,
 		} {
 			fail(t, body, "INVALID_INPUT")
+		}
+	})
+	t.Run("F-012 AC6 mode가 없거나 text면 텍스트, voice면 음성", func(t *testing.T) {
+		const msgs = `"messages":[{"role":"user","content":"안녕"}]`
+		for body, want := range map[string]Mode{
+			`{` + msgs + `}`:                ModeText,
+			`{` + msgs + `,"mode":"text"}`:  ModeText,
+			`{` + msgs + `,"mode":"voice"}`: ModeVoice,
+		} {
+			if got := parse(t, body).Mode; got != want {
+				t.Fatalf("%s → mode %q, %q이어야 해요", body, got, want)
+			}
+		}
+	})
+	t.Run("F-012 AC6 mode가 text·voice가 아니면 INVALID_INPUT", func(t *testing.T) {
+		const msgs = `"messages":[{"role":"user","content":"안녕"}]`
+		for _, mode := range []string{`"VOICE"`, `"audio"`, `""`, `1`, `null`, `true`, `["voice"]`} {
+			fail(t, `{`+msgs+`,"mode":`+mode+`}`, "INVALID_INPUT")
+		}
+	})
+	t.Run("F-012 AC6 voice만 말하기용 시스템 프롬프트가 있다", func(t *testing.T) {
+		if ModeText.SystemPrompt() != "" {
+			t.Fatal("텍스트 모드에는 시스템 프롬프트가 없어야 해요")
+		}
+		p := ModeVoice.SystemPrompt()
+		for _, want := range []string{"음성 대화", "구어체", "마크다운"} {
+			if !strings.Contains(p, want) {
+				t.Fatalf("음성 프롬프트에 %q가 없어요: %s", want, p)
+			}
 		}
 	})
 }

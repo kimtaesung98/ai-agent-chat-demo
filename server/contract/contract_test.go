@@ -105,6 +105,30 @@ func TestF002(t *testing.T) {
 	})
 }
 
+// F-012 음성 대화 — API-001 mode 필드. 모의 제공자는 시스템 프롬프트를 쓰지 않으므로 받아들이는지만 본다.
+func TestF012(t *testing.T) {
+	withMode := func(mode any) map[string]any {
+		b := chatBody(message{"user", "음성으로 물어봐요"})
+		b["mode"] = mode
+		return b
+	}
+
+	t.Run("F-012 AC6 mode가 voice나 text면 지금과 같이 스트리밍한다", func(t *testing.T) {
+		for _, mode := range []string{"voice", "text"} {
+			_, text := requireStream(t, postChat(t, withMode(mode)))
+			if !strings.Contains(text, "음성으로 물어봐요") {
+				t.Fatalf("mode=%s 응답 = %q", mode, text)
+			}
+		}
+	})
+
+	t.Run("F-012 AC6 mode가 text·voice가 아니면 400", func(t *testing.T) {
+		for _, mode := range []any{"VOICE", "audio", "", 1, nil, true} {
+			requireErrorJSON(t, postChat(t, withMode(mode)), http.StatusBadRequest)
+		}
+	})
+}
+
 // API-001·API-002 공통 계약: 메서드·경로 오류, 정적 화면
 func TestAPI(t *testing.T) {
 	do := func(t *testing.T, method, path string) *http.Response {

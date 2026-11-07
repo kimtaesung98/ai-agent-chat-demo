@@ -46,8 +46,8 @@ cd ../app && flutter test                        # Flutter 테스트
 
 ```mermaid
 flowchart LR
-    User([방문자<br>브라우저]) -->|"메시지 · 대화 내역"| System["AI Agent Chat<br>(Level 0)"]
-    System -->|"응답 조각 (SSE)"| User
+    User([방문자<br>브라우저]) -->|"메시지 · 목소리 · 대화 내역"| System["AI Agent Chat<br>(Level 0)"]
+    System -->|"응답 조각 (SSE) · 읽어 주는 소리"| User
     Operator([운영자]) -->|"환경변수<br>API 키 · 모델"| System
     System -->|"Messages API 요청<br>stream: true"| Claude[[Claude API]]
     Claude -->|"스트리밍 이벤트"| System
@@ -61,6 +61,7 @@ flowchart LR
 
 - 현재 (MVP): Node.js 기본 모듈 · HTML/CSS/JavaScript · 외부 패키지 없음
 - 목표: Go 서버 · Flutter 클라이언트 (웹 우선) — 전환 계획은 ARCHITECTURE.md §10
+- 음성: `speech_to_text` · `flutter_tts` (기기 음성 엔진, 키 없음)
 - 외부 서비스: Claude API (Messages API, 스트리밍)
 
 ---
@@ -103,8 +104,8 @@ flowchart LR
 | `/src/server` | Level 1 | F-001 ~ F-004 | HTTP 서버, 입력 검증, SSE 응답 |
 | `/src/agent` | Level 1 | F-001, F-003, F-004 | AI 제공자 (Claude · 모의 모드) |
 | `/public` | Level 1 | F-001 ~ F-004 | 채팅 화면 (브라우저) |
-| `/server` | Level 1 | F-009, F-010, F-011 | Go 서버 `chatd` (Node와 같은 API, Flutter 웹 빌드 제공) · HTTP 계약 테스트(`contract/`) |
-| `/app` | Level 1 | F-011, F-003, F-001 · F-002 화면 | Flutter 웹 클라이언트 (S-001) |
+| `/server` | Level 1 | F-009, F-010, F-011, F-012 서버 | Go 서버 `chatd` (Node와 같은 API, Flutter 웹 빌드 제공, 음성 말투) · HTTP 계약 테스트(`contract/`) |
+| `/app` | Level 1 | F-011, F-003, F-012, F-001 · F-002 화면 | Flutter 웹 클라이언트 (S-001) · 음성 대화 |
 
 ---
 
@@ -125,7 +126,7 @@ flowchart LR
 | F-009 | 서버 계약 테스트 (전환 단계 1) | ✅ Done | `/server` | 2026-11-04 | AC1~AC5 통과. 계약 시나리오 17개가 Node 서버에 통과, 모의 모드 아니면 실패, 표준 라이브러리만, GitHub Actions CI 초록 (PR #3) |
 | F-010 | Go 서버 (전환 단계 2) | ✅ Done | `/server` | 2026-11-05 | AC1~AC6 통과: 계약 테스트 Go 서버 통과, `go test ./...` 통과, 기존 화면이 Go 서버로 동작(브라우저 확인), 취소·오류 처리·의존 규칙 테스트, CI 초록 (PR #4). 실제 키로 Claude 모드 수동 확인은 남음 |
 | F-011 | Flutter 웹 클라이언트 (전환 단계 3) | ✅ Done | `/app`, `/server` | 2026-11-05 | `flutter test` 33개, `flutter analyze` 경고 0, 의존 규칙 테스트, Go 서버가 웹 빌드 제공·브라우저에서 스트리밍 확인, PR #5 CI(flutter 작업) 통과 |
-| F-012 | 음성 대화 | ⏳ Pending | `/app`, `/server` | 2026-11-07 | SPEC·ADR-014·015 제안, 사용자 승인 대기 |
+| F-012 | 음성 대화 | 🔄 In Progress | `/app`, `/server` | 2026-11-07 | AC1~AC7 자동 테스트 통과 (Flutter 65개, Go·Node 단위, 계약 테스트 Node·Go). 실제 웹 빌드에 가짜 음성 API를 넣어 4턴·끼어들기 확인. **AC8 실제 마이크 확인(Chrome·Edge) 남음** |
 
 ---
 
@@ -133,5 +134,6 @@ flowchart LR
 
 <!-- SPEC §16 Q-004 결정 (2026-11-04): 남은 MVP 기능과 음성 대화는 Go + Flutter 전환 뒤에 만든다 -->
 
-1. 음성 대화 (SPEC 등록과 STT/TTS ADR 먼저) → `/app`
-2. F-004 오류 처리와 재시도 → 전환 뒤 `/server`, `/app`
+1. F-012 음성 대화 마무리 — 실제 마이크로 Chrome·Edge 확인(AC8, 사용자), 필요하면 끝맺음 시간·에코 조정 → `/app`
+2. ARCHITECTURE §10 단계 4 — Node MVP 제거 (음성이 동작한 뒤로 미뤄 둠) → `/src`, `/public`
+3. F-004 오류 처리와 재시도 → `/server`, `/app`
