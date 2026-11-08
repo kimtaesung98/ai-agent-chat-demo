@@ -33,5 +33,19 @@ test('F-001 마지막 메시지가 assistant면 거절한다', () => {
 
 test('F-001 정상 요청은 필요한 필드만 남긴다', () => {
   const r = validateChatRequest({ messages: [{ role: 'user', content: '안녕', extra: true }] });
-  assert.deepEqual(r, { ok: true, messages: [{ role: 'user', content: '안녕' }] });
+  assert.deepEqual(r, { ok: true, messages: [{ role: 'user', content: '안녕' }], mode: 'text' });
+});
+
+test('F-012 AC6 mode가 없거나 text면 text, voice면 voice', () => {
+  assert.equal(validateChatRequest({ messages: [user('안녕')] }).mode, 'text');
+  assert.equal(validateChatRequest({ messages: [user('안녕')], mode: 'text' }).mode, 'text');
+  assert.equal(validateChatRequest({ messages: [user('안녕')], mode: 'voice' }).mode, 'voice');
+});
+
+test('F-012 AC6 mode가 text·voice가 아니면 INVALID_INPUT', () => {
+  for (const mode of ['VOICE', 'audio', '', 1, null, true, ['voice']]) {
+    const r = validateChatRequest({ messages: [user('안녕')], mode });
+    assert.equal(r.ok, false, JSON.stringify(mode));
+    assert.equal(r.code, 'INVALID_INPUT');
+  }
 });

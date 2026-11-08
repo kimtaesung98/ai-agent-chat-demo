@@ -13,7 +13,7 @@
 ```
 루트(/) — Level 0 DFD
 └─ [AI Agent Chat] 버블 중 "브라우저와 주고받는" 부분
-       │  입력: 브라우저의 HTTP 요청 (POST /api/chat 의 messages[], GET 정적 파일)
+       │  입력: 브라우저의 HTTP 요청 (POST /api/chat 의 messages[]·mode, GET 정적 파일)
        ▼
 src/server — Level 1 DFD (아래 상세)
        │  출력: SSE 스트림 (delta · done · error), JSON 오류(400/404/405/413), 정적 파일
@@ -36,6 +36,8 @@ flowchart LR
     Body -->|"JSON"| Validate[validateChatRequest]
     Validate -->|"400 오류"| Browser
     Validate -->|"messages[]"| Trim[trimToRecentTurns<br>최근 20턴]
+    Validate -->|"mode"| Voice[systemPromptFor<br>voice.js]
+    Voice -->|"system (voice면 말하기용 지시)"| Agent
     Trim -->|"messages[]"| Agent[[src/agent<br>provider.stream]]
     Agent -->|"delta · done"| SSE[SSE 쓰기]
     Agent -->|"ProviderError"| SSE
@@ -71,6 +73,7 @@ flowchart LR
 
 - 입력 검증 규칙은 `validate.js` 한 곳에서만 정의 (SPEC.md §7.2 ChatMessage 제약과 일치)
 - 맥락 길이 정책(최근 20턴)은 `context.js` 한 곳에서만 정의 (SPEC.md F-002 AC2)
+- 음성 말투 프롬프트는 `voice.js` 한 곳에서만 정의 — Go `server/internal/chat`의 `VoiceSystemPrompt`와 같은 문장 (SPEC.md F-012 AC6)
 - SSE 이벤트 이름은 SPEC.md API-001과 일치 (`delta`, `done`, `error`)
 - 클라이언트 연결이 끊기면 제공자에 취소 신호 전달
 - 작업 완료 시 `/README.md` Progress Tracker 업데이트

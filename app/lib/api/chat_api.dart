@@ -15,8 +15,8 @@ export 'models.dart';
 /// 서버 통신 인터페이스. 컨트롤러는 이것만 알고, 테스트는 가짜를 쓴다.
 abstract interface class ChatApi {
   /// 대화를 보내고 응답 사건을 차례로 내보낸다. 마지막은 [ChatDone] 또는 [ChatFailed].
-  /// 구독을 취소하면 요청이 중단된다 (F-003).
-  Stream<ChatEvent> stream(List<Message> messages);
+  /// 구독을 취소하면 요청이 중단된다 (F-003). [mode]가 voice면 말하기용 답을 요청한다 (F-012).
+  Stream<ChatEvent> stream(List<Message> messages, {ChatMode mode = ChatMode.text});
 
   Future<ServerConfig> config();
 }
@@ -54,7 +54,7 @@ class HttpChatApi implements ChatApi {
   }
 
   @override
-  Stream<ChatEvent> stream(List<Message> messages) {
+  Stream<ChatEvent> stream(List<Message> messages, {ChatMode mode = ChatMode.text}) {
     final client = _newClient();
     final abort = Completer<void>();
     late final StreamController<ChatEvent> out;
@@ -64,7 +64,10 @@ class HttpChatApi implements ChatApi {
       try {
         final req = http.AbortableRequest('POST', _uri('/api/chat'), abortTrigger: abort.future)
           ..headers['content-type'] = 'application/json'
-          ..body = jsonEncode({'messages': messages.map((m) => m.toJson()).toList()});
+          ..body = jsonEncode({
+            'messages': messages.map((m) => m.toJson()).toList(),
+            if (mode == ChatMode.voice) 'mode': 'voice', // 기본(text)은 보내지 않는다 — 기존 요청과 같음
+          });
 
         final http.StreamedResponse res;
         try {

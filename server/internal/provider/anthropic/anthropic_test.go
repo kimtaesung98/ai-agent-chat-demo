@@ -46,7 +46,7 @@ type result struct {
 func collect(ctx context.Context, p *Provider, msgs []chat.Message) result {
 	var r result
 	var b strings.Builder
-	for c, err := range p.Stream(ctx, msgs) {
+	for c, err := range p.Stream(ctx, "", msgs) {
 		if err != nil {
 			r.err = err
 			break
@@ -102,6 +102,35 @@ func TestStream(t *testing.T) {
 		}
 		if len(got.Messages) != 3 || got.Messages[0].Role != "user" || got.Messages[1].Role != "assistant" {
 			t.Fatalf("F-002 AC1 대화 내역이 순서대로 가야 해요: %+v", got.Messages)
+		}
+	})
+
+	t.Run("F-012 AC6 system이 있으면 업스트림 요청에 시스템 프롬프트로 보내고, 없으면 보내지 않는다", func(t *testing.T) {
+		for _, system := range []string{"", chat.VoiceSystemPrompt} {
+			var raw map[string]json.RawMessage
+			p := newProvider(t, func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				json.Unmarshal(body, &raw)
+				w.Header().Set("Content-Type", "text/event-stream")
+				sse(w, "message_start", `{"type":"message_start","message":{"id":"m","type":"message","role":"assistant","content":[],"model":"claude-test"}}`)
+				sse(w, "message_stop", `{"type":"message_stop"}`)
+			})
+			for range p.Stream(context.Background(), system, hello) {
+			}
+			var blocks []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			}
+			sys, has := raw["system"]
+			if system == "" {
+				if has {
+					t.Fatalf("텍스트 모드에 system이 가면 안 돼요: %s", sys)
+				}
+				continue
+			}
+			if json.Unmarshal(sys, &blocks) != nil || len(blocks) != 1 || blocks[0].Text != system {
+				t.Fatalf("system = %s", sys)
+			}
 		}
 	})
 
@@ -172,7 +201,7 @@ func TestStream(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		n := 0
-		for c, err := range p.Stream(ctx, hello) {
+		for c, err := range p.Stream(ctx, "", hello) {
 			if err != nil || c.Done {
 				t.Fatalf("취소 뒤 err=%v done=%v", err, c.Done)
 			}

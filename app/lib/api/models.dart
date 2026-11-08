@@ -4,6 +4,9 @@ library;
 /// 메시지 작성자.
 enum Role { user, assistant }
 
+/// 답 말투 (API-001 `mode`, F-012). voice면 서버가 짧은 구어체로 답하게 한다.
+enum ChatMode { text, voice }
+
 /// 대화 메시지 하나.
 class Message {
   const Message(this.role, this.content);

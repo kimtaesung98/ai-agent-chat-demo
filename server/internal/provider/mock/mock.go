@@ -27,7 +27,8 @@ func New() *Provider { return &Provider{ChunkDelay: 30 * time.Millisecond} }
 func (p *Provider) Name() string  { return "mock" }
 func (p *Provider) Model() string { return "mock-echo" }
 
-func (p *Provider) Stream(ctx context.Context, msgs []chat.Message) iter.Seq2[provider.Chunk, error] {
+// Stream은 system을 쓰지 않는다 — 계약 테스트가 보는 답 문구가 모드와 상관없이 같아야 한다.
+func (p *Provider) Stream(ctx context.Context, _ string, msgs []chat.Message) iter.Seq2[provider.Chunk, error] {
 	return func(yield func(provider.Chunk, error) bool) {
 		reply := []rune(buildReply(msgs))
 		for i := 0; i < len(reply); i += chunkSize {

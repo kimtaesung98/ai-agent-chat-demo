@@ -1,6 +1,6 @@
 # server — Overview
 
-> **담당 기능**: `SPEC.md`의 `F-009` (계약 테스트), `F-010` (Go 서버). 단계 4에서 Node 서버가 빠지면 F-001 ~ F-004 서버 부분을 모두 맡습니다.  
+> **담당 기능**: `SPEC.md`의 `F-009` (계약 테스트), `F-010` (Go 서버), `F-012`의 서버 부분 (`mode: "voice"` 말투). 단계 4에서 Node 서버가 빠지면 F-001 ~ F-004 서버 부분을 모두 맡습니다.  
 > (진행 상태는 `/README.md` Progress Tracker에서 관리)
 
 이 폴더는 **Go 서버 `chatd`** 와 Node·Go 서버에 똑같이 실행하는 **HTTP 계약 테스트**(`contract/`)를 담당합니다.  
@@ -13,7 +13,7 @@ Go 서버는 Node 서버(`src/`)와 같은 API(SPEC.md §9)를 제공하며, 무
 ```
 루트(/) — Level 0 DFD
 └─ [AI Agent Chat] 버블 (Go 서버로 구현한 경우)
-       │  입력: 브라우저의 HTTP 요청 (POST /api/chat 의 messages[], GET 정적 파일), 운영자의 환경변수
+       │  입력: 브라우저의 HTTP 요청 (POST /api/chat 의 messages[]·mode, GET 정적 파일), 운영자의 환경변수
        ▼
 server — Level 1 DFD (아래 상세)
        │  출력: SSE 스트림 (delta · done · error), 오류 JSON(400/404/405/413), 정적 파일, Claude API 요청
@@ -37,7 +37,7 @@ flowchart LR
     HTTP -->|"GET /, /*.js, /*.css"| Static[정적 파일<br>os.Root]
     HTTP -->|"POST /api/chat 본문<br>1MB 제한"| Chat[chat<br>ParseRequest · TrimToRecentTurns]
     Chat -->|"400 오류"| HTTP
-    Chat -->|"messages[]"| Stream[[Provider.Stream<br>ctx]]
+    Chat -->|"messages[] · system<br>(mode: voice면 말하기용 지시)"| Stream[[Provider.Stream<br>ctx]]
     Stream --> Mock
     Stream --> Anthropic
     Anthropic -->|"SDK · stream"| Claude[[Claude API]]
@@ -53,7 +53,7 @@ flowchart LR
 |---|---|
 | `cmd/chatd` | 진입점: 설정 → 제공자 → HTTP 조립, 시작 로그(모드만), 종료 신호 처리 |
 | `internal/config` | 환경변수 읽기·검증 (잘못된 `PORT`면 기동 중단) |
-| `internal/chat` | 도메인: `Message`, 입력 검증, 최근 20턴 정리 (순수 함수) |
+| `internal/chat` | 도메인: `Message`, 입력 검증(`mode` 포함), 최근 20턴 정리, 음성 말투 프롬프트 `VoiceSystemPrompt` (순수 함수) |
 | `internal/provider` | `Provider` 인터페이스, `Chunk`, 사용자용 오류(`Error`, `UserMessage`) |
 | `internal/provider/mock` | 모의 제공자 (Node와 같은 답 문구) |
 | `internal/provider/anthropic` | Claude 어댑터 (공식 Go SDK — 이 폴더에서만 import) |
@@ -102,5 +102,5 @@ flowchart LR
 - 이 폴더 내 구조 변경 시 위 DFD와 상위 DFD 동시 업데이트
 - 새 패키지를 만들면 ARCHITECTURE.md §3.2·§3.3과 `internal/archtest`의 허용 표를 함께 고침
 - 계약을 바꾸면 SPEC.md §9와 ARCHITECTURE.md §4.1을 먼저 고치고 사용자 승인을 받음
-- 사용자용 오류 문장·모의 응답 문구를 바꾸면 Node(`src/`)도 같이 바꿈 (계약 테스트로 확인)
+- 사용자용 오류 문장·모의 응답 문구·음성 말투 프롬프트를 바꾸면 Node(`src/`)도 같이 바꿈 (오류·모의 문구는 계약 테스트로 확인, 프롬프트는 `src/server/voice.js`와 눈으로 맞춤)
 - 푸시 전 `gofmt -l .`가 비어 있고 `go vet ./...` · `go test ./...`가 통과해야 함

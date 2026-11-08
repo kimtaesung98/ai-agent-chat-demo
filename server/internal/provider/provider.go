@@ -10,11 +10,11 @@ import (
 )
 
 // Provider는 응답 조각을 순서대로 내보낸다. ctx가 취소되면 오류 없이 즉시 끝난다.
-// 실패하면 *Error를 마지막 값으로 내보낸다.
+// 실패하면 *Error를 마지막 값으로 내보낸다. system이 비어 있지 않으면 시스템 프롬프트로 쓴다 (F-012).
 type Provider interface {
 	Name() string  // "mock" | "anthropic"
 	Model() string // 표시용 모델 이름
-	Stream(ctx context.Context, msgs []chat.Message) iter.Seq2[Chunk, error]
+	Stream(ctx context.Context, system string, msgs []chat.Message) iter.Seq2[Chunk, error]
 }
 
 // Chunk는 응답 조각 하나다. Done이면 마지막 조각이다.
