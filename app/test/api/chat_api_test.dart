@@ -126,4 +126,25 @@ void main() {
     expect(cfg.isMock, isTrue);
     expect(cfg.model, 'mock-echo');
   });
+
+  test('F-005 AC1·AC3 persona가 있으면 빈 필드를 빼고 본문에 싣는다', () async {
+    final client = FakeClient((_) async => sse(Stream.value('event: done\ndata: {"stopReason":"end_turn"}\n\n')));
+    final api = HttpChatApi(baseUrl: 'http://srv', clientFactory: () => client);
+    const persona = Persona(id: 'x', name: ' 지은 ', role: '기획 파트너', tones: ['차분하게'], instructions: ' ');
+    await api
+        .stream(
+          msgs,
+          mode: ChatMode.voice,
+          persona: const PersonaRequest(persona, about: '기획자'),
+        )
+        .toList();
+    final body = jsonDecode((client.last! as http.Request).body) as Map<String, dynamic>;
+    expect(body['mode'], 'voice');
+    expect(body['persona'], {
+      'name': '지은',
+      'role': '기획 파트너',
+      'tones': ['차분하게'],
+      'about': '기획자',
+    });
+  });
 }

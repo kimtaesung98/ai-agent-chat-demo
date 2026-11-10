@@ -7,14 +7,16 @@ import 'package:ai_agent_chat/voice/voice_engine.dart';
 class FakeApi implements ChatApi {
   final requests = <List<Message>>[];
   final modes = <ChatMode>[];
+  final personas = <PersonaRequest?>[];
   final streams = <StreamController<ChatEvent>>[];
   var cancels = 0;
 
   StreamController<ChatEvent> get current => streams.last;
 
   @override
-  Stream<ChatEvent> stream(List<Message> messages, {ChatMode mode = ChatMode.text}) {
+  Stream<ChatEvent> stream(List<Message> messages, {ChatMode mode = ChatMode.text, PersonaRequest? persona}) {
     requests.add(messages);
+    personas.add(persona);
     modes.add(mode);
     final c = StreamController<ChatEvent>(onCancel: () => cancels++);
     streams.add(c);

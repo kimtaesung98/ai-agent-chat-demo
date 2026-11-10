@@ -1,6 +1,6 @@
 # app — Overview
 
-> **담당 기능**: `SPEC.md`의 `F-011` (Flutter 웹 클라이언트), `F-003` (응답 중단 — 화면), `F-012` (음성 대화), F-001 · F-002의 화면 부분  
+> **담당 기능**: `SPEC.md`의 `F-011` (Flutter 웹 클라이언트), `F-003` (응답 중단 — 화면), `F-012` (음성 대화), `F-005` (페르소나 — 화면·상태), F-001 · F-002의 화면 부분  
 > (진행 상태는 `/README.md` Progress Tracker에서 관리)
 
 이 폴더는 **Flutter로 만든 채팅 화면(S-001)** 을 담당합니다. 웹 빌드는 Go 서버가 같은 출처로 제공합니다 (ARCHITECTURE.md ADR-011).  
@@ -49,21 +49,27 @@ flowchart LR
     Voice -->|"문장 분리 (sentences.dart)<br>speak · cancelSpeech"| Engine
     Engine -->|"소리"| User
     Voice -->|"상태 · 미리 보기 · 안내"| UI
+    User -->|"페르소나 선택 · 편집 · 내 프로필"| UI
+    UI -->|"select · save · setAbout"| Persona[chat/persona_controller.dart<br>ChangeNotifier]
+    Persona -->|"PersonaRequest (persona · about)"| Ctrl
 ```
 
 | 파일 | 역할 |
 |---|---|
 | `lib/main.dart` | 앱 조립: `HttpChatApi` → `ChatController` → `VoiceController`(`PluginVoiceEngine`) → `ChatApp` (`API_BASE_URL`은 빌드 때 주입, 웹은 비움) |
-| `lib/api/models.dart` | `Message`, `ChatEvent`(`ChatDelta`·`ChatDone`·`ChatFailed`), `ServerConfig` |
+| `lib/api/models.dart` | `Message`, `ChatEvent`(`ChatDelta`·`ChatDone`·`ChatFailed`), `ServerConfig`, `Persona`·`PersonaRequest`(API-001 `persona`) |
 | `lib/api/sse.dart` | SSE 파서 (바이트 → 이벤트) |
 | `lib/api/chat_api.dart` | `ChatApi` 인터페이스, `HttpChatApi` (구독 취소 시 요청 중단) |
 | `lib/api/client_factory*.dart` | 웹은 `fetch_client`, 그 밖은 `package:http` (조건부 import, ADR-009) |
-| `lib/chat/chat_controller.dart` | 말풍선 목록·바쁨·중단·새 대화·대화 내역 (위젯 없음, 테스트 대상) |
+| `lib/chat/chat_controller.dart` | 말풍선 목록·바쁨·중단·새 대화·대화 내역, 요청에 선택한 페르소나 싣기 (위젯 없음, 테스트 대상) |
+| `lib/chat/persona_controller.dart` | 페르소나 목록(기본 3개)·선택·저장·내 프로필 — 앱 메모리에만 (F-005, Q-005) |
 | `lib/voice/voice_engine.dart` | `VoiceEngine` 인터페이스와 들은 것(`HeardPartial`·`HeardFinal`·`ListenEnded`·`ListenFailed`) |
 | `lib/voice/plugin_voice_engine.dart` | `speech_to_text`·`flutter_tts`로 만든 엔진 — 패키지는 이 파일에서만 import (R-A11 특이점 처리) |
 | `lib/voice/sentences.dart` | 스트리밍 답을 읽을 문장으로 나누고 마크다운·URL·코드를 빼는 순수 함수 |
 | `lib/voice/voice_controller.dart` | 음성 대화 진행: 듣기 → 자동 전송 → 문장별 읽기 → 다시 듣기, 끼어들기·에코 무시 (위젯 없음, 테스트 대상) |
-| `lib/ui/chat_page.dart` | S-001 화면 (헤더 · 모드 배지 · 새 대화 · 대화 영역 · 음성 상태 · 입력창 · 마이크 · 전송/중단) |
+| `lib/ui/chat_page.dart` | S-001 화면 (페르소나 사이드바·서랍 · 상단 페르소나 · 모드 배지 · 편집 · 새 대화 · 대화 영역 · 음성 상태 · 입력창 · 마이크 · 전송/중단) |
+| `lib/ui/persona_widgets.dart` | 페르소나 아바타 · 사이드바 · 내 프로필 대화상자 (900px 미만은 서랍) |
+| `lib/ui/persona_editor.dart` | S-002 페르소나 편집 화면 (이름 · 역할 칩 · 말투 칩 최대 6개 · 추가 지시) |
 | `lib/ui/theme.dart` | 라이트·다크 색 (`public/styles.css`와 같은 값) |
 
 **실행** (`app/`에서)

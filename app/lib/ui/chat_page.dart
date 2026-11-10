@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../chat/chat_controller.dart';
+import '../chat/persona_controller.dart';
 import '../voice/voice_controller.dart';
+import 'persona_editor.dart';
+import 'persona_widgets.dart';
 import 'theme.dart';
 
 class ChatPage extends StatefulWidget {
@@ -57,45 +60,131 @@ class _ChatPageState extends State<ChatPage> {
     if (_chat.send(_input.text)) _input.clear(); // 빈 메시지는 보내지 않음 (F-001 AC3)
   }
 
+  PersonaController? get _personas => _chat.personas;
+
+  /// 다른 페르소나를 고르면 새 대화로 시작한다 (F-005 AC1). 음성 대화 중이면 끈다.
+  void _selectPersona(Persona p) {
+    final personas = _personas;
+    if (personas == null || _chat.busy || p.id == personas.selected.id) return;
+    if (_voice?.active ?? false) _voice!.stop();
+    personas.select(p.id);
+    _chat.reset();
+  }
+
+  Future<void> _editPersona(Persona p, {bool isNew = false}) async {
+    final personas = _personas;
+    if (personas == null) return;
+    final saved = await openPersonaEditor(context, p, isNew: isNew);
+    if (saved == null || !mounted) return; // 취소하면 바뀌지 않는다 (F-005 AC2)
+    final switching = saved.id != personas.selected.id;
+    if (switching && _chat.busy) return;
+    if (switching && (_voice?.active ?? false)) _voice!.stop();
+    personas.save(saved);
+    if (switching) _chat.reset(); // 새로 만든 페르소나는 선택되고 새 대화로 시작한다
+  }
+
+  Future<void> _editProfile() async {
+    final personas = _personas;
+    if (personas == null) return;
+    final about = await showProfileDialog(context, personas.about);
+    if (about != null) personas.setAbout(about);
+  }
+
+  /// 좁은 화면의 서랍은 고른 뒤 닫는다.
+  Widget _sidebar(PersonaController personas, {required bool inDrawer}) {
+    void close() {
+      if (inDrawer) Navigator.of(context).pop();
+    }
+
+    return PersonaSidebar(
+      personas: personas,
+      enabled: !_chat.busy,
+      onSelect: (p) {
+        close();
+        _selectPersona(p);
+      },
+      onCreate: () {
+        close();
+        _editPersona(personas.blank(), isNew: true);
+      },
+      onEditProfile: () {
+        close();
+        _editProfile();
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = ChatColors.of(context);
+    final personas = _personas;
     return ListenableBuilder(
-      listenable: Listenable.merge([_chat, ?_voice]),
-      builder: (context, _) => Scaffold(
-        appBar: AppBar(
-          backgroundColor: c.panel,
-          surfaceTintColor: Colors.transparent,
-          shape: Border(bottom: BorderSide(color: c.line)),
-          title: Text(
-            'AI Agent Chat',
-            style: TextStyle(color: c.text, fontSize: 18, fontWeight: FontWeight.w600),
-          ),
-          actions: [
-            _ModeBadge(chat: _chat),
-            const SizedBox(width: 8),
-            OutlinedButton(
-              key: const Key('new-chat'),
-              onPressed: _chat.entries.isEmpty ? null : _chat.reset,
-              child: const Text('새 대화'),
+      listenable: Listenable.merge([_chat, ?_voice, ?personas]),
+      builder: (context, _) => LayoutBuilder(
+        builder: (context, box) {
+          final wide = personas != null && box.maxWidth >= sidebarBreakpoint;
+          final chat = Scaffold(
+            drawer: personas != null && !wide
+                ? Drawer(width: sidebarWidth, child: _sidebar(personas, inDrawer: true))
+                : null,
+            appBar: AppBar(
+              backgroundColor: c.panel,
+              surfaceTintColor: Colors.transparent,
+              shape: Border(bottom: BorderSide(color: c.line)),
+              titleSpacing: personas == null || wide ? 20 : 0,
+              title: personas == null
+                  ? Text(
+                      'AI Agent Chat',
+                      style: TextStyle(color: c.text, fontSize: 18, fontWeight: FontWeight.w600),
+                    )
+                  : _PersonaTitle(persona: personas.selected),
+              actions: [
+                // 아주 좁은 화면은 페르소나 이름 자리를 위해 모드 배지를 숨긴다
+                if (personas == null || box.maxWidth >= 600) ...[_ModeBadge(chat: _chat), const SizedBox(width: 8)],
+                if (personas != null)
+                  IconButton(
+                    key: const Key('edit-persona'),
+                    tooltip: '페르소나 편집',
+                    onPressed: () => _editPersona(personas.selected),
+                    icon: const Icon(Icons.tune),
+                  ),
+                OutlinedButton(
+                  key: const Key('new-chat'),
+                  onPressed: _chat.entries.isEmpty ? null : _chat.reset,
+                  child: const Text('새 대화'),
+                ),
+                const SizedBox(width: 12),
+              ],
             ),
-            const SizedBox(width: 12),
-          ],
-        ),
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
-              child: Column(
-                children: [
-                  Expanded(child: _log(c)),
-                  if (_voice case final voice?) _VoiceBar(voice: voice),
-                  _composer(c),
-                ],
+            body: SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: Column(
+                    children: [
+                      Expanded(child: _log(c)),
+                      if (_voice case final voice?) _VoiceBar(voice: voice),
+                      _composer(c),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
+          );
+          if (!wide) return chat;
+          // 넓은 화면은 사이드바 고정 (F-005 AC7)
+          return Row(
+            children: [
+              SizedBox(
+                key: const Key('persona-sidebar'),
+                width: sidebarWidth,
+                child: _sidebar(personas, inDrawer: false),
+              ),
+              VerticalDivider(width: 1, thickness: 1, color: c.line),
+              Expanded(child: chat),
+            ],
+          );
+        },
       ),
     );
   }
@@ -103,15 +192,35 @@ class _ChatPageState extends State<ChatPage> {
   Widget _log(ChatColors c) {
     final entries = _chat.entries;
     if (entries.isEmpty) {
+      final hint = Text(
+        '무엇이든 물어보세요. 답이 만들어지는 대로 바로 보여 드려요.',
+        key: const Key('empty'),
+        textAlign: TextAlign.center,
+        style: TextStyle(color: c.muted),
+      );
+      final persona = _personas?.selected;
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(
-            '무엇이든 물어보세요. 답이 만들어지는 대로 바로 보여 드려요.',
-            key: const Key('empty'),
-            textAlign: TextAlign.center,
-            style: TextStyle(color: c.muted),
-          ),
+          child: persona == null
+              ? hint
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    PersonaAvatar(persona: persona, size: 64),
+                    const SizedBox(height: 16),
+                    Text(
+                      persona.name,
+                      style: TextStyle(color: c.text, fontSize: 22, fontWeight: FontWeight.w700),
+                    ),
+                    if (persona.summary.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(persona.summary, style: TextStyle(color: c.muted)),
+                    ],
+                    const SizedBox(height: 20),
+                    hint,
+                  ],
+                ),
         ),
       );
     }
@@ -261,6 +370,45 @@ class _VoiceBar extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 상단 바: 선택한 페르소나 이름과 요약 (F-005 상세 동작 1).
+class _PersonaTitle extends StatelessWidget {
+  const _PersonaTitle({required this.persona});
+  final Persona persona;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = ChatColors.of(context);
+    return Row(
+      key: const Key('persona-title'),
+      children: [
+        PersonaAvatar(persona: persona, size: 36),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                persona.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: c.text, fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              if (persona.summary.isNotEmpty)
+                Text(
+                  persona.summary,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: c.muted, fontSize: 12),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

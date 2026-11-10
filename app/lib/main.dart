@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'api/chat_api.dart';
 import 'chat/chat_controller.dart';
+import 'chat/persona_controller.dart';
 import 'ui/chat_page.dart';
 import 'ui/theme.dart';
 import 'voice/plugin_voice_engine.dart';
@@ -11,7 +12,7 @@ import 'voice/voice_controller.dart';
 const apiBaseUrl = String.fromEnvironment('API_BASE_URL');
 
 void main() {
-  final controller = ChatController(HttpChatApi(baseUrl: apiBaseUrl))..loadConfig();
+  final controller = ChatController(HttpChatApi(baseUrl: apiBaseUrl), personas: PersonaController())..loadConfig();
   final voice = VoiceController(controller, PluginVoiceEngine());
   runApp(ChatApp(controller: controller, voice: voice));
 }

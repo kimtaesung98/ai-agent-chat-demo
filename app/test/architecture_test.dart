@@ -16,7 +16,9 @@ void main() {
   test('F-011 AC3 chat은 위젯을 import하지 않는다 (foundation까지만)', () {
     for (final MapEntry(:key, :value) in importsOf('chat').entries) {
       for (final p in value) {
-        final ok = p.startsWith('dart:') || p == 'package:flutter/foundation.dart' || p.startsWith('../api/');
+        final sameFolder = !p.contains(':') && !p.contains('/'); // 예: chat_controller → persona_controller (F-005)
+        final ok =
+            p.startsWith('dart:') || p == 'package:flutter/foundation.dart' || p.startsWith('../api/') || sameFolder;
         expect(ok, isTrue, reason: '$key → $p');
       }
     }

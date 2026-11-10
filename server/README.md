@@ -1,6 +1,6 @@
 # server — Overview
 
-> **담당 기능**: `SPEC.md`의 `F-009` (계약 테스트), `F-010` (Go 서버), `F-012`의 서버 부분 (`mode: "voice"` 말투). 단계 4에서 Node 서버가 빠지면 F-001 ~ F-004 서버 부분을 모두 맡습니다.  
+> **담당 기능**: `SPEC.md`의 `F-009` (계약 테스트), `F-010` (Go 서버), `F-012`의 서버 부분 (`mode: "voice"` 말투), `F-005`의 서버 부분 (`persona` 검증 · 시스템 프롬프트). 단계 4에서 Node 서버가 빠지면 F-001 ~ F-004 서버 부분을 모두 맡습니다.  
 > (진행 상태는 `/README.md` Progress Tracker에서 관리)
 
 이 폴더는 **Go 서버 `chatd`** 와 Node·Go 서버에 똑같이 실행하는 **HTTP 계약 테스트**(`contract/`)를 담당합니다.  
@@ -53,7 +53,7 @@ flowchart LR
 |---|---|
 | `cmd/chatd` | 진입점: 설정 → 제공자 → HTTP 조립, 시작 로그(모드만), 종료 신호 처리 |
 | `internal/config` | 환경변수 읽기·검증 (잘못된 `PORT`면 기동 중단) |
-| `internal/chat` | 도메인: `Message`, 입력 검증(`mode` 포함), 최근 20턴 정리, 음성 말투 프롬프트 `VoiceSystemPrompt` (순수 함수) |
+| `internal/chat` | 도메인: `Message`, 입력 검증(`mode`·`persona` 포함), 최근 20턴 정리, 음성 말투 프롬프트 `VoiceSystemPrompt`, 페르소나 프롬프트(`persona.go`) — `Request.SystemPrompt()` (순수 함수) |
 | `internal/provider` | `Provider` 인터페이스, `Chunk`, 사용자용 오류(`Error`, `UserMessage`) |
 | `internal/provider/mock` | 모의 제공자 (Node와 같은 답 문구) |
 | `internal/provider/anthropic` | Claude 어댑터 (공식 Go SDK — 이 폴더에서만 import) |
@@ -102,5 +102,5 @@ flowchart LR
 - 이 폴더 내 구조 변경 시 위 DFD와 상위 DFD 동시 업데이트
 - 새 패키지를 만들면 ARCHITECTURE.md §3.2·§3.3과 `internal/archtest`의 허용 표를 함께 고침
 - 계약을 바꾸면 SPEC.md §9와 ARCHITECTURE.md §4.1을 먼저 고치고 사용자 승인을 받음
-- 사용자용 오류 문장·모의 응답 문구·음성 말투 프롬프트를 바꾸면 Node(`src/`)도 같이 바꿈 (오류·모의 문구는 계약 테스트로 확인, 프롬프트는 `src/server/voice.js`와 눈으로 맞춤)
+- 사용자용 오류 문장·모의 응답 문구·음성 말투 프롬프트를 바꾸면 Node(`src/`)도 같이 바꿈 (오류·모의 문구는 계약 테스트로 확인, 프롬프트는 `src/server/voice.js`·`persona.js`와 맞춤 — 페르소나 문장은 Go·Node 단위 테스트가 같은 기대 문자열로 확인)
 - 푸시 전 `gofmt -l .`가 비어 있고 `go vet ./...` · `go test ./...`가 통과해야 함

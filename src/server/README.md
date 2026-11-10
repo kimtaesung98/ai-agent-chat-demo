@@ -37,7 +37,9 @@ flowchart LR
     Validate -->|"400 오류"| Browser
     Validate -->|"messages[]"| Trim[trimToRecentTurns<br>최근 20턴]
     Validate -->|"mode"| Voice[systemPromptFor<br>voice.js]
-    Voice -->|"system (voice면 말하기용 지시)"| Agent
+    Validate -->|"persona"| Persona[personaSystemPrompt<br>persona.js]
+    Persona -->|"페르소나 프롬프트"| Voice
+    Voice -->|"system (페르소나 + voice면 말하기용 지시)"| Agent
     Trim -->|"messages[]"| Agent[[src/agent<br>provider.stream]]
     Agent -->|"delta · done"| SSE[SSE 쓰기]
     Agent -->|"ProviderError"| SSE
@@ -73,6 +75,7 @@ flowchart LR
 
 - 입력 검증 규칙은 `validate.js` 한 곳에서만 정의 (SPEC.md §7.2 ChatMessage 제약과 일치)
 - 맥락 길이 정책(최근 20턴)은 `context.js` 한 곳에서만 정의 (SPEC.md F-002 AC2)
+- 페르소나 프롬프트 틀과 `persona` 검증은 `persona.js` 한 곳에서만 정의 — Go `server/internal/chat/persona.go`와 같은 문장·규칙 (SPEC.md F-005 AC4·AC5)
 - 음성 말투 프롬프트는 `voice.js` 한 곳에서만 정의 — Go `server/internal/chat`의 `VoiceSystemPrompt`와 같은 문장 (SPEC.md F-012 AC6)
 - SSE 이벤트 이름은 SPEC.md API-001과 일치 (`delta`, `done`, `error`)
 - 클라이언트 연결이 끊기면 제공자에 취소 신호 전달

@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../api/chat_api.dart';
+import 'persona_controller.dart';
 
 /// 말풍선 상태.
 enum EntryStatus { streaming, done, stopped, error }
@@ -27,9 +28,12 @@ class ChatEntry {
 
 /// 채팅 화면 컨트롤러. 위젯은 [ListenableBuilder]로 구독만 한다.
 class ChatController extends ChangeNotifier {
-  ChatController(this._api);
+  ChatController(this._api, {this.personas});
 
   final ChatApi _api;
+
+  /// 선택한 페르소나와 내 프로필 (F-005). 없으면 `persona` 없이 보낸다.
+  final PersonaController? personas;
   final List<ChatEntry> _entries = [];
   StreamSubscription<ChatEvent>? _sub;
   ServerConfig? _config;
@@ -67,7 +71,7 @@ class ChatController extends ChangeNotifier {
     _entries.addAll([question, answer]);
 
     _sub = _api
-        .stream(messages, mode: voice ? ChatMode.voice : ChatMode.text)
+        .stream(messages, mode: voice ? ChatMode.voice : ChatMode.text, persona: personas?.request)
         .listen(
           (event) {
             switch (event) {
