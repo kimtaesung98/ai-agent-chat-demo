@@ -83,6 +83,7 @@
 | 2026-11-05 | F-011, F-003 | 사용자 ADR-009·010·011 승인. Flutter 3.47.9 설치, `app/` 구현(api·chat·ui), 중단 버튼, 위젯·단위·의존 규칙 테스트 33개, Go 서버가 Flutter 빌드 파일 형식 제공, CI에 flutter 작업 추가, 브라우저로 Go 서버 + Flutter 스트리밍 확인 | `app/**`, `server/internal/httpapi/*`, `.github/workflows/ci.yml`, `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `CLAUDE.md` | 한글 폰트를 gstatic에서 받음 (R-A08) — 공개 전 결정. `public/`·Node는 단계 4에서 제거 |
 | 2026-11-07 | F-012 | PR #5 병합 확인. 음성 대화를 SPEC F-012로 제안, ARCHITECTURE ADR-014·015 제안 (STT·TTS 방식, 음성용 말투), `app/voice` 모듈·인터페이스·시나리오·위험 R-A09·R-A10 | `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `AGENT_STATE.md` | 사용자 승인 전에는 계약(`mode`) 변경 코드 작성 안 함 |
 | 2026-11-07 | F-012 | 사용자가 Flutter 음성 패키지 선택. `app/lib/voice`(문장 분리기·엔진·컨트롤러)·마이크 UI, Go·Node `mode: "voice"` + 말하기용 시스템 프롬프트, 계약 시나리오 2개. 브라우저 확인 중 웹 플러그인 특이점 3개 발견·처리 (R-A11) | `app/**`, `server/**`, `src/server/*`, `src/agent/anthropic.js`, `tests/*`, 문서 | 실제 마이크·실제 Claude로 AC8 확인 필요. 에코 끼어들기(R-A09)는 실제 스피커로만 판단 가능 |
+| 2026-11-10 | F-012 | 로컬 알파테스트 가이드 작성 (Mac, 모의·Claude 모드, 텍스트·음성 체크리스트). Go 1.25·Flutter 3.47.9로 문서대로 빌드·실행·테스트 확인, 잘못된 키 인증 오류 문구 확인 | `docs/ALPHA_TEST_LOCAL.md`, `README.md` | 사용자가 실제 키·실제 마이크로 체크리스트 실행 → 결과로 AC8 판정·끝맺음 시간 조정 |
 
 ---
 
