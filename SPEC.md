@@ -5,7 +5,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v1.7 |
+| 문서 버전 | v1.8 |
 | 상태 | 승인됨 (MVP 범위) |
 | 작성자 | kimtaesung98 |
 | 최종 수정일 | 2026-11-10 |
@@ -75,7 +75,7 @@
 
 ### 2.3 전제 조건과 제약
 - 전제: 사용자는 최신 브라우저(Chrome, Safari, Edge, Firefox 최신 2개 버전)를 쓴다.
-- 제약: 현재 MVP는 외부 패키지 없이 Node.js 22 기본 기능만 사용한다. 목표 스택은 Go 서버 + Flutter 클라이언트 (ARCHITECTURE.md §2, ADR-001·005·006).
+- 제약: 서버는 Go(`server/`), 클라이언트는 Flutter(`app/`)다 (ARCHITECTURE.md §2, ADR-005·006). 처음 Node.js MVP는 F-013(전환 단계 4)에서 제거했다.
 
 ---
 
@@ -112,6 +112,7 @@
 | F-009 | 서버 계약 테스트 | HTTP 수준 계약 테스트로 Node·Go 서버가 같은 API를 지키는지 검증 (ARCHITECTURE §10 단계 1) | P0 | 전환 |
 | F-010 | Go 서버 | Node 서버와 같은 API를 Go로 구현 (ARCHITECTURE §10 단계 2) | P0 | 전환 |
 | F-011 | Flutter 웹 클라이언트 | S-001 채팅 화면을 Flutter 웹으로 구현, Go 서버가 제공 (ARCHITECTURE §10 단계 3) | P0 | 전환 |
+| F-013 | Node MVP 제거 | `src/`·`public/`·Node 테스트를 지우고 Go + Flutter만 남김 (ARCHITECTURE §10 단계 4) | P0 | 전환 |
 | F-012 | 음성 대화 | 말로 묻고 음성으로 답을 듣는다. 말이 끝나면 자동 전송, 답은 문장 단위로 바로 읽기, 끼어들기 | P0 | 전환 뒤 (Q-004) |
 
 ### 4.2 기능 상세
@@ -135,7 +136,7 @@
   - 잘못된 JSON, 형식이 틀린 messages → 400 + 오류 JSON
   - 스트리밍 중 AI 오류 → `error` 이벤트 (상세 처리는 F-004)
 - **관련 항목**: 화면 S-001 · 데이터 `ChatMessage` · API API-001, API-002
-- **Owner Folder**: `/src/server`, `/src/agent`, `/public`
+- **Owner Folder**: `/server`, `/app` (처음 구현은 Node `/src`·`/public` — F-013에서 제거)
 
 #### F-002. 대화 맥락 유지
 - **사용자 스토리**: 방문자로서, 나는 앞에서 한 말을 에이전트가 기억하길 원한다. 왜냐하면 매번 처음부터 설명하고 싶지 않기 때문이다.
@@ -143,7 +144,7 @@
   - [ ] AC1. Given 이전 대화가 있음, When 새 메시지 전송, Then 이전 user/assistant 메시지가 순서대로 AI 제공자에 전달된다
   - [ ] AC2. Given 대화가 최근 20턴을 초과, When 전송, Then 서버는 가장 오래된 턴부터 잘라 최근 20턴만 전달한다
   - [ ] AC3. Given "새 대화" 버튼 클릭, Then 대화 영역과 내역이 비워진다
-- **Owner Folder**: `/src/server`, `/public`
+- **Owner Folder**: `/server`, `/app` (처음 구현은 Node `/src`·`/public` — F-013에서 제거)
 
 #### F-003. 응답 중단
 - **사용자 스토리**: 방문자로서, 나는 원하지 않는 방향의 답변을 중간에 멈추고 싶다.
@@ -151,7 +152,7 @@
   - [ ] AC1. Given 응답 스트리밍 중, When "중단" 클릭, Then 화면 갱신이 즉시 멈추고 입력창이 활성화된다
   - [ ] AC2. Given 클라이언트 연결 종료, Then 서버는 AI 제공자 요청을 취소한다
   - [ ] AC3. Given 중단된 응답, Then 그때까지 받은 내용은 대화에 남고 "중단됨" 표시가 붙는다
-- **Owner Folder**: `/app` (화면 — Q-004 결정에 따라 Flutter에서 구현), `/server` · `/src/server` (취소 전달은 구현됨)
+- **Owner Folder**: `/app` (화면 — Q-004 결정에 따라 Flutter에서 구현), `/server` (취소 전달)
 
 #### F-004. 오류 처리와 재시도
 - **사용자 스토리**: 방문자로서, 나는 오류가 나면 무엇이 잘못됐는지 알고 다시 시도하고 싶다.
@@ -160,9 +161,11 @@
   - [ ] AC2. Given 오류 메시지 표시, When "다시 시도" 클릭, Then 마지막 사용자 메시지로 다시 요청한다
   - [ ] AC3. Given 오류, Then API 키 등 비밀값이 화면·응답에 노출되지 않는다
 - **화면 (Flutter)**: 마지막 답이 오류일 때만 그 말풍선 아래에 "다시 시도" 버튼(높이 44px 이상)을 보인다. 누르면 실패한 질문과 오류 말풍선을 지우고 같은 질문을 글 모드로 다시 보낸다. 응답 중에는 버튼이 없다. 음성 대화 중에는 다시 말하면 된다
-- **Owner Folder**: `/server` (오류 문장·비밀값 숨김), `/app` (오류 말풍선·다시 시도) — Q-004에 따라 Go + Flutter에서 구현. Node(`/src`, `/public`)는 §10 단계 4까지 오류 안내만 유지
+- **Owner Folder**: `/server` (오류 문장·비밀값 숨김), `/app` (오류 말풍선·다시 시도) — Q-004에 따라 Go + Flutter에서 구현
 
 #### F-009. 서버 계약 테스트
+> F-013 이후: Node 서버는 없다. 계약 테스트는 `server/`에서 `go test ./...`로 모의 모드 Go 서버에 실행한다. 아래 `npm` 명령은 완료 당시 기록이다
+
 - **사용자 스토리**: 개발자로서, 나는 서버를 Go로 바꿔도 화면이 보는 API가 그대로인지 같은 테스트로 확인하고 싶다. 왜냐하면 전환 중에 동작이 몰래 바뀌면 안 되기 때문이다.
 - **상세 동작**:
   1. `server/contract`의 Go 테스트가 `-base-url`로 받은 서버에 실제 HTTP 요청을 보낸다.
@@ -231,7 +234,24 @@
   - [ ] AC7. Given 음성 인식 미지원 브라우저 또는 마이크 거부, Then 안내가 보이고 텍스트 채팅은 그대로 동작한다 (위젯 테스트)
   - [ ] AC8. 수동 확인: Chrome·Edge에서 실제 마이크로 한국어 3턴 이상을 손대지 않고 이어 가고, 읽는 중 말로 끼어들 수 있다
 - **관련 항목**: 화면 S-001 · API API-001 · ARCHITECTURE.md §3.2·§3.3, ADR-014·015, R-A09·R-A10
-- **Owner Folder**: `/app` (음성), `/server` · `/src/server` (`mode` 처리 — Node는 §10 단계 4까지 같이 유지)
+- **Owner Folder**: `/app` (음성), `/server` (`mode` 처리)
+
+#### F-013. Node MVP 제거
+> 상태: 승인 (사용자, 2026-11-10 — Google 로그인 보류를 고르며 "다음 순서인 Node MVP 제거(§10 단계 4)를 먼저 진행"을 선택). ARCHITECTURE.md §10 단계 4
+
+- **사용자 스토리**: 개발자로서, 나는 서버와 화면이 한 벌만 있기를 원한다. 왜냐하면 같은 규칙(검증·오류 문장·프롬프트)을 Node와 Go에 두 번 고치면 어긋나기 때문이다 (TD-001·TD-003).
+- **상세 동작**:
+  1. `src/`, `public/`, `tests/`, `scripts/`, `package.json`을 지운다. 서버는 Go `chatd`, 화면은 Flutter 웹 빌드만 남는다.
+  2. 계약 테스트(`server/contract`)는 `-base-url`이 없으면 `chatd`를 빌드해 **API 키 없이**(모의 모드) 빈 포트에 직접 띄우고 실행한다. 그래서 `go test ./...`만으로 계약 테스트까지 돈다. `-base-url`을 주면 지금처럼 떠 있는 서버에 실행한다.
+  3. CI에서 Node 작업을 빼고, Go 작업(`go test ./...` = 단위 + 계약)과 Flutter 작업만 남긴다.
+  4. 루트·폴더 README, DFD, CLAUDE.md 실행 방법, ARCHITECTURE(ADR-001 "대체됨", 허용 목록, 모듈 맵, 기술 부채)를 새 구조로 고친다.
+- **수용 기준**:
+  - [ ] AC1. Given 저장소, Then `src/`·`public/`·`tests/`·`scripts/`·`package.json`이 없고, 코드에 Node 파일을 가리키는 주석이 없다
+  - [ ] AC2. Given `server/`에서 `go test ./...`, Then 계약 테스트가 모의 모드 `chatd`를 직접 띄워 모두 통과한다 (네트워크·API 키 없이)
+  - [ ] AC3. Given GitHub에 push 또는 PR, Then CI가 Node 없이 Go(정적 검사·테스트·빌드)와 Flutter(분석·테스트·웹 빌드)를 실행하고 초록이다
+  - [ ] AC4. Given 문서, Then 실행·테스트 방법이 Go·Flutter 명령으로 바뀌고, DFD에 Node 폴더가 없다
+- **관련 항목**: ARCHITECTURE.md §10 단계 4, ADR-001(대체됨), ADR-012, TD-001, TD-003
+- **Owner Folder**: `/server` (계약 테스트 실행 방식), 루트 (문서·CI)
 
 #### F-005. 페르소나 설정
 > 상태: 승인 (사용자, 2026-11-10 — "사용자 편의 GUI"로 피그마 시안 A(페르소나 사이드바)·C(페르소나 편집)를 Flutter Material 3로 구현하기로 선택). 서버 쪽 형식은 ARCHITECTURE.md ADR-016(승인)
@@ -254,10 +274,10 @@
   - [ ] AC7. 화면은 Material 3 위젯으로 그리고, 폭 900px 이상은 사이드바 고정, 미만은 서랍이다 (위젯 테스트로 두 폭 확인)
   - [ ] AC8. 수동 확인: 실제 Claude 모드에서 페르소나를 바꾸면 말투·역할이 바뀌고, 내 프로필 내용을 맥락으로 쓴다
 - **관련 항목**: 화면 S-001 · S-002 · API API-001 · ARCHITECTURE.md ADR-015·016 · 피그마 시안 "AI 에이전트 채팅 — GUI 제안"
-- **Owner Folder**: `/app` (화면·상태), `/server` · `/src/server` (`persona` 처리 — Node는 §10 단계 4까지 같이 유지)
+- **Owner Folder**: `/app` (화면·상태), `/server` (`persona` 처리)
 
 #### F-008. 사용자 로그인 (Google)
-> 상태: **제안** (2026-11-10). 사용자가 MVP HTML 디자인에서 "로그인은 구글"로 정함. MVP로 앞당길지와 새 패키지는 Q-006 · ARCHITECTURE.md ADR-017(제안) 승인 뒤에 구현한다
+> 상태: **보류 — Phase 3 그대로** (사용자 결정, 2026-11-10, Q-006). 사용자가 MVP HTML 디자인에서 "로그인은 구글"로 정해 아래 초안을 남겨 둔다. 착수할 때 ARCHITECTURE.md ADR-017(보류)을 다시 승인받는다
 
 - **사용자 스토리**: 사용자로서, 나는 Google 계정으로 한 번에 로그인해서 내 이름으로 대화하고 싶다. 운영자로서, 나는 로그인한 사람만 Claude 사용량을 쓰게 하고 싶다 (R-001).
 - **상세 동작 (MVP 범위)**:
@@ -446,17 +466,17 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 
 | 종류 | 범위 | 도구 | 기준 |
 |---|---|---|---|
-| 단위 테스트 | 입력 검증, SSE 파서, 모의 제공자 | `node:test` | 모든 분기 |
-| 통합 테스트 | 실제 서버를 띄워 `/api/chat` 스트리밍 검증 | `node:test` + `fetch` | 각 기능의 수용 기준 |
-| 계약 테스트 (목표) | 같은 HTTP 시나리오를 Node·Go 서버 모두에 실행 | Go `testing` (ARCHITECTURE.md ADR-012) | API-001·API-002 계약 |
-| 수동 확인 | 브라우저 화면 동작 | 브라우저 | 화면 관련 수용 기준 |
+| 단위 테스트 (서버) | 입력 검증, 턴 정리, 페르소나·음성 프롬프트, 제공자(가짜 업스트림), HTTP 핸들러 | Go `testing`, `httptest` | 모든 분기 |
+| 계약 테스트 | `chatd`를 모의 모드로 띄워 API-001·API-002를 HTTP 시나리오로 검사 (`go test ./...`에 포함) | Go `testing` (ARCHITECTURE.md ADR-012) | API-001·API-002 계약 |
+| 단위·위젯 테스트 (앱) | 컨트롤러, SSE 파서, 화면, 의존 규칙 | `flutter_test` | 화면 관련 수용 기준 |
+| 수동 확인 | 실제 Claude 모드, 실제 마이크 | 브라우저 (Chrome·Edge) | 자동화할 수 없는 수용 기준 |
 
 ---
 
 ## 13. 배포 및 운영
 
 - **환경**: 로컬 (MVP)
-- **실행**: `npm start` (환경변수 `PORT`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`)
+- **실행**: `app/`에서 `flutter build web` → `server/`에서 `STATIC_DIR=../app/build/web go run ./cmd/chatd` (환경변수 `PORT`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `STATIC_DIR`)
 - **브랜치 전략**: GitHub Flow (기능별 브랜치 → PR → main)
 - **롤백 절차**: 이전 커밋으로 되돌려 재실행
 - **모니터링/알림**: 해당 없음 (MVP)
@@ -490,7 +510,7 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | Q-001 | 공개 배포 여부와 시점 | F-008 | kimtaesung98 | |
 | Q-002 | 기본 페르소나(시스템 프롬프트) 문구 | F-005 | kimtaesung98 | 사용자가 화면에서 고른다. 기본 3개(기획 파트너 지은 · 영어 회화 코치 · 다정한 친구)를 앱에 넣고, 시스템 프롬프트 틀은 서버가 정한다 (2026-11-10) |
 | Q-005 | 페르소나·내 프로필을 새로고침 뒤에도 남길지, 어디에 둘지 (브라우저 저장소 패키지 추가 필요 — ARCHITECTURE §2.2) | F-005, F-007 | kimtaesung98 | |
-| Q-006 | F-008 Google 로그인을 Phase 3에서 MVP로 앞당길지, 새 패키지(`google_sign_in`)를 허용할지 | F-008 | kimtaesung98 | 제안: 앞당김 (사용자가 MVP 디자인에 Google 로그인을 넣음, 2026-11-10). ADR-017 승인 대기 |
+| Q-006 | F-008 Google 로그인을 Phase 3에서 MVP로 앞당길지, 새 패키지(`google_sign_in`)를 허용할지 | F-008 | kimtaesung98 | 보류 — Phase 3 그대로 (사용자 결정, 2026-11-10). 로그인은 디자인에만 두고 Node MVP 제거(F-013)를 먼저 한다 |
 | Q-003 | 호스팅 환경 (클라우드 컨테이너 / 사내 서버 등) | ARCHITECTURE §6 | kimtaesung98 | |
 | Q-004 | 남은 MVP 기능 F-003·F-004를 현재 Node MVP에서 먼저 만들지, Go + Flutter 전환(ARCHITECTURE §10) 뒤에 만들지 | F-003, F-004 | kimtaesung98 | 전환 뒤에 만든다. F-003은 §10 단계 3(Flutter 웹)에서 구현. 음성 대화도 Flutter 전환 뒤에 만든다 (2026-11-04) |
 
@@ -519,3 +539,4 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | v1.5 | 2026-11-07 | kimtaesung98 | F-012 음성 대화 등록(사용자 승인), API-001 `mode` 필드, 기기 음성 엔진 연동·개인정보 항목 추가 |
 | v1.6 | 2026-11-10 | kimtaesung98 | F-005를 사용자 페르소나 설정으로 바꿔 상세·수용 기준 작성(사용자 승인), S-002 화면, API-001 `persona` 필드, Q-002 결정, Q-005 추가 |
 | v1.7 | 2026-11-10 | kimtaesung98 | F-004을 Go + Flutter에서 완료(다시 시도 화면 동작 추가). F-008 Google 로그인 상세·수용 기준 초안(제안), Q-006 추가 |
+| v1.8 | 2026-11-10 | kimtaesung98 | F-008·Q-006 보류(사용자 결정). F-013 Node MVP 제거(전환 단계 4) 등록, 테스트 전략·실행 방법을 Go + Flutter로 |

@@ -7,8 +7,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -21,16 +24,97 @@ var client = &http.Client{Timeout: 15 * time.Second}
 func TestMain(m *testing.M) {
 	flag.Parse()
 	*baseURL = strings.TrimRight(*baseURL, "/")
+	os.Exit(run(m))
+}
+
+func run(m *testing.M) int {
 	if *baseURL == "" {
-		fmt.Println("contract: -base-url이 없어 계약 테스트를 건너뜁니다")
-		os.Exit(0)
+		// -base-url이 없으면 chatd를 빌드해 모의 모드로 직접 띄운다 (F-013 AC2)
+		url, stop, err := startChatd()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "contract:", err)
+			return 1
+		}
+		defer stop()
+		*baseURL = url
+		fmt.Println("contract: 모의 모드 chatd를 띄웠어요", url)
 	}
 	// F-009 AC3: 모의 모드가 아니면 채팅 요청을 보내기 전에 멈춘다 (실제 Claude 호출 방지)
 	if err := requireMockMode(); err != nil {
 		fmt.Fprintln(os.Stderr, "contract:", err)
-		os.Exit(1)
+		return 1
 	}
-	os.Exit(m.Run())
+	return m.Run()
+}
+
+// startChatd는 cmd/chatd를 임시 폴더에 빌드해 빈 포트에서 띄운다.
+// ANTHROPIC_API_KEY는 넘기지 않아 항상 모의 모드다 (실제 Claude 호출 금지).
+// 정적 파일은 index.html 하나만 있는 임시 폴더를 쓴다 (S-001 시나리오용).
+func startChatd() (string, func(), error) {
+	tmp, err := os.MkdirTemp("", "chatd-contract-")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup := func() { os.RemoveAll(tmp) }
+	static := filepath.Join(tmp, "web")
+	if err := os.Mkdir(static, 0o755); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	if err := os.WriteFile(filepath.Join(static, "index.html"), []byte("<!doctype html><title>contract</title>"), 0o644); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	bin := filepath.Join(tmp, "chatd")
+	build := exec.Command("go", "build", "-o", bin, "./cmd/chatd")
+	build.Dir = ".." // server/
+	build.Env = append(os.Environ(), "CGO_ENABLED=0")
+	build.Stdout, build.Stderr = os.Stderr, os.Stderr
+	if err := build.Run(); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("chatd 빌드 실패: %w", err)
+	}
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+
+	var env []string
+	for _, kv := range os.Environ() {
+		if k, _, _ := strings.Cut(kv, "="); k == "ANTHROPIC_API_KEY" || k == "PORT" || k == "STATIC_DIR" {
+			continue
+		}
+		env = append(env, kv)
+	}
+	cmd := exec.Command(bin)
+	cmd.Env = append(env, fmt.Sprintf("PORT=%d", port), "STATIC_DIR="+static)
+	cmd.Stderr = os.Stderr // 요청 로그(stdout)는 버린다
+	if err := cmd.Start(); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	stop := func() {
+		cmd.Process.Kill()
+		cmd.Wait()
+		cleanup()
+	}
+	url := fmt.Sprintf("http://127.0.0.1:%d", port)
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if res, err := client.Get(url + "/api/config"); err == nil {
+			res.Body.Close()
+			if res.StatusCode == http.StatusOK {
+				return url, stop, nil
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	stop()
+	return "", nil, fmt.Errorf("chatd가 10초 안에 뜨지 않았어요")
 }
 
 func requireMockMode() error {

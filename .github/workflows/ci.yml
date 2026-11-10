@@ -1,4 +1,4 @@
-# CI — Node·Go 테스트, 두 서버 계약 테스트, Flutter 분석·테스트·웹 빌드 (SPEC.md F-009 AC4, F-010, F-011 AC5)
+# CI — Go 테스트·계약 테스트, Flutter 분석·테스트·웹 빌드 (SPEC.md F-009 AC4, F-010, F-011 AC5, F-013)
 name: CI
 
 on:
@@ -14,17 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-
       - uses: actions/setup-go@v6
         with:
           go-version-file: server/go.mod
           cache: false
-
-      - name: Node 단위·통합 테스트
-        run: npm test
 
       - name: Go 정적 검사
         working-directory: server
@@ -32,19 +25,13 @@ jobs:
           test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
           go vet ./...
 
-      - name: Go 단위 테스트 · 의존 규칙 (F-010 AC2·AC6)
+      - name: Go 단위 테스트 · 의존 규칙 · 계약 테스트 (F-010 AC2·AC6, F-013 AC2 — 모의 모드 chatd를 직접 띄움)
         working-directory: server
         run: go test ./...
 
       - name: Go 정적 빌드 (cgo 없음, ADR-007)
         working-directory: server
         run: CGO_ENABLED=0 go build ./cmd/chatd
-
-      - name: 계약 테스트 (Node 서버, 모의 모드)
-        run: npm run test:contract
-
-      - name: 계약 테스트 (Go 서버, 모의 모드) (F-010 AC1)
-        run: npm run test:contract:go
 
   flutter:
     runs-on: ubuntu-latest

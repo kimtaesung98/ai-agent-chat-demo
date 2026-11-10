@@ -1,6 +1,6 @@
 // chatd는 AI Agent Chat Go 서버의 진입점이다: 설정 → 제공자 → HTTP 조립 (ARCHITECTURE.md §3.2).
 //
-//	STATIC_DIR=../public go run ./cmd/chatd   # 키가 없으면 모의 모드
+//	STATIC_DIR=../app/build/web go run ./cmd/chatd   # 키가 없으면 모의 모드
 package main
 
 import (
@@ -74,7 +74,7 @@ func newProvider(cfg config.Config) (provider.Provider, error) {
 	return anthropic.New(anthropic.Options{APIKey: cfg.APIKey, Model: cfg.Model})
 }
 
-// describeMode는 시작 로그 문구다 (SPEC.md F-001 AC4, Node src/server/mode.js와 같음).
+// describeMode는 시작 로그 문구다 (SPEC.md F-001 AC4).
 func describeMode(p provider.Provider) string {
 	if p.Name() == "mock" {
 		return "모드: 모의(mock) — ANTHROPIC_API_KEY가 없어 모의 응답을 사용합니다"

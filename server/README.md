@@ -1,10 +1,10 @@
 # server — Overview
 
-> **담당 기능**: `SPEC.md`의 `F-009` (계약 테스트), `F-010` (Go 서버), `F-012`의 서버 부분 (`mode: "voice"` 말투), `F-005`의 서버 부분 (`persona` 검증 · 시스템 프롬프트). 단계 4에서 Node 서버가 빠지면 F-001 ~ F-004 서버 부분을 모두 맡습니다.  
+> **담당 기능**: `SPEC.md`의 `F-009` (계약 테스트), `F-010` (Go 서버), `F-012`의 서버 부분 (`mode: "voice"` 말투), `F-005`의 서버 부분 (`persona` 검증 · 시스템 프롬프트), `F-001` ~ `F-004` 서버 부분, `F-013` (계약 테스트가 서버를 직접 띄움).  
 > (진행 상태는 `/README.md` Progress Tracker에서 관리)
 
-이 폴더는 **Go 서버 `chatd`** 와 Node·Go 서버에 똑같이 실행하는 **HTTP 계약 테스트**(`contract/`)를 담당합니다.  
-Go 서버는 Node 서버(`src/`)와 같은 API(SPEC.md §9)를 제공하며, 무상태입니다 (ARCHITECTURE.md ADR-004).
+이 폴더는 이 프로젝트의 유일한 서버인 **Go 서버 `chatd`** 와 **HTTP 계약 테스트**(`contract/`)를 담당합니다.  
+`chatd`는 SPEC.md §9 API를 제공하고 Flutter 웹 빌드를 정적 파일로 주며, 무상태입니다 (ARCHITECTURE.md ADR-004).
 
 ---
 
@@ -55,16 +55,16 @@ flowchart LR
 | `internal/config` | 환경변수 읽기·검증 (잘못된 `PORT`면 기동 중단) |
 | `internal/chat` | 도메인: `Message`, 입력 검증(`mode`·`persona` 포함), 최근 20턴 정리, 음성 말투 프롬프트 `VoiceSystemPrompt`, 페르소나 프롬프트(`persona.go`) — `Request.SystemPrompt()` (순수 함수) |
 | `internal/provider` | `Provider` 인터페이스, `Chunk`, 사용자용 오류(`Error`, `UserMessage`) |
-| `internal/provider/mock` | 모의 제공자 (Node와 같은 답 문구) |
+| `internal/provider/mock` | 모의 제공자 (계약 테스트가 답 문구로 턴 수를 확인) |
 | `internal/provider/anthropic` | Claude 어댑터 (공식 Go SDK — 이 폴더에서만 import) |
 | `internal/httpapi` | 라우팅, 요청 파싱, SSE 쓰기, 정적 파일, 요청 로그(`log/slog` JSON) |
 | `internal/archtest` | ARCHITECTURE.md §3.3 의존 규칙 검사 테스트 |
-| `contract` | HTTP 계약 테스트 (Node·Go 서버 공통) |
+| `contract` | HTTP 계약 테스트 — `-base-url`이 없으면 `chatd`를 빌드해 모의 모드로 직접 띄움 (F-013) |
 
 **실행** (`server/`에서, 키가 없으면 모의 모드)
-- `STATIC_DIR=../public go run ./cmd/chatd` → http://localhost:3000 에서 기존 채팅 화면
-- 테스트: `go test ./...` (네트워크 없음, Claude는 가짜 업스트림)
-- 계약 테스트 (루트에서): `npm run test:contract:go` (Go 서버) · `npm run test:contract` (Node 서버)
+- `STATIC_DIR=../app/build/web go run ./cmd/chatd` → http://localhost:3000 에서 Flutter 채팅 화면 (먼저 `app/`에서 `flutter build web`)
+- 테스트: `go test ./...` — 단위 + 계약 테스트 (네트워크·키 없음, Claude는 가짜 업스트림, 계약 테스트는 모의 모드 `chatd`를 빈 포트에 띄움)
+- 떠 있는 서버에 계약 테스트만: `go test ./contract -count=1 -base-url=http://127.0.0.1:3000` (모의 모드여야 함)
 - 빌드: `CGO_ENABLED=0 go build ./cmd/chatd`
 
 ---
@@ -88,8 +88,7 @@ flowchart LR
 
 ### 금지 (Prohibit)
 
-- `contract/`에서 서버 내부 코드(Node `src/`, Go `internal/`)를 import하거나 호출 — HTTP로만 검사
-- 계약 테스트를 서버 하나에만 맞추기 (Node와 Go 모두 통과해야 하는 계약만 적음)
+- `contract/`에서 서버 내부 코드(`internal/`)를 import하거나 호출 — `chatd` 바이너리를 띄워 HTTP로만 검사
 - 모의 모드 확인을 건너뛰거나, 실제 Claude API를 부르는 서버에 계약 테스트 실행
 - `httpapi`에서 `provider/mock`·`provider/anthropic` import (조립은 `cmd/chatd`)
 - SDK를 `internal/provider/anthropic` 밖에서 import, 웹 프레임워크(gin·echo·chi 등), cgo
@@ -102,5 +101,5 @@ flowchart LR
 - 이 폴더 내 구조 변경 시 위 DFD와 상위 DFD 동시 업데이트
 - 새 패키지를 만들면 ARCHITECTURE.md §3.2·§3.3과 `internal/archtest`의 허용 표를 함께 고침
 - 계약을 바꾸면 SPEC.md §9와 ARCHITECTURE.md §4.1을 먼저 고치고 사용자 승인을 받음
-- 사용자용 오류 문장·모의 응답 문구·음성 말투 프롬프트를 바꾸면 Node(`src/`)도 같이 바꿈 (오류·모의 문구는 계약 테스트로 확인, 프롬프트는 `src/server/voice.js`·`persona.js`와 맞춤 — 페르소나 문장은 Go·Node 단위 테스트가 같은 기대 문자열로 확인)
+- 사용자용 오류 문장·모의 응답 문구·음성 말투·페르소나 프롬프트를 바꾸면 SPEC.md 근거를 먼저 확인하고 단위 테스트의 기대 문자열을 같이 고침
 - 푸시 전 `gofmt -l .`가 비어 있고 `go vet ./...` · `go test ./...`가 통과해야 함

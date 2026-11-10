@@ -70,7 +70,7 @@ flowchart LR
 | `lib/ui/chat_page.dart` | S-001 화면 (페르소나 사이드바·서랍 · 상단 페르소나 · 모드 배지 · 편집 · 새 대화 · 대화 영역 · 음성 상태 · 입력창 · 마이크 · 전송/중단) |
 | `lib/ui/persona_widgets.dart` | 페르소나 아바타 · 사이드바 · 내 프로필 대화상자 (900px 미만은 서랍) |
 | `lib/ui/persona_editor.dart` | S-002 페르소나 편집 화면 (이름 · 역할 칩 · 말투 칩 최대 6개 · 추가 지시) |
-| `lib/ui/theme.dart` | 라이트·다크 색 (`public/styles.css`와 같은 값) |
+| `lib/ui/theme.dart` | 라이트·다크 색 (MVP HTML 디자인과 같은 값) |
 
 **실행** (`app/`에서)
 - 테스트: `flutter test` · 분석: `flutter analyze`

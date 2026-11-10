@@ -26,7 +26,7 @@ type Persona struct {
 	About        string
 }
 
-// 페르소나 시스템 프롬프트 문구. Node src/server/persona.js와 같은 문장이다 — 한쪽을 바꾸면 다른 쪽도 바꾼다.
+// 페르소나 시스템 프롬프트 문구.
 const (
 	personaIntro       = "당신은 사용자와 대화하는 에이전트 \"%s\"예요. 아래 설정에 맞는 인물로서 답하세요."
 	personaRoleLabel   = "역할: "

@@ -18,7 +18,7 @@ import (
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/provider"
 )
 
-// MaxBodyBytes는 POST /api/chat 본문 한도다 (Node와 같음).
+// MaxBodyBytes는 POST /api/chat 본문 한도다.
 const MaxBodyBytes = 1 << 20
 
 // mimeTypes는 제공하는 정적 파일 종류다. 여기 없는 확장자(문서·소스맵 등)는 404.
@@ -54,7 +54,7 @@ func New(p provider.Provider, staticDir string, log *slog.Logger) http.Handler {
 		log.Warn("정적 파일 폴더를 열 수 없어요", "static_dir", staticDir)
 	}
 
-	// 메서드가 틀린 요청도 Node처럼 오류 JSON으로 답하려고 메서드는 핸들러에서 확인한다
+	// 메서드가 틀린 요청도 오류 JSON으로 답하려고 메서드는 핸들러에서 확인한다
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/chat", only(http.MethodPost, "POST만 지원해요.", s.handleChat))
 	mux.HandleFunc("/api/config", only(http.MethodGet, "GET만 지원해요.", s.handleConfig))

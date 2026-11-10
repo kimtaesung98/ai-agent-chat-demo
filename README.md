@@ -4,40 +4,32 @@
 API 키가 없으면 모의 모드로 동작해, 설치나 키 없이도 전체 흐름을 시연할 수 있습니다.
 
 > 📄 기능 명세: [`SPEC.md`](./SPEC.md) — 기능 ID(F-xxx)와 수용 기준은 SPEC.md가 정의합니다.  
-> 📐 아키텍처: [`ARCHITECTURE.md`](./ARCHITECTURE.md) — 기술 스택, 모듈 구조, 설계 결정(ADR), Go + Flutter 전환 계획.  
+> 📐 아키텍처: [`ARCHITECTURE.md`](./ARCHITECTURE.md) — 기술 스택(Go 서버 + Flutter), 모듈 구조, 설계 결정(ADR).  
 > 🧭 이 저장소는 [Project Blueprint Framework](https://github.com/kimtaesung98/Project-Blueprint-Framework) v2.1을 따릅니다.
 
 ## 빠른 실행
 
 > 🧪 내 Mac에서 알파테스트하는 단계별 방법·체크리스트: [`docs/ALPHA_TEST_LOCAL.md`](./docs/ALPHA_TEST_LOCAL.md)
 
-```bash
-npm start                                   # 모의 모드 (키 불필요)
-ANTHROPIC_API_KEY=sk-ant-... npm start      # 실제 Claude와 대화
-npm test                                    # 테스트
-npm run test:contract                       # 서버 계약 테스트 — Node 서버 (Go 1.25 이상 필요)
-npm run test:contract:go                    # 서버 계약 테스트 — Go 서버
-```
-
-**Go 서버 + Flutter 웹으로 실행** (같은 API — `server/README.md`, `app/README.md`)
+필요한 것: Go 1.25 이상, Flutter 3.47.9 (`server/README.md`, `app/README.md`)
 
 ```bash
-cd app && flutter build web --no-web-resources-cdn && cd ..   # Flutter 3.47.9
+cd app && flutter build web --no-web-resources-cdn && cd ..   # 화면 빌드
 cd server
-STATIC_DIR=../app/build/web go run ./cmd/chatd   # Flutter 화면, 모의 모드
-STATIC_DIR=../public go run ./cmd/chatd          # 기존 HTML 화면
-go test ./...                                    # Go 테스트 (네트워크 없음)
-cd ../app && flutter test                        # Flutter 테스트
+STATIC_DIR=../app/build/web go run ./cmd/chatd                        # 모의 모드 (키 불필요)
+ANTHROPIC_API_KEY=sk-ant-... STATIC_DIR=../app/build/web go run ./cmd/chatd   # 실제 Claude와 대화
+go test ./...                     # Go 단위 + 계약 테스트 (네트워크·키 없이, 모의 모드 서버를 직접 띄움)
+cd ../app && flutter analyze && flutter test   # Flutter 분석·테스트
 ```
 
-브라우저에서 `http://localhost:3000`을 엽니다. 외부 패키지가 없어서 `npm install`이 필요 없습니다 (Node.js 22 이상).
+브라우저에서 `http://localhost:3000`을 엽니다.
 
 | 환경변수 | 기본값 | 설명 |
 |---|---|---|
 | `PORT` | `3000` | 서버 포트 |
 | `ANTHROPIC_API_KEY` | (없음) | 있으면 Claude 모드, 없으면 모의 모드 |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Claude 모드에서 쓸 모델 |
-| `STATIC_DIR` | `./web` | Go 서버만: 화면 파일 폴더 (`../app/build/web` 또는 `../public`) |
+| `STATIC_DIR` | `./web` | 화면 파일 폴더 (보통 `../app/build/web`) |
 
 ---
 
@@ -61,8 +53,9 @@ flowchart LR
 
 > 원본: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §2 — 버전·상태·허용 라이브러리·선택 이유는 거기에만 적습니다.
 
-- 현재 (MVP): Node.js 기본 모듈 · HTML/CSS/JavaScript · 외부 패키지 없음
-- 목표: Go 서버 · Flutter 클라이언트 (웹 우선) — 전환 계획은 ARCHITECTURE.md §10
+- 서버: Go (`chatd`, 표준 라이브러리 + 공식 Anthropic Go SDK)
+- 클라이언트: Flutter (웹 우선, 같은 코드로 모바일은 ARCHITECTURE.md §10 단계 5)
+- 처음 Node.js MVP는 F-013에서 제거 (ADR-001 대체됨)
 - 음성: `speech_to_text` · `flutter_tts` (기기 음성 엔진, 키 없음)
 - 외부 서비스: Claude API (Messages API, 스트리밍)
 
@@ -74,13 +67,12 @@ flowchart LR
 
 ### 허용 (Allow)
 
-- Node.js 기본 모듈과 브라우저 표준 API
-- `node:test` 기반 테스트 추가
+- Go 표준 라이브러리, ARCHITECTURE.md §2.2 허용 목록의 Go·Flutter 패키지
+- Go `testing` · `flutter_test` 기반 테스트 추가 (모의 제공자·가짜 업스트림만)
 
 ### 금지 (Prohibit)
 
 - ARCHITECTURE.md §2.2 허용 목록 밖의 의존성 추가 금지 (필요하면 ADR을 "제안"으로 추가하고 사용자에게 먼저 묻기)
-- ARCHITECTURE.md §10 단계가 SPEC.md에 등록되기 전에 Go·Flutter 코드 작성 금지
 - `ANTHROPIC_API_KEY` 등 비밀값을 코드·로그·클라이언트 응답에 포함 금지
 - 대화 메시지 본문을 서버 로그에 기록 금지
 - SPEC.md에 없는 기능을 임의로 구현 금지 (먼저 사용자에게 제안)
@@ -89,7 +81,7 @@ flowchart LR
 
 - 기능 작업 전 SPEC.md에서 해당 기능 ID의 수용 기준 확인
 - 의존성 추가·모듈 구조 변경 전 ARCHITECTURE.md §2.2 허용 목록 · §3.3 의존 규칙 확인
-- 수용 기준은 가능한 한 `tests/`의 자동 테스트로 옮기고, 테스트 이름에 기능 ID와 AC 번호 포함 (예: `F-001 AC3`)
+- 수용 기준은 가능한 한 자동 테스트(`server/` Go, `app/test/` Flutter)로 옮기고, 테스트 이름에 기능 ID와 AC 번호 포함 (예: `F-001 AC3`)
 - 모든 하위 폴더 작업 완료 시 이 파일의 **Progress Tracker** 업데이트
 - 작업할 폴더에 README.md가 없으면 `templates/README_TEMPLATE_SUB.md` 기반으로 생성
 - 구조 변경 시 관련 레벨의 DFD를 하위→상위 순서로 업데이트
@@ -98,16 +90,12 @@ flowchart LR
 
 ## Sub-folder Map
 
-<!-- /src는 묶음 폴더라 README가 없습니다 → 레벨을 소비하지 않으므로 /src/server, /src/agent가 Level 1입니다.
-     모듈 경계·의존 규칙은 ARCHITECTURE.md §3.2·§3.3 (목표 구조의 폴더는 전환 단계에서 이 표에 추가) -->
+<!-- 모듈 경계·의존 규칙은 ARCHITECTURE.md §3.2·§3.3 -->
 
 | 폴더 | DFD 레벨 | 담당 기능 ID | 설명 |
 |------|----------|--------------|------|
-| `/src/server` | Level 1 | F-001 ~ F-004 | HTTP 서버, 입력 검증, SSE 응답 |
-| `/src/agent` | Level 1 | F-001, F-003, F-004 | AI 제공자 (Claude · 모의 모드) |
-| `/public` | Level 1 | F-001 ~ F-004 | 채팅 화면 (브라우저) |
-| `/server` | Level 1 | F-009, F-010, F-011, F-012 · F-005 서버 | Go 서버 `chatd` (Node와 같은 API, Flutter 웹 빌드 제공, 음성 말투) · HTTP 계약 테스트(`contract/`) |
-| `/app` | Level 1 | F-011, F-003, F-012, F-005, F-001 · F-002 화면 | Flutter 웹 클라이언트 (S-001) · 음성 대화 |
+| `/server` | Level 1 | F-001 ~ F-004 서버, F-009, F-010, F-013 · F-005 · F-012 서버 | Go 서버 `chatd` (API-001·002, Flutter 웹 빌드 제공, 페르소나·음성 프롬프트) · HTTP 계약 테스트(`contract/`) |
+| `/app` | Level 1 | F-011, F-001 ~ F-005 화면, F-012 | Flutter 웹 클라이언트 (S-001) · 음성 대화 |
 
 ---
 
@@ -117,18 +105,19 @@ flowchart LR
 
 | ID | Feature | Status | Owner Folder | Last Updated | Notes |
 |----|---------|--------|--------------|--------------|-------|
-| F-001 | 실시간 스트리밍 채팅 | ✅ Done | `/src/server`, `/src/agent`, `/public` | 2026-11-02 | AC1~AC5 자동 테스트 통과 (28개). 화면 렌더링은 브라우저에서 수동 확인 |
-| F-002 | 대화 맥락 유지 | ✅ Done | `/src/server`, `/public` | 2026-11-02 | AC1~AC3 자동 테스트 통과. 응답 중 새 대화 버튼은 비활성 (중단은 F-003) |
+| F-001 | 실시간 스트리밍 채팅 | ✅ Done | `/server`, `/app` | 2026-11-02 | AC1~AC5 자동 테스트 통과 (28개). 화면 렌더링은 브라우저에서 수동 확인. Node 구현은 F-013에서 제거 — 서버는 계약 테스트(Go), 화면은 Flutter 테스트로 유지 |
+| F-002 | 대화 맥락 유지 | ✅ Done | `/server`, `/app` | 2026-11-02 | AC1~AC3 자동 테스트 통과. 응답 중 새 대화 버튼은 비활성 (중단은 F-003). Node 구현은 F-013에서 제거 — 서버는 계약 테스트(Go), 화면은 Flutter 테스트로 유지 |
 | F-003 | 응답 중단 | ✅ Done | `/app`, `/server` | 2026-11-05 | Flutter에서 구현 (Q-004). AC1·AC3 위젯·단위 테스트, AC2 서버 취소는 Go·Node 모두 테스트. PR #5 CI 통과 |
 | F-004 | 오류 처리와 재시도 | ✅ Done | `/server`, `/app` | 2026-11-10 | AC1·AC3 Go 테스트(업스트림 오류 → 사용자용 문장, 원문·키 숨김, 서버 계속 동작), AC2 Flutter 단위·위젯 테스트(다시 시도 → 같은 질문 재요청). `flutter test` 84개 |
-| F-005 | 페르소나 설정 | 🔄 In Progress | `/app`, `/server`, `/src/server` | 2026-11-10 | AC1~AC7 자동 테스트 통과 (Flutter 81개, Go·Node 단위, 계약 테스트 Node·Go). 피그마 시안 A·C를 Material 3로 구현, 웹 빌드 화면 캡처 확인. ADR-016 승인. **AC8 실제 Claude 모드 확인(사용자) 남음** |
+| F-005 | 페르소나 설정 | 🔄 In Progress | `/app`, `/server` | 2026-11-10 | AC1~AC7 자동 테스트 통과 (Flutter 81개, Go 단위, 계약 테스트). 피그마 시안 A·C를 Material 3로 구현, 웹 빌드 화면 캡처 확인. ADR-016 승인. **AC8 실제 Claude 모드 확인(사용자) 남음** |
 | F-006 | 도구 사용 (Tool use) | ⏳ Pending | - | - | Phase 2 |
 | F-007 | 대화 기록 저장 | ⏳ Pending | - | - | Phase 2 |
-| F-008 | 사용자 로그인 | ⏳ Pending | - | - | Phase 3 |
+| F-008 | 사용자 로그인 | ⏳ Pending | `/server`, `/app` | 2026-11-10 | Phase 3 그대로 (Q-006 사용자 결정). Google 로그인 상세·AC 초안과 ADR-017(보류)만 작성, MVP 디자인 01 화면에 반영 |
 | F-009 | 서버 계약 테스트 (전환 단계 1) | ✅ Done | `/server` | 2026-11-04 | AC1~AC5 통과. 계약 시나리오 17개가 Node 서버에 통과, 모의 모드 아니면 실패, 표준 라이브러리만, GitHub Actions CI 초록 (PR #3) |
 | F-010 | Go 서버 (전환 단계 2) | ✅ Done | `/server` | 2026-11-05 | AC1~AC6 통과: 계약 테스트 Go 서버 통과, `go test ./...` 통과, 기존 화면이 Go 서버로 동작(브라우저 확인), 취소·오류 처리·의존 규칙 테스트, CI 초록 (PR #4). 실제 키로 Claude 모드 수동 확인은 남음 |
 | F-011 | Flutter 웹 클라이언트 (전환 단계 3) | ✅ Done | `/app`, `/server` | 2026-11-05 | `flutter test` 33개, `flutter analyze` 경고 0, 의존 규칙 테스트, Go 서버가 웹 빌드 제공·브라우저에서 스트리밍 확인, PR #5 CI(flutter 작업) 통과 |
 | F-012 | 음성 대화 | 🔄 In Progress | `/app`, `/server` | 2026-11-07 | AC1~AC7 자동 테스트 통과 (Flutter 65개, Go·Node 단위, 계약 테스트 Node·Go). 실제 웹 빌드에 가짜 음성 API를 넣어 4턴·끼어들기 확인. **AC8 실제 마이크 확인(Chrome·Edge) 남음** |
+| F-013 | Node MVP 제거 (전환 단계 4) | ✅ Done | `/server`, 루트 | 2026-11-10 | AC1 `src/`·`public/`·`tests/`·`scripts/`·`package.json` 삭제, AC2 `go test ./...`가 모의 모드 `chatd`를 띄워 계약 테스트 통과, AC3 CI Node 작업 제거, AC4 README·DFD·CLAUDE.md·ARCHITECTURE 갱신 |
 
 ---
 
@@ -138,5 +127,5 @@ flowchart LR
 
 1. F-005 페르소나 마무리 — 실제 Claude 모드에서 말투 확인(AC8, 사용자), 저장 유지(Q-005) 결정 → `/app`
 2. F-012 음성 대화 마무리 — 실제 마이크로 Chrome·Edge 확인(AC8, 사용자), 필요하면 끝맺음 시간·에코 조정 → `/app`
-3. ARCHITECTURE §10 단계 4 — Node MVP 제거 (음성이 동작한 뒤로 미뤄 둠) → `/src`, `/public`
-4. F-008 Google 로그인 — MVP로 앞당김 제안(SPEC Q-006, ADR-017 제안). 승인되면 `/server`, `/app`
+3. MVP HTML 디자인을 Flutter 화면에 반영 — 첫 실행(페르소나 고르기)·음성 전용 화면 등 디자인에 있고 앱에 없는 것부터 SPEC 제안 → `/app`
+4. F-006 도구 사용 · F-007 대화 기록 저장 (Phase 2). F-008 Google 로그인은 Phase 3 (Q-006)
