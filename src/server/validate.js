@@ -4,13 +4,14 @@
  */
 
 import { MODES } from './voice.js';
+import { parsePersona, PERSONA_INVALID_MESSAGE } from './persona.js';
 
 export const MAX_CONTENT_LENGTH = 4000;
 const ROLES = new Set(['user', 'assistant']);
 
 /**
  * @param {unknown} body
- * @returns {{ ok: true, messages: { role: 'user' | 'assistant', content: string }[], mode: 'text' | 'voice' }
+ * @returns {{ ok: true, messages: { role: 'user' | 'assistant', content: string }[], mode: 'text' | 'voice', persona: ReturnType<typeof parsePersona> }
  *         | { ok: false, code: string, message: string }}
  */
 export function validateChatRequest(body) {
@@ -22,6 +23,12 @@ export function validateChatRequest(body) {
   const mode = body.mode === undefined ? 'text' : body.mode;
   if (!MODES.has(mode)) {
     return fail('INVALID_INPUT', '요청 형식이 올바르지 않아요. mode는 text 또는 voice여야 해요.');
+  }
+  // persona (선택, F-005): Go와 같이 mode 다음에 검사한다
+  let persona = null;
+  if ('persona' in body) {
+    persona = parsePersona(body.persona);
+    if (!persona) return fail('INVALID_INPUT', PERSONA_INVALID_MESSAGE);
   }
   if (messages.length === 0) {
     return fail('EMPTY_MESSAGE', '메시지를 입력해 주세요.');
@@ -44,7 +51,7 @@ export function validateChatRequest(body) {
   if (clean.at(-1).role !== 'user') {
     return fail('INVALID_INPUT', '마지막 메시지는 사용자 메시지여야 해요.');
   }
-  return { ok: true, messages: clean, mode };
+  return { ok: true, messages: clean, mode, persona };
 }
 
 function fail(code, message) {

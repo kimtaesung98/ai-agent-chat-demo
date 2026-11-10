@@ -122,7 +122,7 @@ func (s *server) handleChat(w http.ResponseWriter, r *http.Request) {
 		return rc.Flush() == nil
 	}
 
-	for c, err := range s.provider.Stream(ctx, req.Mode.SystemPrompt(), msgs) {
+	for c, err := range s.provider.Stream(ctx, req.SystemPrompt(), msgs) {
 		if err != nil {
 			msg := provider.GenericMessage
 			var pe *provider.Error

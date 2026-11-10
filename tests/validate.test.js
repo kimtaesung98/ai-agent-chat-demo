@@ -33,7 +33,7 @@ test('F-001 마지막 메시지가 assistant면 거절한다', () => {
 
 test('F-001 정상 요청은 필요한 필드만 남긴다', () => {
   const r = validateChatRequest({ messages: [{ role: 'user', content: '안녕', extra: true }] });
-  assert.deepEqual(r, { ok: true, messages: [{ role: 'user', content: '안녕' }], mode: 'text' });
+  assert.deepEqual(r, { ok: true, messages: [{ role: 'user', content: '안녕' }], mode: 'text', persona: null });
 });
 
 test('F-012 AC6 mode가 없거나 text면 text, voice면 voice', () => {
