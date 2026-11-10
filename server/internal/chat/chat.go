@@ -22,7 +22,7 @@ type Message struct {
 	Content string `json:"content"`
 }
 
-// MaxContentLength는 메시지 하나의 최대 길이다. Node 서버와 같게 UTF-16 코드 단위로 센다.
+// MaxContentLength는 메시지 하나의 최대 길이다. 브라우저(JavaScript)의 문자열 길이와 같게 UTF-16 코드 단위로 센다.
 const MaxContentLength = 4000
 
 // MaxTurns는 제공자에 넘기는 최근 턴 수다 (SPEC.md F-002 AC2).
@@ -47,7 +47,6 @@ const (
 )
 
 // VoiceSystemPrompt는 음성 대화일 때 붙이는 말하기용 답 지시다 (ARCHITECTURE.md ADR-015).
-// Node src/server/voice.js와 같은 문장이다.
 const VoiceSystemPrompt = "지금은 음성 대화예요. 답은 소리 내어 읽혀요. " +
 	"사람과 마주 보고 이야기하듯 자연스러운 구어체로, 보통 한두 문장, 길어도 세 문장 안으로 짧게 답하세요. " +
 	"마크다운, 목록, 표, 코드, 이모지, URL은 쓰지 마세요. 숫자와 단위는 소리 내어 읽기 쉽게 쓰세요. " +
@@ -138,7 +137,7 @@ func ParseRequest(body []byte) (Request, *ValidationError) {
 }
 
 // TrimToRecentTurns는 최근 maxTurns개 턴만 남긴다. 턴 = 사용자 메시지 + 그 뒤의 응답.
-// 결과는 항상 사용자 메시지로 시작한다 (Node src/server/context.js와 같은 규칙).
+// 결과는 항상 사용자 메시지로 시작한다.
 func TrimToRecentTurns(msgs []Message, maxTurns int) []Message {
 	turns := 0
 	for i := len(msgs) - 1; i >= 0; i-- {

@@ -22,7 +22,7 @@ abstract interface class ChatApi {
   Future<ServerConfig> config();
 }
 
-/// 화면에 보여 줄 연결 오류 문장 (Node public/chat-client.js와 같음).
+/// 화면에 보여 줄 연결 오류 문장.
 abstract final class ClientMessages {
   static const connect = '서버에 연결할 수 없어요. 네트워크를 확인해 주세요.';
   static const request = '요청을 처리하지 못했어요.';

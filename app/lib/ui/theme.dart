@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// 화면 색 (public/styles.css 토큰과 같은 값, 라이트·다크).
+/// 화면 색 (라이트·다크). MVP HTML 디자인의 색과 같은 값.
 @immutable
 class ChatColors extends ThemeExtension<ChatColors> {
   const ChatColors({

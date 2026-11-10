@@ -76,9 +76,9 @@ AGENT_BOOTSTRAP.md 존재?
 
 <!-- 프로젝트마다 꼭 지켜야 할 규칙 3~7개만. 상세 규칙은 각 폴더 README.md Agent Control에 둡니다 -->
 
-- 실행: `npm start` (키 없으면 모의 모드) · 테스트: `npm test` (네트워크 없이 통과해야 함) · 계약 테스트: `npm run test:contract` / `npm run test:contract:go` (Go 1.25+, 모의 모드 Node·Go 서버) · Go: `server/`에서 `go test ./...` · Flutter: `app/`에서 `flutter analyze` · `flutter test`
-- 현재 Node MVP: 외부 npm 패키지 추가 금지 — 기본 모듈만 (ARCHITECTURE.md ADR-001)
-- 목표 스택은 Go 서버 + Flutter 클라이언트 (ADR-005·006). C/C++·cgo 사용 안 함 (ADR-007). Go·Flutter 코드는 ARCHITECTURE.md §10 단계가 SPEC.md에 등록된 뒤에만 작성
+- 실행: `app/`에서 `flutter build web --no-web-resources-cdn` → `server/`에서 `STATIC_DIR=../app/build/web go run ./cmd/chatd` (키 없으면 모의 모드)
+- 테스트 (네트워크 없이 통과해야 함): `server/`에서 `go test ./...` (단위 + 계약 테스트 — 모의 모드 `chatd`를 직접 띄움, Go 1.25+) · `app/`에서 `flutter analyze` · `flutter test`
+- 스택은 Go 서버 + Flutter 클라이언트 (ADR-005·006). Node MVP는 F-013에서 제거 (ADR-001 대체됨). C/C++·cgo 사용 안 함 (ADR-007)
 - `ANTHROPIC_API_KEY`를 코드·로그·응답·테스트 픽스처에 넣지 않음
 - 테스트 이름에 기능 ID와 AC 번호 포함 (예: `F-001 AC3 ...`)
 - 테스트는 모의 제공자 또는 가짜 업스트림 서버로 작성, 실제 Claude API 호출 금지

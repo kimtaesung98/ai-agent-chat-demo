@@ -3,7 +3,7 @@ package provider
 import "testing"
 
 func TestUserMessage(t *testing.T) {
-	t.Run("F-004 AC1 상태 코드와 오류 타입을 Node와 같은 사용자용 문장으로 바꾼다", func(t *testing.T) {
+	t.Run("F-004 AC1 상태 코드와 오류 타입을 사용자용 문장으로 바꾼다", func(t *testing.T) {
 		cases := []struct {
 			status int
 			typ    string

@@ -35,7 +35,6 @@ type Error struct {
 func (e *Error) Error() string { return "provider: " + e.Code }
 
 // UserMessage는 HTTP 상태 코드나 업스트림 오류 타입을 사용자용 문장으로 바꾼다.
-// Node src/agent/errors.js toUserMessage와 같은 문장을 쓴다.
 func UserMessage(status int, errType string) string {
 	switch {
 	case status == 401 || errType == "authentication_error":

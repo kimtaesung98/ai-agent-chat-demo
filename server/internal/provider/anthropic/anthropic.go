@@ -15,7 +15,7 @@ import (
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/provider"
 )
 
-// DefaultMaxTokens는 응답 최대 토큰 수다 (Node와 같음).
+// DefaultMaxTokens는 응답 최대 토큰 수다.
 const DefaultMaxTokens = 1024
 
 // Options는 Claude 제공자 설정이다.

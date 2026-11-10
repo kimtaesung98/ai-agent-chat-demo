@@ -27,7 +27,6 @@
 | Go | **1.25 이상** (`server/go.mod`) | `go version` | `brew install go` (1.24 이하면 `GOTOOLCHAIN=auto`를 앞에 붙이면 자동으로 받아요) |
 | Flutter | **3.47.9** (CI와 같은 버전) | `flutter --version` | https://docs.flutter.dev/get-started/install/macos |
 | Chrome 또는 Edge | 최신 | — | 음성 인식(Web Speech API)은 이 두 브라우저에서만 확인 |
-| Node.js | 22 이상 | `node -v` | 선택 사항 — 계약 테스트·옛 Node 서버에만 필요 |
 | Anthropic API 키 | — | — | 없어도 됩니다 (모의 모드). 실제 답을 보려면 필요 → §4 |
 | 이어폰 | — | — | 권장. 스피커로 들으면 마이크가 답 소리를 다시 들을 수 있어요 (R-A09) |
 
@@ -103,7 +102,7 @@ source ~/keys/anthropic.env
 | `ANTHROPIC_API_KEY` | (없음) | 있으면 Claude 모드, 없으면 모의 모드 |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Claude 모드에서 쓸 모델 |
 | `PORT` | `3000` | 서버 포트 (1~65535, 잘못되면 기동 중단) |
-| `STATIC_DIR` | `./web` | 화면 파일 폴더 — Flutter는 `../app/build/web`, 옛 HTML은 `../public` |
+| `STATIC_DIR` | `./web` | 화면 파일 폴더 — Flutter 웹 빌드 `../app/build/web` |
 
 ---
 
@@ -153,7 +152,6 @@ source ~/keys/anthropic.env
 ## 8. 개발자용 확인 명령 (선택)
 
 ```bash
-cd ~/ai-agent-chat-demo/server && go test ./...          # Go 테스트 (네트워크 없음)
+cd ~/ai-agent-chat-demo/server && go test ./...          # Go 단위 + HTTP 계약 테스트 (네트워크·키 없음)
 cd ~/ai-agent-chat-demo/app && flutter analyze && flutter test
-cd ~/ai-agent-chat-demo && npm run test:contract:go       # Go 서버 HTTP 계약 테스트 (Node 22 필요)
 ```

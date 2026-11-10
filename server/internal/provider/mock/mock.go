@@ -1,5 +1,5 @@
 // Package mock은 API 키 없이 시연·테스트하기 위한 모의 제공자다 (ARCHITECTURE.md ADR-003).
-// 답 문구는 Node src/agent/mock.js와 같다. 계약 테스트가 "이 대화의 N번째 질문"으로
+// 계약 테스트가 "이 대화의 N번째 질문"으로
 // 전달된 턴 수를 확인하므로 문구를 바꾸면 안 된다 (SPEC.md F-009 참고).
 package mock
 
