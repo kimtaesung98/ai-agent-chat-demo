@@ -14,8 +14,8 @@
 
 | 기능 ID | 작업 내용 | 담당 폴더 | 이어받을 지점 |
 |---------|-----------|-----------|---------------|
+| F-014 | 클라우드 배포 (AWS EC2 + Cloudflare Tunnel·Access) | `/deploy`, 루트 | 배포 파일·CI 이미지 검사 완료. 사용자가 `deploy/README.md` 1~8단계(AWS CLI 로그인, `provision.sh`, Cloudflare 도메인·Tunnel·Access, SSM 비밀값, GitHub 변수) 후 첫 배포 → AC2~AC5. 다음은 F-015 Polly |
 | F-005 | 페르소나 설정 (피그마 시안 A·C → Flutter Material 3, API-001 `persona`) | `/app`, `/server`, `/src/server` | 사용자가 "Flutter에 바로 M3로 구현" 선택. 구현·자동 테스트·웹 빌드 캡처 완료. ADR-016 승인됨. 남은 것: AC8 실제 Claude 확인, Q-005 저장 유지 결정 |
-| - | MVP HTML 디자인 → Flutter 반영 | `/app` | 디자인(claude.ai 비공개 Artifact, 7화면)에 있고 앱에 없는 것(첫 실행 페르소나 고르기, 음성 전용 화면 등)을 SPEC에 제안한 뒤 구현. Google 로그인(F-008)은 사용자가 보류 — Phase 3 (Q-006) |
 | F-012 | 음성 대화 (듣기 → 자동 전송 → 문장별 읽기 → 끼어들기) | `/app`, `/server` | 사용자가 `speech_to_text`·`flutter_tts` 선택(ADR-014), F-012·ADR-015 승인. 구현·자동 테스트·가짜 음성 API 브라우저 확인 완료. 남은 것: AC8 실제 마이크 확인(사용자) → ✅ |
 
 ---
@@ -86,6 +86,7 @@
 | 2026-11-10 | F-005 | 피그마 GUI 시안(현재 화면 + A~D) 작성 → Starter 플랜 MCP 한도로 M3 키트 작업 중단 → 사용자 선택으로 Flutter M3 구현. SPEC v1.6(F-005 재정의), ADR-016 제안, Go·Node `persona`, 사이드바·편집 화면 | `SPEC.md`, `ARCHITECTURE.md`, `server/internal/chat/*`, `src/server/*`, `app/lib/**`, 테스트 | 피그마 파일: figma.com/design/U9r2hj8EoRdBiiwP8daqLn (무료 플랜이라 MCP 호출 한도·변수 모드 1개). 페르소나는 앱 메모리만 — Q-005 |
 | 2026-11-10 | F-004, F-008 | MVP HTML 디자인(Design 캔버스, 7화면) 작성 → 사용자가 "순서대로, 판단은 맡김". ADR-016 승인 반영, F-004 다시 시도(Flutter) 완료, F-008 Google 로그인 SPEC·ADR-017 제안 | `SPEC.md`, `ARCHITECTURE.md`, `app/lib/chat/chat_controller.dart`, `app/lib/ui/chat_page.dart`, 테스트 | 디자인은 claude.ai 비공개 Artifact. 네이티브 앱의 기준 화면으로 씀 |
 | 2026-11-10 | F-013, F-008 | 사용자가 Google 로그인 보류(Phase 3) 선택 → §10 단계 4 진행. `src/`·`public/`·`tests/`·`scripts/`·`package.json` 삭제, 계약 테스트가 모의 모드 `chatd`를 직접 띄우게 바꿈(`go test ./...`에 포함), CI Node 작업 제거, 문서 갱신 | `server/contract/*`, `.github/workflows/ci.yml`, `README.md`, `CLAUDE.md`, `SPEC.md` v1.8, `ARCHITECTURE.md` v1.7, `server/README.md` | ADR-001 대체됨, ADR-017 보류, TD-001~003 해소 |
+| 2026-11-10 | - | AWS·Cloudflare 배포·음성 설계안(Claude 문서) 작성, ADR-018~021 제안, SPEC Q-003 방향·Q-007 추가 | `ARCHITECTURE.md`, `SPEC.md`, `README.md`, `CLAUDE.md`, `Dockerfile`, `deploy/*`, `.github/workflows/*` | 사용자 "추천안 전체" 선택 → ADR-018~021 승인, F-014~016 등록, F-014 배포 파일 작성. Current Focus에 F-014 추가, 'MVP HTML 디자인 반영'은 Roadmap 5번으로만 남김 |
 
 ---
 

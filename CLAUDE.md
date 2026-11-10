@@ -78,6 +78,7 @@ AGENT_BOOTSTRAP.md 존재?
 
 - 실행: `app/`에서 `flutter build web --no-web-resources-cdn` → `server/`에서 `STATIC_DIR=../app/build/web go run ./cmd/chatd` (키 없으면 모의 모드)
 - 테스트 (네트워크 없이 통과해야 함): `server/`에서 `go test ./...` (단위 + 계약 테스트 — 모의 모드 `chatd`를 직접 띄움, Go 1.25+) · `app/`에서 `flutter analyze` · `flutter test`
+- 배포 (F-014): 루트 `Dockerfile`(웹 빌드를 먼저 만든 뒤 `docker build`), AWS·Cloudflare 설정은 `deploy/README.md`. 비밀값은 SSM Parameter Store에만, AWS·Cloudflare 리소스 생성·배포 실행은 사용자 승인 후
 - 스택은 Go 서버 + Flutter 클라이언트 (ADR-005·006). Node MVP는 F-013에서 제거 (ADR-001 대체됨). C/C++·cgo 사용 안 함 (ADR-007)
 - `ANTHROPIC_API_KEY`를 코드·로그·응답·테스트 픽스처에 넣지 않음
 - 테스트 이름에 기능 ID와 AC 번호 포함 (예: `F-001 AC3 ...`)
