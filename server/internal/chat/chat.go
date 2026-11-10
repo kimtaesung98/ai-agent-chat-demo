@@ -65,6 +65,18 @@ func (m Mode) SystemPrompt() string {
 type Request struct {
 	Messages []Message
 	Mode     Mode
+	Persona  *Persona // 없으면 nil (F-005)
+}
+
+// SystemPrompt는 제공자에 넘길 시스템 프롬프트다: 페르소나 다음에 말투 지시 (ADR-015·016). 둘 다 없으면 빈 문자열.
+func (r Request) SystemPrompt() string {
+	var parts []string
+	for _, s := range []string{r.Persona.SystemPrompt(), r.Mode.SystemPrompt()} {
+		if s != "" {
+			parts = append(parts, s)
+		}
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 // ParseRequest는 POST /api/chat 본문을 검증한다.
@@ -85,6 +97,14 @@ func ParseRequest(body []byte) (Request, *ValidationError) {
 			return Request{}, invalid("INVALID_INPUT", "요청 형식이 올바르지 않아요. mode는 text 또는 voice여야 해요.")
 		}
 		mode = Mode(s)
+	}
+	var persona *Persona
+	if raw, ok := root["persona"]; ok {
+		p, err := parsePersona(raw)
+		if err != nil {
+			return Request{}, err
+		}
+		persona = p
 	}
 	if len(list) == 0 {
 		return Request{}, invalid("EMPTY_MESSAGE", "메시지를 입력해 주세요.")
@@ -114,7 +134,7 @@ func ParseRequest(body []byte) (Request, *ValidationError) {
 	if msgs[len(msgs)-1].Role != RoleUser {
 		return Request{}, invalid("INVALID_INPUT", "마지막 메시지는 사용자 메시지여야 해요.")
 	}
-	return Request{Messages: msgs, Mode: mode}, nil
+	return Request{Messages: msgs, Mode: mode, Persona: persona}, nil
 }
 
 // TrimToRecentTurns는 최근 maxTurns개 턴만 남긴다. 턴 = 사용자 메시지 + 그 뒤의 응답.

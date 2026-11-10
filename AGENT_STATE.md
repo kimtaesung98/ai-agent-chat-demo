@@ -14,6 +14,8 @@
 
 | 기능 ID | 작업 내용 | 담당 폴더 | 이어받을 지점 |
 |---------|-----------|-----------|---------------|
+| F-005 | 페르소나 설정 (피그마 시안 A·C → Flutter Material 3, API-001 `persona`) | `/app`, `/server`, `/src/server` | 사용자가 "Flutter에 바로 M3로 구현" 선택. 구현·자동 테스트·웹 빌드 캡처 완료. ADR-016 승인됨. 남은 것: AC8 실제 Claude 확인, Q-005 저장 유지 결정 |
+| F-008 | Google 로그인 (MVP HTML 디자인 01 화면) | `/server`, `/app` | SPEC 상세·AC 초안과 ADR-017 **제안**만 작성. Q-006(MVP로 앞당김·`google_sign_in` 허용) 승인 뒤 구현. 사용자가 OAuth 클라이언트 ID를 만들어야 함 |
 | F-012 | 음성 대화 (듣기 → 자동 전송 → 문장별 읽기 → 끼어들기) | `/app`, `/server` | 사용자가 `speech_to_text`·`flutter_tts` 선택(ADR-014), F-012·ADR-015 승인. 구현·자동 테스트·가짜 음성 API 브라우저 확인 완료. 남은 것: AC8 실제 마이크 확인(사용자) → ✅. 다음: §10 단계 4 Node 제거 |
 
 ---
@@ -74,8 +76,6 @@
 
 | 날짜 | 기능 ID | 수행 작업 | 변경 파일 | 다음 세션 인계 사항 |
 |------|---------|-----------|-----------|---------------------|
-| 2026-11-02 | - | 초기화 — BOOTSTRAP 실행, STATE 생성 | `AGENT_STATE.md` 생성, `AGENT_BOOTSTRAP.md` 삭제 | — |
-| 2026-11-02 | F-001 | 폴더 README 3개 생성, SSE 서버·Claude/모의 제공자·채팅 화면 구현, 테스트 28개 통과, 실제 서버 구동 확인 | `src/**`, `public/**`, `tests/**`, `package.json`, `README.md` | 브라우저 화면 수동 확인 필요. 실제 Claude 모드는 API 키로 확인 필요 (테스트는 가짜 업스트림) |
 | 2026-11-02 | F-002 | 사용자가 로컬 실행 완료를 알림. 최근 20턴 정리(`context.js`), 새 대화 버튼·`reset()` 구현, 테스트 35개 통과, DFD 갱신 | `src/server/*`, `public/*`, `tests/context.test.js`, `README.md` | 브랜치 `feat/F-002-context` PR 머지 후 F-003 착수 |
 | 2026-11-04 | - | ARCHITECTURE.md 작성 (현재 Node MVP + 목표 Go·Flutter, ADR-001~013, 전환 5단계), SPEC ADR 이관, 프레임워크 v2.1 반영 | `ARCHITECTURE.md`, `SPEC.md`, `README.md`, `CLAUDE.md`, `templates/*` | Q-004 결정 전에는 F-003 착수 보류. 제안 ADR(007~013) 사용자 승인 대기 |
 | 2026-11-04 | F-009 | 사용자 계획 승인(전환 먼저, 음성은 Flutter 뒤). Q-004 결정 기록, ADR-012 승인. `server/contract` Go 계약 테스트 17개 시나리오, `npm run test:contract`, CI 워크플로 추가. Node 서버에 통과, 모의 모드 아니면 실패 확인 | `server/**`, `scripts/contract-node.js`, `.github/workflows/ci.yml`, `package.json`, `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `CLAUDE.md` | CI 초록 확인 후 ✅. ADR-007·008·013 등 나머지 제안 ADR은 단계 2 전에 사용자 승인 필요 |
@@ -84,6 +84,8 @@
 | 2026-11-07 | F-012 | PR #5 병합 확인. 음성 대화를 SPEC F-012로 제안, ARCHITECTURE ADR-014·015 제안 (STT·TTS 방식, 음성용 말투), `app/voice` 모듈·인터페이스·시나리오·위험 R-A09·R-A10 | `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `AGENT_STATE.md` | 사용자 승인 전에는 계약(`mode`) 변경 코드 작성 안 함 |
 | 2026-11-07 | F-012 | 사용자가 Flutter 음성 패키지 선택. `app/lib/voice`(문장 분리기·엔진·컨트롤러)·마이크 UI, Go·Node `mode: "voice"` + 말하기용 시스템 프롬프트, 계약 시나리오 2개. 브라우저 확인 중 웹 플러그인 특이점 3개 발견·처리 (R-A11) | `app/**`, `server/**`, `src/server/*`, `src/agent/anthropic.js`, `tests/*`, 문서 | 실제 마이크·실제 Claude로 AC8 확인 필요. 에코 끼어들기(R-A09)는 실제 스피커로만 판단 가능 |
 | 2026-11-10 | F-012 | 로컬 알파테스트 가이드 작성 (Mac, 모의·Claude 모드, 텍스트·음성 체크리스트). Go 1.25·Flutter 3.47.9로 문서대로 빌드·실행·테스트 확인, 잘못된 키 인증 오류 문구 확인 | `docs/ALPHA_TEST_LOCAL.md`, `README.md` | 사용자가 실제 키·실제 마이크로 체크리스트 실행 → 결과로 AC8 판정·끝맺음 시간 조정 |
+| 2026-11-10 | F-005 | 피그마 GUI 시안(현재 화면 + A~D) 작성 → Starter 플랜 MCP 한도로 M3 키트 작업 중단 → 사용자 선택으로 Flutter M3 구현. SPEC v1.6(F-005 재정의), ADR-016 제안, Go·Node `persona`, 사이드바·편집 화면 | `SPEC.md`, `ARCHITECTURE.md`, `server/internal/chat/*`, `src/server/*`, `app/lib/**`, 테스트 | 피그마 파일: figma.com/design/U9r2hj8EoRdBiiwP8daqLn (무료 플랜이라 MCP 호출 한도·변수 모드 1개). 페르소나는 앱 메모리만 — Q-005 |
+| 2026-11-10 | F-004, F-008 | MVP HTML 디자인(Design 캔버스, 7화면) 작성 → 사용자가 "순서대로, 판단은 맡김". ADR-016 승인 반영, F-004 다시 시도(Flutter) 완료, F-008 Google 로그인 SPEC·ADR-017 제안 | `SPEC.md`, `ARCHITECTURE.md`, `app/lib/chat/chat_controller.dart`, `app/lib/ui/chat_page.dart`, 테스트 | 디자인은 claude.ai 비공개 Artifact. 네이티브 앱의 기준 화면으로 씀 |
 
 ---
 

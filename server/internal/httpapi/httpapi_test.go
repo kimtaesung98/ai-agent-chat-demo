@@ -109,6 +109,33 @@ func TestChat(t *testing.T) {
 		}
 	})
 
+	t.Run("F-005 AC4 persona가 있으면 페르소나 프롬프트를, voice면 그 뒤에 말하기 지시를 넘긴다", func(t *testing.T) {
+		persona := `"persona":{"name":"지은","role":"기획 파트너","tones":["차분하게"],"about":"기획자"}`
+		p := &chat.Persona{Name: "지은", Role: "기획 파트너", Tones: []string{"차분하게"}, About: "기획자"}
+		for body, want := range map[string]string{
+			`{"messages":[{"role":"user","content":"안녕"}],` + persona + `}`:                p.SystemPrompt(),
+			`{"messages":[{"role":"user","content":"안녕"}],"mode":"voice",` + persona + `}`: p.SystemPrompt() + "\n\n" + chat.VoiceSystemPrompt,
+		} {
+			fp := &fakeProvider{stream: chunks([]provider.Chunk{{Done: true, StopReason: "end_turn"}}, nil)}
+			url := start(t, fp, nil)
+			res := post(t, url, body)
+			io.ReadAll(res.Body)
+			if res.StatusCode != 200 || fp.system != want {
+				t.Fatalf("%s → status %d, system %q", body, res.StatusCode, fp.system)
+			}
+		}
+	})
+
+	t.Run("F-005 AC6 persona 내용은 로그에 남지 않는다", func(t *testing.T) {
+		var log bytes.Buffer
+		url := start(t, &fakeProvider{stream: chunks([]provider.Chunk{{Done: true, StopReason: "end_turn"}}, nil)}, &log)
+		io.ReadAll(post(t, url, `{"messages":[{"role":"user","content":"q"}],"persona":{"name":"비밀-이름","about":"비밀-소개"}}`).Body)
+		time.Sleep(50 * time.Millisecond)
+		if out := log.String(); strings.Contains(out, "비밀-") {
+			t.Fatalf("persona가 로그에 남았어요: %s", out)
+		}
+	})
+
 	t.Run("F-002 AC2 20턴을 넘으면 최근 20턴만 제공자에 넘긴다", func(t *testing.T) {
 		var got []chat.Message
 		p := &fakeProvider{stream: func(ctx context.Context, msgs []chat.Message) iter.Seq2[provider.Chunk, error] {
@@ -131,7 +158,7 @@ func TestChat(t *testing.T) {
 		}
 	})
 
-	t.Run("F-010 AC5 제공자 오류는 사용자용 문장의 error 이벤트로 보내고 서버는 계속 동작한다", func(t *testing.T) {
+	t.Run("F-010 AC5·F-004 AC1 제공자 오류는 사용자용 문장의 error 이벤트로 보내고 서버는 계속 동작한다", func(t *testing.T) {
 		pe := &provider.Error{UserMessage: "요청이 너무 많아요. 잠시 후 다시 시도해 주세요.", Status: 429, Code: "rate_limit_error"}
 		var log bytes.Buffer
 		url := start(t, &fakeProvider{stream: chunks([]provider.Chunk{{Text: "앞"}}, pe)}, &log)
@@ -147,7 +174,7 @@ func TestChat(t *testing.T) {
 		}
 	})
 
-	t.Run("F-010 AC5 알 수 없는 오류는 일반 문장으로 감춘다", func(t *testing.T) {
+	t.Run("F-010 AC5·F-004 AC3 알 수 없는 오류는 일반 문장으로 감춘다", func(t *testing.T) {
 		url := start(t, &fakeProvider{stream: chunks(nil, errors.New("upstream raw secret-detail"))}, nil)
 		b, _ := io.ReadAll(post(t, url, hi).Body)
 		if strings.Contains(string(b), "secret-detail") || !strings.Contains(string(b), provider.GenericMessage) {

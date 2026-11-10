@@ -6,6 +6,7 @@ import path from 'node:path';
 import { validateChatRequest } from './validate.js';
 import { trimToRecentTurns } from './context.js';
 import { systemPromptFor } from './voice.js';
+import { personaSystemPrompt } from './persona.js';
 import { ProviderError } from '../agent/errors.js';
 
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -82,7 +83,7 @@ async function handleChat(req, res, provider) {
   });
 
   try {
-    for await (const chunk of provider.stream(messages, { signal: controller.signal, system: systemPromptFor(result.mode) })) {
+    for await (const chunk of provider.stream(messages, { signal: controller.signal, system: systemPrompt(result) })) {
       if (controller.signal.aborted) break;
       if (chunk.type === 'delta') writeEvent(res, 'delta', { text: chunk.text });
       else if (chunk.type === 'done') writeEvent(res, 'done', { stopReason: chunk.stopReason });
@@ -144,4 +145,9 @@ function error(code, message) {
 
 function pathOf(req) {
   return new URL(req.url ?? '/', 'http://localhost').pathname;
+}
+
+/** 페르소나 다음에 말투 지시 (ADR-015·016). 둘 다 없으면 빈 문자열. Go chat.Request.SystemPrompt와 같다. */
+function systemPrompt({ mode, persona }) {
+  return [personaSystemPrompt(persona), systemPromptFor(mode)].filter(Boolean).join('\n\n');
 }

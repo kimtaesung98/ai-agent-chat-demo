@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../api/chat_api.dart';
+import 'persona_controller.dart';
 
 /// 말풍선 상태.
 enum EntryStatus { streaming, done, stopped, error }
@@ -27,9 +28,12 @@ class ChatEntry {
 
 /// 채팅 화면 컨트롤러. 위젯은 [ListenableBuilder]로 구독만 한다.
 class ChatController extends ChangeNotifier {
-  ChatController(this._api);
+  ChatController(this._api, {this.personas});
 
   final ChatApi _api;
+
+  /// 선택한 페르소나와 내 프로필 (F-005). 없으면 `persona` 없이 보낸다.
+  final PersonaController? personas;
   final List<ChatEntry> _entries = [];
   StreamSubscription<ChatEvent>? _sub;
   ServerConfig? _config;
@@ -67,7 +71,7 @@ class ChatController extends ChangeNotifier {
     _entries.addAll([question, answer]);
 
     _sub = _api
-        .stream(messages, mode: voice ? ChatMode.voice : ChatMode.text)
+        .stream(messages, mode: voice ? ChatMode.voice : ChatMode.text, persona: personas?.request)
         .listen(
           (event) {
             switch (event) {
@@ -81,7 +85,7 @@ class ChatController extends ChangeNotifier {
                   ..text = message
                   ..status = EntryStatus.error
                   ..inHistory = false;
-                question.inHistory = false; // 실패한 질문은 내역에서 뺀다 (재시도는 F-004)
+                question.inHistory = false; // 실패한 질문은 내역에서 뺀다 — 다시 시도는 [retry] (F-004 AC2)
                 _finish();
             }
             _notify();
@@ -100,6 +104,18 @@ class ChatController extends ChangeNotifier {
         );
     _notify();
     return true;
+  }
+
+  /// 마지막 답이 오류면 다시 시도할 수 있다 (F-004 AC2).
+  bool get canRetry => !busy && _entries.length >= 2 && _entries.last.status == EntryStatus.error;
+
+  /// 실패한 질문과 오류 말풍선을 지우고 마지막 사용자 메시지로 다시 요청한다 (F-004 AC2).
+  /// 다시 시도는 화면 버튼으로 하므로 글 모드로 보낸다. 할 수 없으면 false.
+  bool retry() {
+    if (!canRetry) return false;
+    final question = _entries[_entries.length - 2];
+    _entries.removeRange(_entries.length - 2, _entries.length);
+    return send(question.text);
   }
 
   /// 응답을 멈춘다 (F-003 AC1·AC3). 받은 내용은 남기고 "중단됨"으로 표시한다.

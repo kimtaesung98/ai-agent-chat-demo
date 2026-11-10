@@ -129,6 +129,58 @@ func TestF012(t *testing.T) {
 	})
 }
 
+// F-005 페르소나 — API-001 persona 필드. 모의 제공자는 시스템 프롬프트를 쓰지 않으므로 받아들이는지만 본다.
+func TestF005(t *testing.T) {
+	withPersona := func(persona any) map[string]any {
+		b := chatBody(message{"user", "페르소나로 물어봐요"})
+		b["persona"] = persona
+		return b
+	}
+	long := func(n int) string { return strings.Repeat("가", n) }
+	full := map[string]any{"name": "기획 파트너 지은", "role": "기획 파트너", "tones": []string{"차분하게", "존댓말"}, "instructions": "질문으로 정리해 줘", "about": "32살 기획자예요"}
+
+	t.Run("F-005 AC5 올바른 persona는 지금과 같이 스트리밍한다", func(t *testing.T) {
+		for _, p := range []any{
+			full,
+			map[string]any{"name": "친구"},
+			map[string]any{"name": "친구", "tones": []string{}, "role": "", "unknown": 1},
+			map[string]any{"name": long(40), "role": long(40), "tones": []string{long(20), "a", "b", "c", "d", "e"}, "instructions": long(1000), "about": long(1000)},
+		} {
+			_, text := requireStream(t, postChat(t, withPersona(p)))
+			if !strings.Contains(text, "페르소나로 물어봐요") {
+				t.Fatalf("persona=%v 응답 = %q", p, text)
+			}
+		}
+		b := withPersona(full)
+		b["mode"] = "voice"
+		requireStream(t, postChat(t, b))
+	})
+
+	t.Run("F-005 AC5 persona 형식이 틀리면 400", func(t *testing.T) {
+		for _, p := range []any{
+			nil, "지은", 1, []any{}, true,
+			map[string]any{},
+			map[string]any{"name": ""},
+			map[string]any{"name": "   "},
+			map[string]any{"name": 1},
+			map[string]any{"name": nil},
+			map[string]any{"name": long(41)},
+			map[string]any{"name": "a", "role": long(41)},
+			map[string]any{"name": "a", "role": 3},
+			map[string]any{"name": "a", "tones": "차분하게"},
+			map[string]any{"name": "a", "tones": []any{"a", 1}},
+			map[string]any{"name": "a", "tones": []string{""}},
+			map[string]any{"name": "a", "tones": []string{long(21)}},
+			map[string]any{"name": "a", "tones": []string{"1", "2", "3", "4", "5", "6", "7"}},
+			map[string]any{"name": "a", "instructions": long(1001)},
+			map[string]any{"name": "a", "about": long(1001)},
+			map[string]any{"name": "a", "about": false},
+		} {
+			requireErrorJSON(t, postChat(t, withPersona(p)), http.StatusBadRequest)
+		}
+	})
+}
+
 // API-001·API-002 공통 계약: 메서드·경로 오류, 정적 화면
 func TestAPI(t *testing.T) {
 	do := func(t *testing.T, method, path string) *http.Response {

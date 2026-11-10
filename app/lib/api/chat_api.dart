@@ -16,7 +16,8 @@ export 'models.dart';
 abstract interface class ChatApi {
   /// 대화를 보내고 응답 사건을 차례로 내보낸다. 마지막은 [ChatDone] 또는 [ChatFailed].
   /// 구독을 취소하면 요청이 중단된다 (F-003). [mode]가 voice면 말하기용 답을 요청한다 (F-012).
-  Stream<ChatEvent> stream(List<Message> messages, {ChatMode mode = ChatMode.text});
+  /// [persona]가 있으면 그 페르소나와 내 프로필로 답하게 한다 (F-005).
+  Stream<ChatEvent> stream(List<Message> messages, {ChatMode mode = ChatMode.text, PersonaRequest? persona});
 
   Future<ServerConfig> config();
 }
@@ -54,7 +55,7 @@ class HttpChatApi implements ChatApi {
   }
 
   @override
-  Stream<ChatEvent> stream(List<Message> messages, {ChatMode mode = ChatMode.text}) {
+  Stream<ChatEvent> stream(List<Message> messages, {ChatMode mode = ChatMode.text, PersonaRequest? persona}) {
     final client = _newClient();
     final abort = Completer<void>();
     late final StreamController<ChatEvent> out;
@@ -67,6 +68,7 @@ class HttpChatApi implements ChatApi {
           ..body = jsonEncode({
             'messages': messages.map((m) => m.toJson()).toList(),
             if (mode == ChatMode.voice) 'mode': 'voice', // 기본(text)은 보내지 않는다 — 기존 요청과 같음
+            if (persona != null) 'persona': persona.toJson(), // F-005
           });
 
         final http.StreamedResponse res;

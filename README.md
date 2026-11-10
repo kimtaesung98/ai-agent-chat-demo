@@ -48,7 +48,7 @@ cd ../app && flutter test                        # Flutter 테스트
 
 ```mermaid
 flowchart LR
-    User([방문자<br>브라우저]) -->|"메시지 · 목소리 · 대화 내역"| System["AI Agent Chat<br>(Level 0)"]
+    User([방문자<br>브라우저]) -->|"메시지 · 목소리 · 대화 내역 · 페르소나"| System["AI Agent Chat<br>(Level 0)"]
     System -->|"응답 조각 (SSE) · 읽어 주는 소리"| User
     Operator([운영자]) -->|"환경변수<br>API 키 · 모델"| System
     System -->|"Messages API 요청<br>stream: true"| Claude[[Claude API]]
@@ -106,8 +106,8 @@ flowchart LR
 | `/src/server` | Level 1 | F-001 ~ F-004 | HTTP 서버, 입력 검증, SSE 응답 |
 | `/src/agent` | Level 1 | F-001, F-003, F-004 | AI 제공자 (Claude · 모의 모드) |
 | `/public` | Level 1 | F-001 ~ F-004 | 채팅 화면 (브라우저) |
-| `/server` | Level 1 | F-009, F-010, F-011, F-012 서버 | Go 서버 `chatd` (Node와 같은 API, Flutter 웹 빌드 제공, 음성 말투) · HTTP 계약 테스트(`contract/`) |
-| `/app` | Level 1 | F-011, F-003, F-012, F-001 · F-002 화면 | Flutter 웹 클라이언트 (S-001) · 음성 대화 |
+| `/server` | Level 1 | F-009, F-010, F-011, F-012 · F-005 서버 | Go 서버 `chatd` (Node와 같은 API, Flutter 웹 빌드 제공, 음성 말투) · HTTP 계약 테스트(`contract/`) |
+| `/app` | Level 1 | F-011, F-003, F-012, F-005, F-001 · F-002 화면 | Flutter 웹 클라이언트 (S-001) · 음성 대화 |
 
 ---
 
@@ -120,8 +120,8 @@ flowchart LR
 | F-001 | 실시간 스트리밍 채팅 | ✅ Done | `/src/server`, `/src/agent`, `/public` | 2026-11-02 | AC1~AC5 자동 테스트 통과 (28개). 화면 렌더링은 브라우저에서 수동 확인 |
 | F-002 | 대화 맥락 유지 | ✅ Done | `/src/server`, `/public` | 2026-11-02 | AC1~AC3 자동 테스트 통과. 응답 중 새 대화 버튼은 비활성 (중단은 F-003) |
 | F-003 | 응답 중단 | ✅ Done | `/app`, `/server` | 2026-11-05 | Flutter에서 구현 (Q-004). AC1·AC3 위젯·단위 테스트, AC2 서버 취소는 Go·Node 모두 테스트. PR #5 CI 통과 |
-| F-004 | 오류 처리와 재시도 | ⏳ Pending | `/src/server`, `/src/agent`, `/public` | - | |
-| F-005 | 에이전트 페르소나 설정 | ⏳ Pending | - | - | Phase 2 |
+| F-004 | 오류 처리와 재시도 | ✅ Done | `/server`, `/app` | 2026-11-10 | AC1·AC3 Go 테스트(업스트림 오류 → 사용자용 문장, 원문·키 숨김, 서버 계속 동작), AC2 Flutter 단위·위젯 테스트(다시 시도 → 같은 질문 재요청). `flutter test` 84개 |
+| F-005 | 페르소나 설정 | 🔄 In Progress | `/app`, `/server`, `/src/server` | 2026-11-10 | AC1~AC7 자동 테스트 통과 (Flutter 81개, Go·Node 단위, 계약 테스트 Node·Go). 피그마 시안 A·C를 Material 3로 구현, 웹 빌드 화면 캡처 확인. ADR-016 승인. **AC8 실제 Claude 모드 확인(사용자) 남음** |
 | F-006 | 도구 사용 (Tool use) | ⏳ Pending | - | - | Phase 2 |
 | F-007 | 대화 기록 저장 | ⏳ Pending | - | - | Phase 2 |
 | F-008 | 사용자 로그인 | ⏳ Pending | - | - | Phase 3 |
@@ -136,6 +136,7 @@ flowchart LR
 
 <!-- SPEC §16 Q-004 결정 (2026-11-04): 남은 MVP 기능과 음성 대화는 Go + Flutter 전환 뒤에 만든다 -->
 
-1. F-012 음성 대화 마무리 — 실제 마이크로 Chrome·Edge 확인(AC8, 사용자), 필요하면 끝맺음 시간·에코 조정 → `/app`
-2. ARCHITECTURE §10 단계 4 — Node MVP 제거 (음성이 동작한 뒤로 미뤄 둠) → `/src`, `/public`
-3. F-004 오류 처리와 재시도 → `/server`, `/app`
+1. F-005 페르소나 마무리 — 실제 Claude 모드에서 말투 확인(AC8, 사용자), 저장 유지(Q-005) 결정 → `/app`
+2. F-012 음성 대화 마무리 — 실제 마이크로 Chrome·Edge 확인(AC8, 사용자), 필요하면 끝맺음 시간·에코 조정 → `/app`
+3. ARCHITECTURE §10 단계 4 — Node MVP 제거 (음성이 동작한 뒤로 미뤄 둠) → `/src`, `/public`
+4. F-008 Google 로그인 — MVP로 앞당김 제안(SPEC Q-006, ADR-017 제안). 승인되면 `/server`, `/app`

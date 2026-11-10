@@ -57,3 +57,78 @@ class ServerConfig {
 
   bool get isMock => provider == 'mock';
 }
+
+/// 대화 상대 페르소나 (F-005, SPEC.md API-001 `persona`). 값 객체 — 바꿀 때는 [copyWith].
+class Persona {
+  const Persona({required this.id, required this.name, this.role = '', this.tones = const [], this.instructions = ''});
+
+  /// 화면에서만 쓰는 구분자. 서버에는 보내지 않는다.
+  final String id;
+  final String name;
+  final String role;
+  final List<String> tones;
+  final String instructions;
+
+  /// 서버 제한 (SPEC.md API-001). 화면 입력도 같은 값으로 막는다.
+  static const maxName = 40, maxRole = 40, maxTones = 6, maxTone = 20, maxInstructions = 1000, maxAbout = 1000;
+
+  /// 아바타 글자: 이름 마지막 낱말의 첫 글자 ("기획 파트너 지은" → "지").
+  String get initial {
+    final words = name.trim().split(RegExp(r'\s+'));
+    final last = words.isEmpty ? '' : words.last;
+    return last.isEmpty ? '?' : String.fromCharCode(last.runes.first);
+  }
+
+  /// 상단 바·목록에 보여 줄 한 줄 요약 (역할 · 말투).
+  String get summary => [if (role.isNotEmpty) role, ...tones.take(3)].join(' · ');
+
+  Persona copyWith({String? id, String? name, String? role, List<String>? tones, String? instructions}) => Persona(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    role: role ?? this.role,
+    tones: tones ?? this.tones,
+    instructions: instructions ?? this.instructions,
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      other is Persona &&
+      other.id == id &&
+      other.name == name &&
+      other.role == role &&
+      other.instructions == instructions &&
+      _listEquals(other.tones, tones);
+
+  @override
+  int get hashCode => Object.hash(id, name, role, instructions, Object.hashAll(tones));
+
+  @override
+  String toString() => 'Persona($id, $name)';
+}
+
+bool _listEquals(List<String> a, List<String> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+/// 요청에 싣는 페르소나와 내 프로필 (API-001 `persona`).
+class PersonaRequest {
+  const PersonaRequest(this.persona, {this.about = ''});
+
+  final Persona persona;
+
+  /// 내 프로필 (나에 대해). 모든 페르소나에 공통.
+  final String about;
+
+  /// 빈 필드는 보내지 않는다.
+  Map<String, Object> toJson() => {
+    'name': persona.name.trim(),
+    if (persona.role.trim().isNotEmpty) 'role': persona.role.trim(),
+    if (persona.tones.isNotEmpty) 'tones': persona.tones,
+    if (persona.instructions.trim().isNotEmpty) 'instructions': persona.instructions.trim(),
+    if (about.trim().isNotEmpty) 'about': about.trim(),
+  };
+}

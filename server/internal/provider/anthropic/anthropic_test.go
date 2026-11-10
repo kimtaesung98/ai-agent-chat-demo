@@ -146,7 +146,7 @@ func TestStream(t *testing.T) {
 		{"서버 오류 500", 500, `{"type":"error","error":{"type":"api_error","message":"secret-detail"}}`, provider.GenericMessage},
 	}
 	for _, c := range errCases {
-		t.Run("F-010 AC5 업스트림 "+c.name+"는 사용자용 문장으로 바뀌고 원문은 숨긴다", func(t *testing.T) {
+		t.Run("F-010 AC5·F-004 AC3 업스트림 "+c.name+"는 사용자용 문장으로 바뀌고 원문·키는 숨긴다", func(t *testing.T) {
 			p := newProvider(t, func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(c.status)
