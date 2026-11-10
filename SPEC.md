@@ -511,8 +511,9 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | Q-002 | 기본 페르소나(시스템 프롬프트) 문구 | F-005 | kimtaesung98 | 사용자가 화면에서 고른다. 기본 3개(기획 파트너 지은 · 영어 회화 코치 · 다정한 친구)를 앱에 넣고, 시스템 프롬프트 틀은 서버가 정한다 (2026-11-10) |
 | Q-005 | 페르소나·내 프로필을 새로고침 뒤에도 남길지, 어디에 둘지 (브라우저 저장소 패키지 추가 필요 — ARCHITECTURE §2.2) | F-005, F-007 | kimtaesung98 | |
 | Q-006 | F-008 Google 로그인을 Phase 3에서 MVP로 앞당길지, 새 패키지(`google_sign_in`)를 허용할지 | F-008 | kimtaesung98 | 보류 — Phase 3 그대로 (사용자 결정, 2026-11-10). 로그인은 디자인에만 두고 Node MVP 제거(F-013)를 먼저 한다 |
-| Q-003 | 호스팅 환경 (클라우드 컨테이너 / 사내 서버 등) | ARCHITECTURE §6 | kimtaesung98 | |
+| Q-003 | 호스팅 환경 (클라우드 컨테이너 / 사내 서버 등) | ARCHITECTURE §6 | kimtaesung98 | 사용자 방향: AWS(서버·음성 서비스) + Cloudflare 검토 (2026-11-10). 제안: ADR-018·019 — 승인 대기 |
 | Q-004 | 남은 MVP 기능 F-003·F-004를 현재 Node MVP에서 먼저 만들지, Go + Flutter 전환(ARCHITECTURE §10) 뒤에 만들지 | F-003, F-004 | kimtaesung98 | 전환 뒤에 만든다. F-003은 §10 단계 3(Flutter 웹)에서 구현. 음성 대화도 Flutter 전환 뒤에 만든다 (2026-11-04) |
+| Q-007 | AWS 음성 서비스로 바꿀 범위와 순서 — 제안: F-014 클라우드 배포 → F-015 Polly TTS → F-016 Transcribe STT(서버 중계). 새 의존성 `aws-sdk-go-v2`·Go WebSocket·Flutter `record` 허용 여부 (ADR-020·021) | F-012 | kimtaesung98 | |
 
 ---
 
@@ -540,3 +541,4 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | v1.6 | 2026-11-10 | kimtaesung98 | F-005를 사용자 페르소나 설정으로 바꿔 상세·수용 기준 작성(사용자 승인), S-002 화면, API-001 `persona` 필드, Q-002 결정, Q-005 추가 |
 | v1.7 | 2026-11-10 | kimtaesung98 | F-004을 Go + Flutter에서 완료(다시 시도 화면 동작 추가). F-008 Google 로그인 상세·수용 기준 초안(제안), Q-006 추가 |
 | v1.8 | 2026-11-10 | kimtaesung98 | F-008·Q-006 보류(사용자 결정). F-013 Node MVP 제거(전환 단계 4) 등록, 테스트 전략·실행 방법을 Go + Flutter로 |
+| v1.9 | 2026-11-10 | kimtaesung98 | Q-003에 AWS·Cloudflare 방향 기록, Q-007(AWS 음성 전환 범위) 추가 |

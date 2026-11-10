@@ -86,6 +86,7 @@
 | 2026-11-10 | F-005 | 피그마 GUI 시안(현재 화면 + A~D) 작성 → Starter 플랜 MCP 한도로 M3 키트 작업 중단 → 사용자 선택으로 Flutter M3 구현. SPEC v1.6(F-005 재정의), ADR-016 제안, Go·Node `persona`, 사이드바·편집 화면 | `SPEC.md`, `ARCHITECTURE.md`, `server/internal/chat/*`, `src/server/*`, `app/lib/**`, 테스트 | 피그마 파일: figma.com/design/U9r2hj8EoRdBiiwP8daqLn (무료 플랜이라 MCP 호출 한도·변수 모드 1개). 페르소나는 앱 메모리만 — Q-005 |
 | 2026-11-10 | F-004, F-008 | MVP HTML 디자인(Design 캔버스, 7화면) 작성 → 사용자가 "순서대로, 판단은 맡김". ADR-016 승인 반영, F-004 다시 시도(Flutter) 완료, F-008 Google 로그인 SPEC·ADR-017 제안 | `SPEC.md`, `ARCHITECTURE.md`, `app/lib/chat/chat_controller.dart`, `app/lib/ui/chat_page.dart`, 테스트 | 디자인은 claude.ai 비공개 Artifact. 네이티브 앱의 기준 화면으로 씀 |
 | 2026-11-10 | F-013, F-008 | 사용자가 Google 로그인 보류(Phase 3) 선택 → §10 단계 4 진행. `src/`·`public/`·`tests/`·`scripts/`·`package.json` 삭제, 계약 테스트가 모의 모드 `chatd`를 직접 띄우게 바꿈(`go test ./...`에 포함), CI Node 작업 제거, 문서 갱신 | `server/contract/*`, `.github/workflows/ci.yml`, `README.md`, `CLAUDE.md`, `SPEC.md` v1.8, `ARCHITECTURE.md` v1.7, `server/README.md` | ADR-001 대체됨, ADR-017 보류, TD-001~003 해소 |
+| 2026-11-10 | - | AWS·Cloudflare 배포·음성 설계안(Claude 문서) 작성, ADR-018~021 제안, SPEC Q-003 방향·Q-007 추가 | `ARCHITECTURE.md`, `SPEC.md` | 사용자 범위 결정(Q-007) 전에는 AWS 리소스 생성·의존성 추가 금지. 승인되면 F-014(배포)부터 SPEC 등록 |
 
 ---
 
