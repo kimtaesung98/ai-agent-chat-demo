@@ -117,6 +117,44 @@ void main() {
     expect(chat.history, isEmpty);
   });
 
+  test('F-004 AC2 다시 시도하면 오류 말풍선을 지우고 마지막 사용자 메시지로 다시 요청한다', () async {
+    chat.send('첫 질문');
+    api.current
+      ..add(const ChatDelta('첫 답'))
+      ..add(const ChatDone('end_turn'));
+    await flush();
+    chat.send('두 번째');
+    api.current.add(const ChatFailed('요청이 너무 많아요.'));
+    await flush();
+    expect(chat.canRetry, isTrue);
+
+    expect(chat.retry(), isTrue);
+    expect(api.requests.last, const [
+      Message(Role.user, '첫 질문'),
+      Message(Role.assistant, '첫 답'),
+      Message(Role.user, '두 번째'),
+    ]);
+    expect(chat.entries.where((e) => e.status == EntryStatus.error), isEmpty);
+    expect(chat.entries.length, 4);
+    expect(chat.canRetry, isFalse); // 응답 중에는 다시 시도 없음
+
+    api.current
+      ..add(const ChatDelta('두 번째 답'))
+      ..add(const ChatDone('end_turn'));
+    await flush();
+    expect(chat.history.length, 4);
+  });
+
+  test('F-004 AC2 마지막 답이 오류가 아니면 다시 시도하지 않는다', () async {
+    expect(chat.retry(), isFalse);
+    chat.send('질문');
+    api.current.add(const ChatDone('end_turn'));
+    await flush();
+    final sent = api.requests.length;
+    expect(chat.retry(), isFalse);
+    expect(api.requests.length, sent);
+  });
+
   test('F-001 done 없이 스트림이 끝나면 오류로 바꾼다', () async {
     chat.send('질문');
     api.current.add(const ChatDelta('앞'));

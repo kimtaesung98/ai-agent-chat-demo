@@ -119,6 +119,24 @@ void main() {
     expect(field(tester).enabled, isTrue);
   });
 
+  testWidgets('F-004 AC2 오류 말풍선의 다시 시도 버튼이 같은 질문을 다시 보낸다', (tester) async {
+    await open(tester);
+    await tester.enterText(input(), '질문');
+    await tester.tap(find.byKey(const Key('send')));
+    await tester.pump();
+    expect(find.byKey(const Key('retry')), findsNothing);
+    api.current.add(const ChatFailed('AI 서비스에 일시적인 문제가 있어요.'));
+    await tester.pump();
+
+    final sent = api.requests.length;
+    await tester.tap(find.byKey(const Key('retry')));
+    await tester.pump();
+    expect(api.requests.length, sent + 1);
+    expect(api.requests.last, const [Message(Role.user, '질문')]);
+    expect(find.text('AI 서비스에 일시적인 문제가 있어요.'), findsNothing);
+    expect(find.byKey(const Key('retry')), findsNothing);
+  });
+
   testWidgets('F-011 AC4 스트리밍 중인 말풍선은 liveRegion으로 알린다', (tester) async {
     await open(tester);
     final handle = tester.ensureSemantics();

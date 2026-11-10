@@ -231,7 +231,11 @@ class _ChatPageState extends State<ChatPage> {
         controller: _scroll,
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
         itemCount: entries.length,
-        itemBuilder: (context, i) => _Bubble(entry: entries[i]),
+        itemBuilder: (context, i) => _Bubble(
+          entry: entries[i],
+          // 마지막 오류 말풍선에만 다시 시도 버튼 (F-004 AC2)
+          onRetry: i == entries.length - 1 && _chat.canRetry ? _chat.retry : null,
+        ),
       ),
     );
   }
@@ -445,8 +449,9 @@ class _ModeBadge extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.entry});
+  const _Bubble({required this.entry, this.onRetry});
   final ChatEntry entry;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -488,10 +493,30 @@ class _Bubble extends StatelessWidget {
         ],
       ),
     );
+    final retry = onRetry;
     return Align(
       alignment: user ? Alignment.centerRight : Alignment.centerLeft,
       // 스트리밍 중인 응답은 스크린 리더에 바로 알린다 (F-011 AC4, ARCHITECTURE §7)
-      child: Semantics(liveRegion: streaming, child: bubble),
+      child: retry == null
+          ? Semantics(liveRegion: streaming, child: bubble)
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                bubble,
+                OutlinedButton.icon(
+                  key: const Key('retry'),
+                  onPressed: () => retry(),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: c.user,
+                    side: BorderSide(color: c.line),
+                    minimumSize: const Size(0, 44),
+                  ),
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('다시 시도'),
+                ),
+              ],
+            ),
     );
   }
 }

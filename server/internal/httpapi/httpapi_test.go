@@ -158,7 +158,7 @@ func TestChat(t *testing.T) {
 		}
 	})
 
-	t.Run("F-010 AC5 제공자 오류는 사용자용 문장의 error 이벤트로 보내고 서버는 계속 동작한다", func(t *testing.T) {
+	t.Run("F-010 AC5·F-004 AC1 제공자 오류는 사용자용 문장의 error 이벤트로 보내고 서버는 계속 동작한다", func(t *testing.T) {
 		pe := &provider.Error{UserMessage: "요청이 너무 많아요. 잠시 후 다시 시도해 주세요.", Status: 429, Code: "rate_limit_error"}
 		var log bytes.Buffer
 		url := start(t, &fakeProvider{stream: chunks([]provider.Chunk{{Text: "앞"}}, pe)}, &log)
@@ -174,7 +174,7 @@ func TestChat(t *testing.T) {
 		}
 	})
 
-	t.Run("F-010 AC5 알 수 없는 오류는 일반 문장으로 감춘다", func(t *testing.T) {
+	t.Run("F-010 AC5·F-004 AC3 알 수 없는 오류는 일반 문장으로 감춘다", func(t *testing.T) {
 		url := start(t, &fakeProvider{stream: chunks(nil, errors.New("upstream raw secret-detail"))}, nil)
 		b, _ := io.ReadAll(post(t, url, hi).Body)
 		if strings.Contains(string(b), "secret-detail") || !strings.Contains(string(b), provider.GenericMessage) {
