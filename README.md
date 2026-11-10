@@ -9,6 +9,8 @@ API 키가 없으면 모의 모드로 동작해, 설치나 키 없이도 전체 
 
 ## 빠른 실행
 
+> 🧪 내 Mac에서 알파테스트하는 단계별 방법·체크리스트: [`docs/ALPHA_TEST_LOCAL.md`](./docs/ALPHA_TEST_LOCAL.md)
+
 ```bash
 npm start                                   # 모의 모드 (키 불필요)
 ANTHROPIC_API_KEY=sk-ant-... npm start      # 실제 Claude와 대화
