@@ -91,7 +91,7 @@
 | 외부 서비스 | Claude Messages API (`stream: true`) | `anthropic-version: 2023-06-01` | 사용 중 | ADR-003 |
 | 기본 모델 | `claude-sonnet-5-5` (환경변수로 변경) | — | 사용 중 | — |
 | 데이터 저장 | 없음 (대화는 클라이언트 메모리) | — | F-007 착수 시 결정 | ADR-004 |
-| 호스팅 | 미정 | — | 검토 중 — SPEC §16 Q-003 | ADR-011 |
+| 호스팅 | AWS 서울 EC2(t4g.small, Docker) + Cloudflare Tunnel·Access, 이미지는 ECR | — | F-014 | ADR-011, 018, 019 |
 | C / C++ | 사용하지 않음 | — | 제외 | ADR-007 |
 
 ### 2.2 허용 라이브러리 (Allowlist)
@@ -107,12 +107,15 @@
 | Flutter (목표) | `fetch_client` | 웹 스트리밍 응답 | 웹 빌드에서만 사용 (조건부 import) |
 | Flutter (F-012) | `speech_to_text`, `flutter_tts` | 음성 인식(STT) · 음성 합성(TTS) | `app/lib/voice/plugin_voice_engine.dart`에서만 import (의존 규칙 테스트로 검사) — ADR-014. 간접 의존: `speech_to_text_platform_interface`, `speech_to_text_windows`, `plugin_platform_interface`, `json_annotation`, `flutter_web_plugins` |
 | Flutter (F-008, **보류**) | `google_sign_in` (+ 웹 구현 `google_sign_in_web`) | Google 로그인 → ID 토큰 | ADR-017 승인 전에는 추가하지 않음. 승인되면 `app/lib/auth/google_auth.dart`에서만 import |
+| Go (F-015·F-016, 승인) | `aws-sdk-go-v2` (`config`, `service/polly`, `service/transcribestreaming`) | Polly·Transcribe 호출 | 해당 단계에서 추가. `internal/speech` 안에서만 import — ADR-020·021 |
+| Go (F-016, 승인) | WebSocket 라이브러리 1개 (착수 때 선정, 순수 Go) | `/api/stt` 중계 | `httpapi`의 `/api/stt` 처리에서만 — ADR-021 |
+| Flutter (F-016, 승인) | `record`, WebSocket 패키지 | 마이크 PCM 스트림, `/api/stt` 연결 | `voice/` 안에서만 — ADR-021 |
 | Flutter 개발 (목표) | `flutter_test`, `flutter_lints` | 테스트, 린트 | dev_dependencies |
 
 **금지:**
 - Go 웹 프레임워크(gin, echo, fiber 등) — ADR-013
 - Flutter 상태 관리 패키지(Riverpod, Bloc, Provider 등) — ADR-010
-- WebSocket 라이브러리 — ADR-002 (단방향 SSE로 충분)
+- 채팅 응답용 WebSocket — ADR-002 (단방향 SSE로 충분). 음성 인식 중계(`/api/stt`)만 예외 — ADR-021
 - C/C++ 코드, cgo (`CGO_ENABLED=0`으로 빌드) — ADR-007
 - 클라이언트에서 Claude API를 직접 호출하는 모든 패키지 — 원칙 2
 
@@ -335,8 +338,8 @@ sequenceDiagram
 | 환경 | 용도 | 위치 | 배포 방식 |
 |---|---|---|---|
 | 로컬 | 개발 · 시연 | 개발자 PC | `flutter build web` + `go run ./cmd/chatd` (또는 `flutter run`) |
-| 스테이징 | 공개 전 확인 | 미정 (Q-003) | 목표: 컨테이너 이미지 |
-| 운영 | 공개 서비스 | 미정 (Q-003) — 공개 전 F-008 로그인 필요 | 목표: 컨테이너 이미지 |
+| 스테이징 | 공개 전 확인 | 따로 두지 않음 — 운영과 같은 EC2에 배포 전 CI가 이미지로 계약 테스트 (F-014 AC1) | 컨테이너 이미지 |
+| 운영 | 허용한 사람만 (Cloudflare Access) | AWS 서울 EC2 1대 + Cloudflare (ADR-018·019). 일반 공개 전 F-008 로그인 필요 | ECR 이미지, `deploy.yml`(OIDC) → SSM Run Command |
 
 ### 6.2 배포도 (목표)
 
@@ -421,10 +424,10 @@ flowchart LR
 | ADR-015 | 음성 답 말투는 서버가 정한다 — API-001 `mode: "voice"`면 말하기용 시스템 프롬프트(마크다운 없이 짧은 구어체)를 붙인다 | ① 클라이언트가 읽기 전에 마크다운만 제거 ② F-005 페르소나를 먼저 만들고 그 안에서 처리 ③ 클라이언트가 시스템 프롬프트를 보냄 | 자연스러운 대화는 **짧은 구어체 답**이 핵심이라 읽기 전 정리(①)만으로는 길고 목록 많은 답이 그대로 남음. ③은 클라이언트가 프롬프트를 조작할 수 있어 원칙 2(비밀·제어는 서버)에 어긋남. 하위 호환 선택 필드라 기존 화면 영향 없음. F-005 페르소나가 생기면 페르소나 + 음성 지시를 합침 | 승인 (사용자, 2026-11-07 — F-012와 함께) | 2026-11-07 |
 | ADR-016 | 페르소나는 API-001 `persona`에 **구조화된 필드**(이름·역할·말투·추가 지시·사용자 정보)로 보내고, 시스템 프롬프트 **틀은 서버(`chat` 도메인)가 만든다**. 음성이면 페르소나 뒤에 ADR-015 말하기 지시를 붙인다. 이번 단계는 앱 메모리에만 두고 저장 유지는 SPEC Q-005로 미룬다 | ① 운영자가 환경변수로 시스템 프롬프트 지정 (원래 F-005) ② 클라이언트가 완성된 시스템 프롬프트 문자열을 보냄 ③ 서버에 페르소나 저장 | 프로젝트 목표가 "사용자 페르소나 설정을 통한 맥락 대화"라 사용자가 화면에서 골라야 함(①은 운영자만 바꿈). ②는 ADR-015와 같은 이유로 틀을 클라이언트가 바꿀 수 있어 원칙 2에 어긋남 — 필드마다 길이 제한을 두고 틀은 서버가 쥔다. ③은 로그인(F-008)·저장(F-007) 없이 만들 수 없음(ADR-004 무상태 유지). 하위 호환 선택 필드 | 승인 (사용자가 진행 판단을 맡김, 2026-11-10) | 2026-11-10 |
 | ADR-017 | 로그인은 **Google ID 토큰 → Go 서버 확인 → 서명한 세션 쿠키**. 앱은 `google_sign_in`으로 ID 토큰만 받고, 서버는 표준 라이브러리(`crypto/rsa`, `encoding/json`)로 Google 공개 키(JWKS, 캐시)에 대해 RS256 서명·`iss`·`aud`·`exp`를 확인한다. 세션은 HMAC 서명 쿠키(`SESSION_SECRET`)로 서버에 저장소를 두지 않는다. `GOOGLE_CLIENT_ID`가 없으면 로그인 없이 동작 | ① 서버가 OAuth 코드 흐름(리다이렉트·클라이언트 비밀값)을 직접 처리 ② `google.golang.org/api/idtoken`·`golang.org/x/oauth2` 사용 ③ Firebase Auth | 웹과 나중의 네이티브 앱(iOS·Android)이 같은 경로(ID 토큰 → 서버)를 쓴다 — ①은 웹 리다이렉트 전용이라 네이티브에서 다시 만들어야 함. ②는 Go 의존이 크게 늘고 확인 로직은 표준 라이브러리로 충분. ③은 외부 서비스·SDK가 추가됨. 쿠키 세션은 ADR-004 무상태를 지킴 | **보류** — Phase 3 그대로 (사용자 결정, 2026-11-10, Q-006). 착수할 때 다시 승인받음 | 2026-11-10 |
-| ADR-018 | 호스팅은 **AWS 서울(ap-northeast-2) EC2 1대**(t4g.small, Docker로 chatd 이미지 실행), 앞단은 **Cloudflare 프록시 + Tunnel**(`cloudflared`, 바깥으로만 연결). 보안 그룹 인바운드 포트 없음, 관리 접속은 SSM Session Manager, `ANTHROPIC_API_KEY`는 SSM Parameter Store(SecureString) | ① ECS Fargate + ALB ② Lightsail ③ App Runner ④ Lambda ⑤ Cloudflare Pages로 웹 분리 | 가장 싸고 단순(월 약 18달러). IAM 인스턴스 역할로 Polly·Transcribe를 키 없이 호출(②는 역할 불가 → 장기 키 필요). ③은 2026년부터 신규 고객 불가. ④는 SSE·양방향 음성 스트림과 맞지 않음. ⑤는 출처가 둘로 나뉘어 ADR-011과 충돌. 무상태(ADR-004)라 늘어나면 ①로 이동 쉬움 | 제안 | 2026-11-10 |
-| ADR-019 | 공개 전 접근 제어는 **Cloudflare Access**(Zero Trust, 허용 이메일 목록, 일회용 코드)로 사이트 전체를 막는다. F-008 로그인 전까지의 임시 장치 | ① 막지 않음 ② F-008을 앞당김 ③ 서버에 기본 인증 | 코드 변경 없이 Claude·AWS 요금 남용을 막음, 50명까지 무료. 단 브라우저 쿠키 방식이라 모바일 앱(§10 단계 5)에는 F-008 필요 | 제안 | 2026-11-10 |
-| ADR-020 | TTS는 **Amazon Polly**: 서버 `POST /api/tts`(문장·목소리 → `audio/mpeg`), 앱은 `VoiceEngine` 새 구현이 문장마다 호출해 재생. AWS 권한이 없으면 지금처럼 `flutter_tts`. ADR-014 대안 ②를 읽기 쪽에 채택(부분 대체) | 브라우저·OS TTS 유지, 다른 클라우드 TTS | 사용자 요청(AWS 음성 서비스). 목소리 품질·브라우저 간 일관성. 호출은 서버만 하므로 키가 클라이언트로 가지 않음. 새 의존: `aws-sdk-go-v2`(config·polly) — 새 모듈 `internal/speech` 안에서만 import | 제안 | 2026-11-10 |
-| ADR-021 | STT는 **Amazon Transcribe 스트리밍**, 서버 중계: 앱 마이크 PCM → WebSocket `/api/stt` → chatd → Transcribe(HTTP/2) → 중간·최종 결과를 같은 WebSocket으로. ADR-002(WebSocket 불필요)는 **채팅 응답 스트림**에 한정한다 | ② 서버가 서명 URL을 주고 앱이 Transcribe에 직접 연결 ③ 발화가 끝나면 녹음 파일을 POST | AWS 호출이 서버 한 곳, 웹·모바일 동일, 미리 보기 유지, 사용량 제한을 서버에서. ②는 앱이 AWS 이벤트 스트림을 다루고 임시 자격 증명이 클라이언트로 나감, ③은 미리 보기 없음·지연. 새 의존: Go WebSocket 라이브러리 1개, Flutter `record`·WebSocket 패키지 | 제안 | 2026-11-10 |
+| ADR-018 | 호스팅은 **AWS 서울(ap-northeast-2) EC2 1대**(t4g.small, Docker로 chatd 이미지 실행), 앞단은 **Cloudflare 프록시 + Tunnel**(`cloudflared`, 바깥으로만 연결). 보안 그룹 인바운드 포트 없음, 관리 접속은 SSM Session Manager, `ANTHROPIC_API_KEY`는 SSM Parameter Store(SecureString) | ① ECS Fargate + ALB ② Lightsail ③ App Runner ④ Lambda ⑤ Cloudflare Pages로 웹 분리 | 가장 싸고 단순(월 약 18달러). IAM 인스턴스 역할로 Polly·Transcribe를 키 없이 호출(②는 역할 불가 → 장기 키 필요). ③은 2026년부터 신규 고객 불가. ④는 SSE·양방향 음성 스트림과 맞지 않음. ⑤는 출처가 둘로 나뉘어 ADR-011과 충돌. 무상태(ADR-004)라 늘어나면 ①로 이동 쉬움 | 승인 (사용자 "추천안 전체", 2026-11-10) | 2026-11-10 |
+| ADR-019 | 공개 전 접근 제어는 **Cloudflare Access**(Zero Trust, 허용 이메일 목록, 일회용 코드)로 사이트 전체를 막는다. F-008 로그인 전까지의 임시 장치 | ① 막지 않음 ② F-008을 앞당김 ③ 서버에 기본 인증 | 코드 변경 없이 Claude·AWS 요금 남용을 막음, 50명까지 무료. 단 브라우저 쿠키 방식이라 모바일 앱(§10 단계 5)에는 F-008 필요 | 승인 (사용자 "추천안 전체", 2026-11-10) | 2026-11-10 |
+| ADR-020 | TTS는 **Amazon Polly**: 서버 `POST /api/tts`(문장·목소리 → `audio/mpeg`), 앱은 `VoiceEngine` 새 구현이 문장마다 호출해 재생. AWS 권한이 없으면 지금처럼 `flutter_tts`. ADR-014 대안 ②를 읽기 쪽에 채택(부분 대체) | 브라우저·OS TTS 유지, 다른 클라우드 TTS | 사용자 요청(AWS 음성 서비스). 목소리 품질·브라우저 간 일관성. 호출은 서버만 하므로 키가 클라이언트로 가지 않음. 새 의존: `aws-sdk-go-v2`(config·polly) — 새 모듈 `internal/speech` 안에서만 import | 승인 (사용자 "추천안 전체", 2026-11-10) | 2026-11-10 |
+| ADR-021 | STT는 **Amazon Transcribe 스트리밍**, 서버 중계: 앱 마이크 PCM → WebSocket `/api/stt` → chatd → Transcribe(HTTP/2) → 중간·최종 결과를 같은 WebSocket으로. ADR-002(WebSocket 불필요)는 **채팅 응답 스트림**에 한정한다 | ② 서버가 서명 URL을 주고 앱이 Transcribe에 직접 연결 ③ 발화가 끝나면 녹음 파일을 POST | AWS 호출이 서버 한 곳, 웹·모바일 동일, 미리 보기 유지, 사용량 제한을 서버에서. ②는 앱이 AWS 이벤트 스트림을 다루고 임시 자격 증명이 클라이언트로 나감, ③은 미리 보기 없음·지연. 새 의존: Go WebSocket 라이브러리 1개, Flutter `record`·WebSocket 패키지 | 승인 (사용자 "추천안 전체", 2026-11-10) | 2026-11-10 |
 
 ---
 
@@ -487,4 +490,4 @@ flowchart LR
 | v1.5 | 2026-11-10 | kimtaesung98 | F-005 페르소나 — ADR-016 제안, `persona` 선택 필드, `PersonaController`·페르소나 화면을 모듈 맵에 추가 |
 | v1.6 | 2026-11-10 | kimtaesung98 | ADR-016 승인. F-008 Google 로그인 — ADR-017 제안, `google_sign_in` 허용 후보(§2.2) |
 | v1.7 | 2026-11-10 | kimtaesung98 | §10 단계 4(F-013) — Node MVP 제거: ADR-001 대체됨, ADR-012 Go만, ADR-017 보류(사용자 결정), 스택·모듈 맵·개발 도구·인터페이스에서 Node 제거, TD-001~003 해소 |
-| v1.8 | 2026-11-10 | kimtaesung98 | ADR-018~021 제안 추가 — AWS EC2 + Cloudflare 배포, Cloudflare Access, Polly TTS, Transcribe STT (사용자 승인 대기) |
+| v1.8 | 2026-11-10 | kimtaesung98 | ADR-018~021 승인 (사용자 "추천안 전체") — AWS EC2 + Cloudflare 배포, Cloudflare Access, Polly TTS, Transcribe STT. 허용 목록·§6 환경 갱신, F-014 등록 |

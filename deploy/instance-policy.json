@@ -1,0 +1,17 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadChatdSecrets",
+      "Effect": "Allow",
+      "Action": "ssm:GetParameter",
+      "Resource": "arn:aws:ssm:${REGION}:${ACCOUNT_ID}:parameter/chatd/*"
+    },
+    {
+      "Sid": "VoiceF015F016",
+      "Effect": "Allow",
+      "Action": ["polly:SynthesizeSpeech", "transcribe:StartStreamTranscription"],
+      "Resource": "*"
+    }
+  ]
+}

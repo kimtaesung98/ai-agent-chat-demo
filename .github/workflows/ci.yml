@@ -1,4 +1,4 @@
-# CI — Go 테스트·계약 테스트, Flutter 분석·테스트·웹 빌드 (SPEC.md F-009 AC4, F-010, F-011 AC5, F-013)
+# CI — Go 테스트·계약 테스트, Flutter 분석·테스트·웹 빌드, 운영 이미지 계약 테스트 (SPEC.md F-009 AC4, F-010, F-011 AC5, F-013, F-014 AC1)
 name: CI
 
 on:
@@ -56,3 +56,41 @@ jobs:
 
       - name: 웹 빌드 (F-011 AC5, CDN 없이)
         run: flutter build web --no-web-resources-cdn
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: app/build/web
+          retention-days: 1
+
+  image:
+    needs: flutter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: web
+          path: app/build/web
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: server/go.mod
+          cache: false
+
+      - name: 운영 이미지 빌드 (F-014 AC1)
+        run: docker build -t chatd:ci .
+
+      - name: 비root 확인
+        run: test "$(docker inspect -f '{{.Config.User}}' chatd:ci)" = "nonroot:nonroot"
+
+      - name: 이미지를 모의 모드로 띄워 계약 테스트 (F-014 AC1)
+        run: |
+          docker run -d --name chatd -p 3000:3000 --read-only chatd:ci
+          for _ in $(seq 1 20); do curl -sf -o /dev/null http://127.0.0.1:3000/ && break; sleep 1; done
+          (cd server && go test ./contract -count=1 -base-url=http://127.0.0.1:3000)
+
+      - name: 실패 시 서버 로그
+        if: failure()
+        run: docker logs chatd || true

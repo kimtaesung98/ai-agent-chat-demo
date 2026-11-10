@@ -1,0 +1,6 @@
+# 이미지에 필요한 것: server/ 소스, app/build/web 결과물
+**
+!server/**
+!app/build/web/**
+server/**/*_test.go
+server/contract/**

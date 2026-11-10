@@ -114,6 +114,9 @@
 | F-011 | Flutter 웹 클라이언트 | S-001 채팅 화면을 Flutter 웹으로 구현, Go 서버가 제공 (ARCHITECTURE §10 단계 3) | P0 | 전환 |
 | F-013 | Node MVP 제거 | `src/`·`public/`·Node 테스트를 지우고 Go + Flutter만 남김 (ARCHITECTURE §10 단계 4) | P0 | 전환 |
 | F-012 | 음성 대화 | 말로 묻고 음성으로 답을 듣는다. 말이 끝나면 자동 전송, 답은 문장 단위로 바로 읽기, 끼어들기 | P0 | 전환 뒤 (Q-004) |
+| F-014 | 클라우드 배포 (AWS + Cloudflare) | 컨테이너 이미지로 AWS 서울 EC2에 올리고 Cloudflare Tunnel·Access로 HTTPS 주소에서 허용한 사람만 쓰게 함 (ADR-018·019) | P0 | 배포 |
+| F-015 | Polly 음성 답 | 음성 답을 Amazon Polly 목소리로 읽음, 서버 `POST /api/tts` (ADR-020) | P1 | 배포 뒤 |
+| F-016 | Transcribe 음성 인식 | 말을 Amazon Transcribe 스트리밍으로 인식, 서버 중계 WebSocket `/api/stt` (ADR-021) | P1 | 배포 뒤 |
 
 ### 4.2 기능 상세
 
@@ -252,6 +255,38 @@
   - [ ] AC4. Given 문서, Then 실행·테스트 방법이 Go·Flutter 명령으로 바뀌고, DFD에 Node 폴더가 없다
 - **관련 항목**: ARCHITECTURE.md §10 단계 4, ADR-001(대체됨), ADR-012, TD-001, TD-003
 - **Owner Folder**: `/server` (계약 테스트 실행 방식), 루트 (문서·CI)
+
+#### F-014. 클라우드 배포 (AWS + Cloudflare)
+> 상태: 승인 (사용자, 2026-11-10 — "추천안 전체" 선택: EC2 + Cloudflare Access 배포 → Polly → Transcribe). ARCHITECTURE.md ADR-018·019
+
+- **사용자 스토리**: 운영자로서, 나는 내 PC를 켜 두지 않아도 HTTPS 주소에서 에이전트와 대화하고 싶다. 허용한 사람만 들어와서 Claude·AWS 요금이 새지 않기를 원한다.
+- **상세 동작**:
+  1. 저장소 루트 `Dockerfile`이 Go `chatd`(cgo 없음)와 Flutter 웹 빌드(`app/build/web`, CI가 만든 것)를 비root 정적 이미지 하나로 묶는다. 이미지에는 키가 없다.
+  2. 배포 워크플로(`.github/workflows/deploy.yml`, 수동 실행)가 GitHub OIDC로 AWS 역할을 받아(장기 키 없음) arm64 이미지를 ECR에 올리고, SSM Run Command로 EC2에서 `chatd`·`cloudflared` 컨테이너를 다시 띄운다.
+  3. EC2(서울, t4g.small)는 보안 그룹 인바운드 규칙이 없고, 관리 접속은 SSM Session Manager다. `ANTHROPIC_API_KEY`와 Cloudflare Tunnel 토큰은 SSM Parameter Store(SecureString)에서 컨테이너를 띄울 때 읽는다.
+  4. Cloudflare Tunnel이 도메인 주소를 `chatd`로 잇고, Cloudflare Access가 허용 목록 이메일만 들여보낸다.
+  5. AWS·Cloudflare 리소스는 `deploy/provision.sh`(AWS CLI)와 `deploy/README.md`의 순서대로 만든다. 사용자가 로그인한 PC에서 실행한다.
+- **수용 기준**:
+  - [ ] AC1. Given `Dockerfile`, When CI가 이미지를 빌드, Then 비root·정적 바이너리이고, 그 컨테이너를 모의 모드로 띄워 계약 테스트(`go test ./contract -base-url=…`)가 통과한다 (CI)
+  - [ ] AC2. Given 저장소·이미지·워크플로, Then AWS 액세스 키·API 키·터널 토큰이 없다. 배포는 OIDC 역할로만 한다 (검토 + 첫 배포 확인)
+  - [ ] AC3. Given EC2, Then 보안 그룹 인바운드 규칙이 0개이고 SSM으로만 접속된다 (수동 확인)
+  - [ ] AC4. Given 허용된 이메일로 HTTPS 주소 접속, Then 웹이 열리고 첫 응답 글자가 1초 안에 흐르기 시작하며, 1분 넘게 이어지는 답도 끊기지 않는다 (수동 확인, R-A05)
+  - [ ] AC5. Given 허용 목록에 없는 이메일, Then Cloudflare Access에서 막혀 앱·API에 닿지 않는다 (수동 확인)
+- **사용자가 할 일**: AWS 계정·Cloudflare 계정·도메인 준비, PC에서 AWS CLI 로그인 후 `deploy/provision.sh` 실행, SSM에 키 넣기, Cloudflare에서 Tunnel·Access 만들기 (`deploy/README.md`)
+- **관련 항목**: ARCHITECTURE.md §6, ADR-011·018·019, R-A05 · Q-001 · Q-003
+- **Owner Folder**: `/deploy`, 루트 (`Dockerfile`, CI)
+
+#### F-015. Polly 음성 답
+> 상태: 승인 (사용자, 2026-11-10 — "추천안 전체"). ARCHITECTURE.md ADR-020. 상세·수용 기준은 F-014 배포 뒤 착수할 때 확정한다
+
+- **수용 기준 (초안)**: 첫 문장 음성이 `done` 전에 시작(F-012 AC2 유지) · 끼어들기 유지 · `POST /api/tts`는 가짜 Polly 업스트림으로 테스트 · AWS 권한이 없으면 `flutter_tts`로 대체 · 읽을 문장 외 내용은 서버 로그에 남기지 않음
+- **Owner Folder**: `/server` (`internal/speech`, `/api/tts`), `/app` (`voice`)
+
+#### F-016. Transcribe 음성 인식
+> 상태: 승인 (사용자, 2026-11-10 — "추천안 전체", 서버 중계 방식). ARCHITECTURE.md ADR-021. 상세·수용 기준은 F-015 뒤 착수할 때 확정한다
+
+- **수용 기준 (초안)**: 말하는 동안 미리 보기 · 말을 멈추면 자동 전송(F-012 AC1 유지) · Firefox에서도 동작 · 에이전트가 말하는 동안과 음성 모드가 꺼진 동안에는 소리를 보내지 않음 · `/api/stt`는 가짜 Transcribe 업스트림으로 테스트
+- **Owner Folder**: `/server` (`internal/speech`, `/api/stt`), `/app` (`voice`)
 
 #### F-005. 페르소나 설정
 > 상태: 승인 (사용자, 2026-11-10 — "사용자 편의 GUI"로 피그마 시안 A(페르소나 사이드바)·C(페르소나 편집)를 Flutter Material 3로 구현하기로 선택). 서버 쪽 형식은 ARCHITECTURE.md ADR-016(승인)
@@ -511,9 +546,9 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | Q-002 | 기본 페르소나(시스템 프롬프트) 문구 | F-005 | kimtaesung98 | 사용자가 화면에서 고른다. 기본 3개(기획 파트너 지은 · 영어 회화 코치 · 다정한 친구)를 앱에 넣고, 시스템 프롬프트 틀은 서버가 정한다 (2026-11-10) |
 | Q-005 | 페르소나·내 프로필을 새로고침 뒤에도 남길지, 어디에 둘지 (브라우저 저장소 패키지 추가 필요 — ARCHITECTURE §2.2) | F-005, F-007 | kimtaesung98 | |
 | Q-006 | F-008 Google 로그인을 Phase 3에서 MVP로 앞당길지, 새 패키지(`google_sign_in`)를 허용할지 | F-008 | kimtaesung98 | 보류 — Phase 3 그대로 (사용자 결정, 2026-11-10). 로그인은 디자인에만 두고 Node MVP 제거(F-013)를 먼저 한다 |
-| Q-003 | 호스팅 환경 (클라우드 컨테이너 / 사내 서버 등) | ARCHITECTURE §6 | kimtaesung98 | 사용자 방향: AWS(서버·음성 서비스) + Cloudflare 검토 (2026-11-10). 제안: ADR-018·019 — 승인 대기 |
+| Q-003 | 호스팅 환경 (클라우드 컨테이너 / 사내 서버 등) | ARCHITECTURE §6 | kimtaesung98 | AWS 서울 EC2 + Cloudflare Tunnel·Access (사용자 "추천안 전체" 선택, 2026-11-10) — ADR-018·019, F-014 |
 | Q-004 | 남은 MVP 기능 F-003·F-004를 현재 Node MVP에서 먼저 만들지, Go + Flutter 전환(ARCHITECTURE §10) 뒤에 만들지 | F-003, F-004 | kimtaesung98 | 전환 뒤에 만든다. F-003은 §10 단계 3(Flutter 웹)에서 구현. 음성 대화도 Flutter 전환 뒤에 만든다 (2026-11-04) |
-| Q-007 | AWS 음성 서비스로 바꿀 범위와 순서 — 제안: F-014 클라우드 배포 → F-015 Polly TTS → F-016 Transcribe STT(서버 중계). 새 의존성 `aws-sdk-go-v2`·Go WebSocket·Flutter `record` 허용 여부 (ADR-020·021) | F-012 | kimtaesung98 | |
+| Q-007 | AWS 음성 서비스로 바꿀 범위와 순서 — 제안: F-014 클라우드 배포 → F-015 Polly TTS → F-016 Transcribe STT(서버 중계). 새 의존성 `aws-sdk-go-v2`·Go WebSocket·Flutter `record` 허용 여부 (ADR-020·021) | F-012 | kimtaesung98 | 추천안 전체: F-014 → F-015 → F-016, 새 의존성 허용 — 각 단계에서 추가 (사용자, 2026-11-10) |
 
 ---
 
@@ -541,4 +576,4 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | v1.6 | 2026-11-10 | kimtaesung98 | F-005를 사용자 페르소나 설정으로 바꿔 상세·수용 기준 작성(사용자 승인), S-002 화면, API-001 `persona` 필드, Q-002 결정, Q-005 추가 |
 | v1.7 | 2026-11-10 | kimtaesung98 | F-004을 Go + Flutter에서 완료(다시 시도 화면 동작 추가). F-008 Google 로그인 상세·수용 기준 초안(제안), Q-006 추가 |
 | v1.8 | 2026-11-10 | kimtaesung98 | F-008·Q-006 보류(사용자 결정). F-013 Node MVP 제거(전환 단계 4) 등록, 테스트 전략·실행 방법을 Go + Flutter로 |
-| v1.9 | 2026-11-10 | kimtaesung98 | Q-003에 AWS·Cloudflare 방향 기록, Q-007(AWS 음성 전환 범위) 추가 |
+| v1.9 | 2026-11-10 | kimtaesung98 | Q-003·Q-007 결정(추천안 전체), F-014 클라우드 배포 · F-015 Polly · F-016 Transcribe 등록 |
