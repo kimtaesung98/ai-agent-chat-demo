@@ -54,7 +54,7 @@ class ChatController extends ChangeNotifier {
   _Session? _session;
   var _sessionSeq = 0;
 
-  /// 요약 요청이 진행 중인 수 (테스트·화면용).
+  /// 요약·장기 기억 요청이 진행 중인 수 (테스트·화면용).
   int get summarizing => _summarizing;
   var _summarizing = 0;
   final List<ChatEntry> _entries = [];
@@ -103,6 +103,10 @@ class ChatController extends ChangeNotifier {
           memory: switch (session.persona) {
             final p? => memory?.recentFor(p.persona.id, exceptSession: session.id) ?? const [],
             null => const [],
+          },
+          longTerm: switch (session.persona) {
+            final p? => memory?.longTermFor(p.persona.id),
+            null => null,
           },
         )
         .listen(
@@ -200,7 +204,10 @@ class ChatController extends ChangeNotifier {
               endedAt: endedAt,
               turns: turns,
             );
-            if (s != null) store.put(s);
+            if (s != null) {
+              store.put(s);
+              _consolidate(store, persona);
+            }
           })
           .catchError((Object e) {
             session.summarizedCount = 0; // 다음 정리 때 다시 시도
@@ -213,6 +220,41 @@ class ChatController extends ChangeNotifier {
     );
     return true;
   }
+
+  /// 오래된 요약이 쌓였으면 장기 기억으로 묶는다 (F-020 AC2). 페르소나마다 한 번에 하나, 실패하면 다음 정리 때 다시.
+  void _consolidate(MemoryController store, PersonaRequest persona) {
+    final id = persona.persona.id;
+    final pending = store.pendingFold(id);
+    if (pending.isEmpty || !_consolidating.add(id)) return;
+    final previous = store.longTermFor(id);
+    final take = pending.length > maxConsolidate ? pending.sublist(pending.length - maxConsolidate) : pending;
+    _summarizing++;
+    unawaited(
+      _api
+          .consolidate(take, persona: persona, longTerm: previous)
+          .then((json) {
+            final l = LongTermMemory.fromApiJson(
+              json,
+              personaId: id,
+              updatedAt: _clock(),
+              coversUntil: take.last.endedAt,
+            );
+            if (l != null) store.setLongTerm(l);
+          })
+          .catchError((Object e) {
+            debugPrint('장기 기억 정리 실패'); // 내용은 로그에 남기지 않는다
+          })
+          .whenComplete(() {
+            _consolidating.remove(id);
+            _summarizing--;
+            _notify();
+          }),
+    );
+  }
+
+  /// 장기 기억 한 번에 묶는 최대 요약 수 (API-004 sessions 최대 20개).
+  static const maxConsolidate = 20;
+  final _consolidating = <String>{};
 
   void _finish() => _sub = null;
 

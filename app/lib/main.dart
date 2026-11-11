@@ -5,6 +5,7 @@ import 'api/chat_api.dart';
 import 'api/server_address.dart';
 import 'chat/chat_controller.dart';
 import 'chat/server_settings.dart';
+import 'chat/start_settings.dart';
 import 'storage/app_storage.dart';
 import 'storage/prefs_store.dart';
 import 'ui/chat_page.dart';
@@ -43,17 +44,20 @@ Future<void> main() async {
     controller.loadConfig(); // 새 서버의 모드(모의·Claude)를 다시 읽는다
   });
   final voice = VoiceController(controller, PluginVoiceEngine());
-  runApp(ChatApp(controller: controller, voice: voice, server: server));
+  runApp(ChatApp(controller: controller, voice: voice, server: server, start: loadStart(store)));
 }
 
 class ChatApp extends StatelessWidget {
-  const ChatApp({super.key, required this.controller, this.voice, this.server});
+  const ChatApp({super.key, required this.controller, this.voice, this.server, this.start});
 
   final ChatController controller;
   final VoiceController? voice;
 
   /// 모바일 앱의 서버 주소 설정. 웹은 null.
   final ServerSettings? server;
+
+  /// 앱 시작 설정 (F-021). 없으면 설정 칸을 그리지 않는다.
+  final StartSettings? start;
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +66,7 @@ class ChatApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
-      home: ChatPage(controller: controller, voice: voice, server: server),
+      home: ChatPage(controller: controller, voice: voice, server: server, start: start),
     );
   }
 }

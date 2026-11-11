@@ -46,7 +46,7 @@ func TestF019(t *testing.T) {
 		if got != want {
 			t.Fatalf("got\n%s\nwant\n%s", got, want)
 		}
-		if MemoryPrompt(nil) != "" {
+		if MemoryPrompt(nil, nil) != "" {
 			t.Fatal("기억이 없으면 빈 문자열")
 		}
 	})

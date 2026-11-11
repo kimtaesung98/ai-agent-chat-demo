@@ -367,3 +367,39 @@ func TestSummary(t *testing.T) {
 		}
 	})
 }
+
+func TestConsolidate(t *testing.T) {
+	post := func(t *testing.T, url, body string) (int, string) {
+		t.Helper()
+		res, err := http.Post(url+"/api/consolidate", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return res.StatusCode, string(b)
+	}
+	const body = `{"sessions":[{"summary":"비밀-요약-산책"}]}`
+
+	t.Run("F-020 AC1 장기 기억 시스템 프롬프트로 부르고 JSON으로 답하며 내용은 로그에 없다", func(t *testing.T) {
+		var log bytes.Buffer
+		f := &fakeProvider{stream: chunks([]provider.Chunk{{Text: `{"summary":"산책 이야기","facts":["걷기"]}`}, {Done: true}}, nil)}
+		status, b := post(t, start(t, f, &log), body)
+		if status != 200 || b != `{"summary":"산책 이야기","facts":["걷기"]}` || f.system != chat.ConsolidateSystemPrompt {
+			t.Fatalf("%d %s %q", status, b, f.system)
+		}
+		if strings.Contains(log.String(), "비밀-요약") {
+			t.Fatalf("로그에 내용: %s", log.String())
+		}
+	})
+
+	t.Run("F-020 AC1 제공자 오류는 502, 형식 오류는 400", func(t *testing.T) {
+		url := start(t, &fakeProvider{stream: chunks(nil, &provider.Error{UserMessage: "잠시 후", Code: "x"})}, nil)
+		if status, b := post(t, url, body); status != 502 || !strings.Contains(b, "PROVIDER_ERROR") {
+			t.Fatalf("%d %s", status, b)
+		}
+		if status, _ := post(t, url, `{"sessions":[]}`); status != 400 {
+			t.Fatalf("%d", status)
+		}
+	})
+}

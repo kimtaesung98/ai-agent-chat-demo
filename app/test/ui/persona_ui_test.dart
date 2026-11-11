@@ -200,7 +200,7 @@ void main() {
     expect(json['instructions'], '백엔드 위주로');
   });
 
-  testWidgets('F-019 AC6 편집 화면에서 이 페르소나의 지난 대화 기억을 보고 지울 수 있다', (tester) async {
+  testWidgets('F-019 AC6 F-020 AC4 편집 화면에서 이 페르소나의 지난 대화 기억·장기 기억을 보고 지울 수 있다', (tester) async {
     await open(tester);
     memory.put(
       SessionSummary(
@@ -215,6 +215,15 @@ void main() {
       SessionSummary(id: 'b', personaId: 'planner', endedAt: DateTime(2026, 11, 10, 12), summary: '회고 방식을 이야기했어요'),
     );
     memory.put(SessionSummary(id: 'c', personaId: 'coach', endedAt: DateTime(2026, 11, 10, 12), summary: '영어 이야기'));
+    memory.setLongTerm(
+      LongTermMemory(
+        personaId: 'planner',
+        summary: '오래전부터 출시 계획을 함께 세웠어요',
+        facts: const ['스타트업 기획자'],
+        updatedAt: DateTime(2026, 11, 10, 12),
+        coversUntil: DateTime(2026, 11, 8, 12),
+      ),
+    );
     await tester.tap(find.byKey(const Key('edit-persona')));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
@@ -226,6 +235,8 @@ void main() {
     expect(find.text('다음에 이어 갈 것: QA 일정'), findsOneWidget);
     expect(find.text('2026-11-10'), findsOneWidget);
     expect(find.text('영어 이야기'), findsNothing);
+    expect(find.text('오래전부터 출시 계획을 함께 세웠어요'), findsOneWidget, reason: 'F-020 AC4 장기 기억이 맨 위에 보인다');
+    expect(find.text('2026-11-08까지 묶음'), findsOneWidget);
 
     await tester.ensureVisible(find.byKey(const Key('memory-delete-a')));
     await tester.pump();
@@ -237,6 +248,7 @@ void main() {
     await tester.tap(find.byKey(const Key('memory-clear')));
     await tester.pump();
     expect(find.byKey(const Key('memory-empty')), findsOneWidget);
+    expect(memory.longTermFor('planner'), isNull, reason: '모두 지우기는 장기 기억도 지운다');
     expect(memory.forPersona('coach'), hasLength(1));
   });
 

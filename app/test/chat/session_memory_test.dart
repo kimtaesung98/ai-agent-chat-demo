@@ -130,4 +130,76 @@ void main() {
     expect(plain.endSession(), isFalse);
     expect(api.memories.last, isEmpty);
   });
+
+  group('F-020 장기 기억', () {
+    void seed(int n) {
+      for (var d = 1; d <= n; d++) {
+        memory.put(
+          SessionSummary(id: 'old$d', personaId: 'planner', endedAt: DateTime.utc(2026, 11, d), summary: '옛 $d'),
+        );
+      }
+    }
+
+    test('AC2 요약이 쌓여 최근 5개 밖으로 밀린 것이 생기면 장기 기억으로 묶는다', () async {
+      seed(5);
+      await turn('오늘 이야기', '네');
+      chat.reset();
+      await flush();
+      expect(api.consolidateRequests.single.map((s) => s.id), ['old1'], reason: '여섯째가 들어오면 가장 오래된 하나가 밀린다');
+      expect(api.consolidatePrevious.single, isNull);
+      final l = memory.longTermFor('planner')!;
+      expect(l.summary, '장기 1: 1개');
+      expect(l.coversUntil, DateTime.utc(2026, 11, 1));
+      expect(memory.pendingFold('planner'), isEmpty);
+
+      await turn('또 이야기', '네');
+      chat.reset();
+      await flush();
+      expect(api.consolidateRequests.last.map((s) => s.id), ['old2']);
+      expect(api.consolidatePrevious.last!.summary, '장기 1: 1개', reason: '이전 장기 기억을 이어 받는다');
+      expect(memory.longTermFor('planner')!.summary, '장기 2: 1개');
+    });
+
+    test('AC2 5개 이하면 묶지 않고, 실패하면 장기 기억을 바꾸지 않은 채 다음에 다시 묶는다', () async {
+      seed(3);
+      await turn('a', 'b');
+      chat.reset();
+      await flush();
+      expect(api.consolidateRequests, isEmpty);
+
+      seed(6); // old1~old6 (+ 방금 세션) → 2개가 밀림
+      final failed = Completer<Map<String, Object?>>();
+      api.consolidateReplies.add(failed);
+      await turn('c', 'd');
+      chat.reset();
+      await flush();
+      failed.completeError(const SummaryFailed('x'));
+      await flush();
+      expect(memory.longTermFor('planner'), isNull);
+      await turn('e', 'f');
+      chat.reset();
+      await flush();
+      expect(memory.longTermFor('planner'), isNotNull);
+      expect(api.consolidateRequests.first.map((s) => s.id), ['old1', 'old2', 'old3']);
+      expect(api.consolidateRequests.last.map((s) => s.id), ['old1', 'old2', 'old3', 'old4'], reason: '실패한 것도 다시 묶는다');
+    });
+
+    test('AC3 다음 대화 요청에 그 페르소나의 장기 기억을 싣는다', () async {
+      memory.setLongTerm(
+        LongTermMemory(
+          personaId: 'planner',
+          summary: '오래 함께 기획했어요',
+          updatedAt: DateTime.utc(2026, 11, 10),
+          coversUntil: DateTime.utc(2026, 11, 1),
+        ),
+      );
+      await turn('안녕', '네');
+      expect(api.longTerms.last!.summary, '오래 함께 기획했어요');
+      personas.select('coach');
+      chat.reset();
+      await flush();
+      await turn('hi', 'hello');
+      expect(api.longTerms.last, isNull, reason: '다른 페르소나의 장기 기억은 싣지 않는다');
+    });
+  });
 }

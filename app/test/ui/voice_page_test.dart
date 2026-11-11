@@ -2,6 +2,7 @@ import 'package:ai_agent_chat/api/chat_api.dart';
 import 'package:ai_agent_chat/chat/chat_controller.dart';
 import 'package:ai_agent_chat/chat/memory_controller.dart';
 import 'package:ai_agent_chat/chat/persona_controller.dart';
+import 'package:ai_agent_chat/chat/start_settings.dart';
 import 'package:ai_agent_chat/main.dart';
 import 'package:ai_agent_chat/voice/voice_controller.dart';
 import 'package:ai_agent_chat/voice/voice_engine.dart';
@@ -237,5 +238,58 @@ void main() {
     await tester.pump();
     expect(engine.listening, isTrue);
     expect(label(tester), '듣고 있어요');
+  });
+
+  group('F-021 켜면 바로 음성 대화', () {
+    Future<StartSettings> launch(WidgetTester tester, {required bool on, bool withVoice = true}) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      api = FakeApi();
+      personas = PersonaController()..select('elder-care');
+      chat = ChatController(api, personas: personas);
+      engine = FakeVoiceEngine();
+      voice = VoiceController(chat, engine);
+      addTearDown(voice.dispose);
+      final start = StartSettings(on);
+      await tester.pumpWidget(ChatApp(controller: chat, voice: withVoice ? voice : null, start: start));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      return start;
+    }
+
+    testWidgets('AC1 켜 두면 앱을 열자마자 지금 페르소나와 음성 대화 화면으로 시작해 듣는다', (tester) async {
+      await launch(tester, on: true);
+      expect(find.byKey(const Key('voice-page')), findsOneWidget);
+      expect(find.text('노인복지사 미소'), findsWidgets);
+      expect(engine.listening, isTrue);
+
+      await tester.tap(find.byKey(const Key('voice-end')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('voice-page')), findsNothing, reason: '대화 끝내기로 채팅 화면에 돌아온다');
+    });
+
+    testWidgets('AC1 꺼 두면 지금처럼 채팅 화면으로 시작한다', (tester) async {
+      await launch(tester, on: false);
+      expect(find.byKey(const Key('voice-page')), findsNothing);
+      expect(engine.listening, isFalse);
+    });
+
+    testWidgets('AC2 서랍에서 켤 수 있다', (tester) async {
+      final start = await launch(tester, on: false);
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('start-voice')));
+      await tester.pump();
+      expect(start.voiceOnStart, isTrue);
+    });
+
+    testWidgets('AC2 음성 엔진이 없으면 설정을 그리지 않는다', (tester) async {
+      await launch(tester, on: true, withVoice: false);
+      expect(find.byKey(const Key('voice-page')), findsNothing);
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('start-voice')), findsNothing);
+    });
   });
 }

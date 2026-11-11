@@ -71,4 +71,67 @@ void main() {
     expect(s.toRequestJson()['date'], '2026-11-11');
     expect(SessionSummary.fromApiJson({'summary': ' '}, id: 's', personaId: 'p', endedAt: DateTime(2026)), isNull);
   });
+
+  group('F-020 장기 기억', () {
+    LongTermMemory lt(String persona, int coversDay) => LongTermMemory(
+      personaId: persona,
+      summary: '장기 $persona',
+      facts: const ['f'],
+      updatedAt: DateTime.utc(2026, 11, 20),
+      coversUntil: DateTime.utc(2026, 11, coversDay),
+    );
+
+    test('AC2 최근 5개 밖이고 아직 묶지 않은 요약만 묶을 차례다', () {
+      final m = MemoryController([for (var d = 1; d <= 8; d++) at('s$d', 'p', d), at('o', 'q', 1)]);
+      expect(m.pendingFold('p').map((s) => s.id), ['s1', 's2', 's3']);
+      expect(m.pendingFold('q'), isEmpty, reason: '5개 이하면 묶지 않는다');
+      m.setLongTerm(lt('p', 2));
+      expect(m.pendingFold('p').map((s) => s.id), ['s3']);
+      m.setLongTerm(lt('p', 3));
+      expect(m.pendingFold('p'), isEmpty);
+    });
+
+    test('AC4 장기 기억은 저장 값으로 되살아나고, 모두 지우기로 함께 지워진다', () {
+      final m = MemoryController([at('a', 'p', 1)], [lt('p', 1), lt('q', 1)]);
+      final back = MemoryController.restore(m.snapshot());
+      expect(back.longTermFor('p')!.summary, '장기 p');
+      expect(back.longTermFor('p')!.coversUntil, DateTime.utc(2026, 11, 1));
+      expect(
+        MemoryController.restore({
+          'longTerm': [
+            'x',
+            {'personaId': 'p'},
+          ],
+        }).longTermFor('p'),
+        isNull,
+      );
+      back.clear('p');
+      expect(back.longTermFor('p'), isNull);
+      expect(back.longTermFor('q'), isNotNull);
+    });
+
+    test('AC1 서버 장기 기억은 제한으로 자르고 요청에는 요약·사실만 싣는다', () {
+      final l = LongTermMemory.fromApiJson(
+        {
+          'summary': '가' * 1200,
+          'facts': [for (var i = 0; i < 12; i++) 'f$i'],
+        },
+        personaId: 'p',
+        updatedAt: DateTime(2026),
+        coversUntil: DateTime(2026),
+      )!;
+      expect(l.summary.length, LongTermMemory.maxSummary);
+      expect(l.facts, hasLength(LongTermMemory.maxFacts));
+      expect(l.toRequestJson().keys, ['summary', 'facts']);
+      expect(
+        LongTermMemory.fromApiJson(
+          {'summary': ''},
+          personaId: 'p',
+          updatedAt: DateTime(2026),
+          coversUntil: DateTime(2026),
+        ),
+        isNull,
+      );
+    });
+  });
 }

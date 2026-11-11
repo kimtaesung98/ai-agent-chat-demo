@@ -9,6 +9,12 @@ class FakeApi implements ChatApi {
   final modes = <ChatMode>[];
   final personas = <PersonaRequest?>[];
   final memories = <List<SessionSummary>>[];
+  final longTerms = <LongTermMemory?>[];
+
+  /// 장기 기억 요청 (F-020).
+  final consolidateRequests = <List<SessionSummary>>[];
+  final consolidatePrevious = <LongTermMemory?>[];
+  final consolidateReplies = <Completer<Map<String, Object?>>>[];
   final streams = <StreamController<ChatEvent>>[];
   var cancels = 0;
 
@@ -25,8 +31,10 @@ class FakeApi implements ChatApi {
     ChatMode mode = ChatMode.text,
     PersonaRequest? persona,
     List<SessionSummary> memory = const [],
+    LongTermMemory? longTerm,
   }) {
     requests.add(messages);
+    longTerms.add(longTerm);
     personas.add(persona);
     memories.add(memory);
     modes.add(mode);
@@ -44,6 +52,21 @@ class FakeApi implements ChatApi {
       'summary': '요약 ${summaryRequests.length}: ${messages.first.content}',
       'facts': ['사실'],
       'followUps': <String>[],
+    });
+  }
+
+  @override
+  Future<Map<String, Object?>> consolidate(
+    List<SessionSummary> sessions, {
+    PersonaRequest? persona,
+    LongTermMemory? longTerm,
+  }) {
+    consolidateRequests.add(sessions);
+    consolidatePrevious.add(longTerm);
+    if (consolidateReplies.isNotEmpty) return consolidateReplies.removeAt(0).future;
+    return Future.value({
+      'summary': '장기 ${consolidateRequests.length}: ${sessions.length}개',
+      'facts': ['오래 기억할 것'],
     });
   }
 

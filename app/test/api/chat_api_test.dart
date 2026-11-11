@@ -232,4 +232,40 @@ void main() {
       throwsA(isA<SummaryFailed>().having((e) => e.message, 'message', ClientMessages.connect)),
     );
   });
+
+  test('F-020 AC1·AC3 longTerm을 대화 본문에 싣고, consolidate는 /api/consolidate로 보낸다', () async {
+    final lt = LongTermMemory(
+      personaId: 'x',
+      summary: '오래된 이야기',
+      facts: const ['무릎'],
+      updatedAt: DateTime(2026),
+      coversUntil: DateTime(2026),
+    );
+    final chatClient = FakeClient((_) async => sse(Stream.value('event: done\ndata: {"stopReason":"end_turn"}\n\n')));
+    await HttpChatApi(baseUrl: 'http://srv', clientFactory: () => chatClient).stream(msgs, longTerm: lt).toList();
+    expect((jsonDecode((chatClient.last! as http.Request).body) as Map)['longTerm'], {
+      'summary': '오래된 이야기',
+      'facts': ['무릎'],
+    });
+
+    final client = FakeClient(
+      (_) async => http.StreamedResponse(Stream.value(utf8.encode('{"summary":"묶음","facts":[]}')), 200),
+    );
+    final api = HttpChatApi(baseUrl: 'http://srv', clientFactory: () => client);
+    final got = await api.consolidate([
+      SessionSummary(id: 's', personaId: 'x', endedAt: DateTime(2026, 11, 1, 12), summary: '산책'),
+    ], longTerm: lt);
+    expect(got['summary'], '묶음');
+    final req = client.last! as http.Request;
+    expect(req.url.toString(), 'http://srv/api/consolidate');
+    expect(jsonDecode(req.body), {
+      'sessions': [
+        {'date': '2026-11-01', 'summary': '산책', 'facts': [], 'followUps': []},
+      ],
+      'longTerm': {
+        'summary': '오래된 이야기',
+        'facts': ['무릎'],
+      },
+    });
+  });
 }

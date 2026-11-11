@@ -15,7 +15,7 @@
 | 기능 ID | 작업 내용 | 담당 폴더 | 이어받을 지점 |
 |---------|-----------|-----------|---------------|
 | F-017 | 모바일 네이티브 앱 (Android·iOS) | `/app` | `android/`·`ios/`·권한·서버 주소(ADR-022)·자동 테스트·Android APK 빌드 완료. 남은 것: iOS 빌드(사용자 Mac, Xcode 서명), AC6 실제 폰 확인. Q-005는 사용자가 `shared_preferences` 선택 → 페르소나·서버 주소 기기 저장 구현(ADR-023). F-014 배포는 사용자 지시로 정지 |
-| F-019 | 페르소나 지시 두 층 · 대화 요약 기억 | `/app`, `/server` | 구현·자동 테스트·웹 빌드 확인 완료(PR 대기). 남은 것: AC8 실제 Claude 모드 확인(사용자). 다음 계획은 사용자 확인 대기 |
+| F-019~F-021 | 지시 두 층 · 대화 요약 · 장기 기억 · 켜면 바로 음성 대화 | `/app`, `/server` | 구현·자동 테스트 완료(PR #17). 남은 것: 실제 Claude 모드에서 기억이 이어지는지(F-019 AC8·F-020 AC5), 폰에서 켜면 바로 듣는지(F-021 AC4) — 사용자 |
 | F-012, F-018 | 음성 대화 + 음성 전용 화면(S-003) | `/app`, `/server` | F-012 구현·자동 테스트 완료. F-018 음성 전용 화면을 MVP HTML 디자인대로 Flutter 구현(채팅 상단 바 버튼 → 바로 듣기, 글로 보기·끝내기). 남은 것: 둘 다 AC8 실제 마이크·폰 확인(사용자) → ✅ |
 
 ---
@@ -78,7 +78,6 @@
 
 | 날짜 | 기능 ID | 수행 작업 | 변경 파일 | 다음 세션 인계 사항 |
 |------|---------|-----------|-----------|---------------------|
-| 2026-11-10 | F-005 | 피그마 GUI 시안(현재 화면 + A~D) 작성 → Starter 플랜 MCP 한도로 M3 키트 작업 중단 → 사용자 선택으로 Flutter M3 구현. SPEC v1.6(F-005 재정의), ADR-016 제안, Go·Node `persona`, 사이드바·편집 화면 | `SPEC.md`, `ARCHITECTURE.md`, `server/internal/chat/*`, `src/server/*`, `app/lib/**`, 테스트 | 피그마 파일: figma.com/design/U9r2hj8EoRdBiiwP8daqLn (무료 플랜이라 MCP 호출 한도·변수 모드 1개). 페르소나는 앱 메모리만 — Q-005 |
 | 2026-11-10 | F-004, F-008 | MVP HTML 디자인(Design 캔버스, 7화면) 작성 → 사용자가 "순서대로, 판단은 맡김". ADR-016 승인 반영, F-004 다시 시도(Flutter) 완료, F-008 Google 로그인 SPEC·ADR-017 제안 | `SPEC.md`, `ARCHITECTURE.md`, `app/lib/chat/chat_controller.dart`, `app/lib/ui/chat_page.dart`, 테스트 | 디자인은 claude.ai 비공개 Artifact. 네이티브 앱의 기준 화면으로 씀 |
 | 2026-11-10 | F-013, F-008 | 사용자가 Google 로그인 보류(Phase 3) 선택 → §10 단계 4 진행. `src/`·`public/`·`tests/`·`scripts/`·`package.json` 삭제, 계약 테스트가 모의 모드 `chatd`를 직접 띄우게 바꿈(`go test ./...`에 포함), CI Node 작업 제거, 문서 갱신 | `server/contract/*`, `.github/workflows/ci.yml`, `README.md`, `CLAUDE.md`, `SPEC.md` v1.8, `ARCHITECTURE.md` v1.7, `server/README.md` | ADR-001 대체됨, ADR-017 보류, TD-001~003 해소 |
 | 2026-11-10 | - | AWS·Cloudflare 배포·음성 설계안(Claude 문서) 작성, ADR-018~021 제안, SPEC Q-003 방향·Q-007 추가 | `ARCHITECTURE.md`, `SPEC.md`, `README.md`, `CLAUDE.md`, `Dockerfile`, `deploy/*`, `.github/workflows/*` | 사용자 "추천안 전체" 선택 → ADR-018~021 승인, F-014~016 등록, F-014 배포 파일 작성. Current Focus에 F-014 추가, 'MVP HTML 디자인 반영'은 Roadmap 5번으로만 남김 |
@@ -88,6 +87,7 @@
 | 2026-11-11 | F-018 | 사용자 "노인들은 토글·버튼·라디오식 UI가 불편, GPT 앱 같은 상시 대화" → 음성 화면 개정: 모드 버튼 제거(화면 누르기 = 끼어들기, 듣는 중 누르기는 무시), 큰 "대화 끝내기" 하나, 큰 글씨, 인식 끊김 자동 복구(최대 3번, `VoiceController.retryDelay`), 쉼 2초(`pauseFor`). SPEC v1.13 | `app/lib/ui/voice_page.dart`, `app/lib/voice/*`, `app/test/**`, `SPEC.md`, `docs/ALPHA_TEST_LOCAL.md` | 앱을 켜면 바로 음성 대화로 시작할지 사용자 결정 대기. 화면 꺼짐 방지(wakelock)는 새 패키지라 제안만 |
 | 2026-11-11 | F-018 | 사용자 "해당 모드에서는 상시로 마이크를 듣는 것이 목표" → 끊김 무한 재시도(1~16초 백오프, 권한 거부만 멈춤), 화면 꺼짐 막기(웹 Wake Lock·Android `FLAG_KEEP_SCREEN_ON`·iOS `isIdleTimerDisabled`, 채널 `ai_agent_chat/screen`, 새 패키지 없음), 앱 뒤로/복귀 `pause`·`resume`. SPEC v1.14 | `app/lib/ui/keep_awake*.dart`, `app/lib/ui/*_page.dart`, `app/lib/voice/voice_controller.dart`, `android/.../MainActivity.kt`, `ios/Runner/AppDelegate.swift`, 테스트, 문서 | iOS `AppDelegate.swift` 채널 코드는 이 컨테이너에서 빌드 못 함 — 사용자 Mac에서 확인. 앱 시작을 음성 대화로 할지 결정 카드 대기 |
 | 2026-11-11 | F-019 | 사용자 "추가 지시를 기본(탑재)·사용자 요구로 나누고, 대화 세션 요약을 다음 세션 기반으로" → SPEC F-019·API-003, ADR-024(적용). 서버 `persona.base`·`memory` 검증·프롬프트, `/api/summary`(모의 제공자는 요약 JSON). 앱 `Persona.base`(탑재 고정, 예전 저장 값 이관), `MemoryController`(`memory.v1`), `ChatController.endSession`(새 대화·페르소나 바꾸기·대화 끝내기·앱 뒤로), 편집 화면 기본 지시(자물쇠)·내 요구 사항·지난 대화 기억 | `server/internal/chat/*`, `server/internal/httpapi/*`, `server/internal/provider/mock/*`, `server/contract/*`, `app/lib/**`, `app/test/**`, 문서 | 이 컨테이너는 Flutter 3.47.9를 storage.googleapis.com에서 받아 씀(root라 `git config safe.directory` 필요). Playwright로 한국어 입력 후 Enter는 IME 때문에 안 먹음 — 전송 버튼을 누를 것. AC8 실제 Claude 확인 남음 |
+| 2026-11-11 | F-020, F-021 | 사용자 "추천대로 진행"(다음 계획 1→2→3). F-020 장기 기억: API-004 `/api/consolidate`, API-001 `longTerm`, `MemoryController.pendingFold`·`setLongTerm`, 편집 화면 카드. F-021: `StartSettings`(`start.voice`), 서랍 스위치, 켜 두면 첫 프레임 뒤 음성 화면 열기. 3번: Android profile APK(arm64) 클라우드 빌드 | `server/internal/chat/consolidate.go`, `httpapi`, `mock`, `contract`, `app/lib/**`, `app/test/**`, 문서 | Android SDK는 dl.google.com에서 cmdline-tools를 받아 `/home/user/android-sdk`에 설치. profile 빌드라 같은 Wi-Fi의 http `chatd`로 접속 가능(ADR-022) |
 
 ---
 

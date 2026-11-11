@@ -66,13 +66,14 @@ type Request struct {
 	Mode     Mode
 	Persona  *Persona      // 없으면 nil (F-005)
 	Memory   []MemoryEntry // 지난 대화 요약, 오래된 것부터. 없으면 nil (F-019)
+	LongTerm *LongTerm     // 오래된 요약을 묶은 장기 기억. 없으면 nil (F-020)
 }
 
 // SystemPrompt는 제공자에 넘길 시스템 프롬프트다: 페르소나, 지난 대화 기억, 말투 지시 순 (ADR-015·016·024).
 // 모두 없으면 빈 문자열.
 func (r Request) SystemPrompt() string {
 	var parts []string
-	for _, s := range []string{r.Persona.SystemPrompt(), MemoryPrompt(r.Memory), r.Mode.SystemPrompt()} {
+	for _, s := range []string{r.Persona.SystemPrompt(), MemoryPrompt(r.LongTerm, r.Memory), r.Mode.SystemPrompt()} {
 		if s != "" {
 			parts = append(parts, s)
 		}
@@ -115,6 +116,14 @@ func ParseRequest(body []byte) (Request, *ValidationError) {
 		}
 		memory = m
 	}
+	var longTerm *LongTerm
+	if raw, ok := root["longTerm"]; ok {
+		lt, err := parseLongTerm(raw)
+		if err != nil {
+			return Request{}, err
+		}
+		longTerm = lt
+	}
 	msgs, verr := parseMessages(list)
 	if verr != nil {
 		return Request{}, verr
@@ -122,7 +131,7 @@ func ParseRequest(body []byte) (Request, *ValidationError) {
 	if msgs[len(msgs)-1].Role != RoleUser {
 		return Request{}, invalid("INVALID_INPUT", "마지막 메시지는 사용자 메시지여야 해요.")
 	}
-	return Request{Messages: msgs, Mode: mode, Persona: persona, Memory: memory}, nil
+	return Request{Messages: msgs, Mode: mode, Persona: persona, Memory: memory, LongTerm: longTerm}, nil
 }
 
 // parseMessages는 messages 배열을 검증한다. 비었으면 EMPTY_MESSAGE.

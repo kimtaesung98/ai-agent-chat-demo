@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../chat/chat_controller.dart';
 import '../chat/persona_controller.dart';
 import '../chat/server_settings.dart';
+import '../chat/start_settings.dart';
 import '../voice/voice_controller.dart';
 import 'persona_editor.dart';
 import 'persona_widgets.dart';
@@ -15,7 +16,7 @@ import 'theme.dart';
 import 'voice_page.dart';
 
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key, required this.controller, this.voice, this.server});
+  const ChatPage({super.key, required this.controller, this.voice, this.server, this.start});
 
   final ChatController controller;
 
@@ -24,6 +25,9 @@ class ChatPage extends StatefulWidget {
 
   /// 모바일 앱의 서버 주소 설정 (F-017 AC7). 웹은 null.
   final ServerSettings? server;
+
+  /// 앱 시작 설정 (F-021). 켜 있으면 첫 화면에서 바로 음성 대화 화면을 연다.
+  final StartSettings? start;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -53,6 +57,13 @@ class _ChatPageState extends State<ChatPage> {
     super.initState();
     _chat.addListener(_onChange);
     _lifecycle; // 만들어 두기만 하면 듣는다
+    final voice = _voice;
+    if (voice != null && (widget.start?.voiceOnStart ?? false)) {
+      // 첫 프레임 뒤에 연다 — 채팅 화면이 뒤에 있어야 "글자로 보기"·"대화 끝내기"로 돌아온다 (F-021 AC1)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) openVoicePage(context, chat: _chat, voice: voice);
+      });
+    }
   }
 
   @override
@@ -129,6 +140,7 @@ class _ChatPageState extends State<ChatPage> {
         close();
         _editProfile();
       },
+      start: _voice == null ? null : widget.start,
       serverAddress: widget.server?.address,
       onEditServer: switch (widget.server) {
         final server? => () {
