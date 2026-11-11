@@ -1,9 +1,10 @@
 # app — Overview
 
-> **담당 기능**: `SPEC.md`의 `F-011` (Flutter 웹 클라이언트), `F-003` (응답 중단 — 화면), `F-012` (음성 대화), `F-005` (페르소나 — 화면·상태), F-001 · F-002의 화면 부분  
+> **담당 기능**: `SPEC.md`의 `F-011` (Flutter 웹 클라이언트), `F-017` (Android·iOS 앱), `F-003` (응답 중단 — 화면), `F-012` (음성 대화), `F-005` (페르소나 — 화면·상태), F-001 · F-002의 화면 부분  
 > (진행 상태는 `/README.md` Progress Tracker에서 관리)
 
 이 폴더는 **Flutter로 만든 채팅 화면(S-001)** 을 담당합니다. 웹 빌드는 Go 서버가 같은 출처로 제공합니다 (ARCHITECTURE.md ADR-011).  
+같은 코드로 Android·iOS 앱도 빌드합니다 (`android/`·`ios/`, F-017). 앱은 `API_BASE_URL`로 같은 API를 부릅니다 (ADR-022).  
 상태는 `ChatController`(`ChangeNotifier`)가 갖고, 위젯은 그리기와 입력 연결만 합니다 (ADR-010).  
 음성 대화는 `VoiceController`가 `ChatController` 위에서 듣기 → 자동 전송 → 문장별 읽기 → 끼어들기를 진행합니다 (ADR-014·015).
 
@@ -52,17 +53,25 @@ flowchart LR
     User -->|"페르소나 선택 · 편집 · 내 프로필"| UI
     UI -->|"select · save · setAbout"| Persona[chat/persona_controller.dart<br>ChangeNotifier]
     Persona -->|"PersonaRequest (persona · about)"| Ctrl
+    Persona <-->|"snapshot · restore"| Store[storage/app_storage.dart<br>shared_preferences]
+    UI -->|"서버 주소 (모바일)"| Server2[chat/server_settings.dart]
+    Server2 <-->|"주소 저장"| Store
+    Server2 -.->|"main.dart: api.baseUrl"| Api
 ```
 
 | 파일 | 역할 |
 |---|---|
-| `lib/main.dart` | 앱 조립: `HttpChatApi` → `ChatController` → `VoiceController`(`PluginVoiceEngine`) → `ChatApp` (`API_BASE_URL`은 빌드 때 주입, 웹은 비움) |
+| `lib/main.dart` | 앱 조립: 서버 주소 정하기 → `HttpChatApi` → `ChatController` → `VoiceController`(`PluginVoiceEngine`) → `ChatApp` (`API_BASE_URL`은 빌드 때 주입, 웹은 비움) |
+| `lib/api/server_address.dart` | 플랫폼별 서버 주소: 주입값 → 웹은 같은 출처, Android 에뮬레이터 `10.0.2.2:3000`, iOS 시뮬레이터 `localhost:3000` (F-017) |
 | `lib/api/models.dart` | `Message`, `ChatEvent`(`ChatDelta`·`ChatDone`·`ChatFailed`), `ServerConfig`, `Persona`·`PersonaRequest`(API-001 `persona`) |
 | `lib/api/sse.dart` | SSE 파서 (바이트 → 이벤트) |
 | `lib/api/chat_api.dart` | `ChatApi` 인터페이스, `HttpChatApi` (구독 취소 시 요청 중단) |
 | `lib/api/client_factory*.dart` | 웹은 `fetch_client`, 그 밖은 `package:http` (조건부 import, ADR-009) |
 | `lib/chat/chat_controller.dart` | 말풍선 목록·바쁨·중단·새 대화·대화 내역, 요청에 선택한 페르소나 싣기 (위젯 없음, 테스트 대상) |
-| `lib/chat/persona_controller.dart` | 페르소나 목록(기본 3개)·선택·저장·내 프로필 — 앱 메모리에만 (F-005, Q-005) |
+| `lib/chat/persona_controller.dart` | 페르소나 목록(기본 3개)·선택·저장·내 프로필, 저장용 `snapshot`·`restore` (F-005, Q-005) |
+| `lib/chat/server_settings.dart` | 모바일 앱 서버 주소: 빌드 주소 + 앱에서 넣은 주소, 주소 검사 (F-017 AC7) |
+| `lib/storage/app_storage.dart` | `KeyValueStore`·`MemoryStore`, 페르소나·서버 주소 불러오기와 바뀔 때 저장 (Q-005, ADR-023) |
+| `lib/storage/prefs_store.dart` | `shared_preferences` 구현 — 패키지는 이 파일에서만 import |
 | `lib/voice/voice_engine.dart` | `VoiceEngine` 인터페이스와 들은 것(`HeardPartial`·`HeardFinal`·`ListenEnded`·`ListenFailed`) |
 | `lib/voice/plugin_voice_engine.dart` | `speech_to_text`·`flutter_tts`로 만든 엔진 — 패키지는 이 파일에서만 import (R-A11 특이점 처리) |
 | `lib/voice/sentences.dart` | 스트리밍 답을 읽을 문장으로 나누고 마크다운·URL·코드를 빼는 순수 함수 |
@@ -70,18 +79,29 @@ flowchart LR
 | `lib/ui/chat_page.dart` | S-001 화면 (페르소나 사이드바·서랍 · 상단 페르소나 · 모드 배지 · 편집 · 새 대화 · 대화 영역 · 음성 상태 · 입력창 · 마이크 · 전송/중단) |
 | `lib/ui/persona_widgets.dart` | 페르소나 아바타 · 사이드바 · 내 프로필 대화상자 (900px 미만은 서랍) |
 | `lib/ui/persona_editor.dart` | S-002 페르소나 편집 화면 (이름 · 역할 칩 · 말투 칩 최대 6개 · 추가 지시) |
+| `lib/ui/server_dialog.dart` | 서버 주소 대화상자 (모바일 앱만, 사이드바 "서버 주소") |
 | `lib/ui/theme.dart` | 라이트·다크 색 (MVP HTML 디자인과 같은 값) |
+| `android/` · `ios/` | 네이티브 껍데기 (F-017): 권한(마이크·음성 인식·인터넷), 음성 엔진 조회(queries), 개발용 평문 HTTP 범위, 앱 이름. Dart 코드는 웹과 같음 |
 
 **실행** (`app/`에서)
 - 테스트: `flutter test` · 분석: `flutter analyze`
 - 웹 빌드: `flutter build web --no-web-resources-cdn`
 - 서버로 보기: `cd ../server && STATIC_DIR=../app/build/web go run ./cmd/chatd` → http://localhost:3000
 
+**모바일 실행** (F-017 — 먼저 개발 컴퓨터에서 `cd ../server && go run ./cmd/chatd`, 키 없으면 모의 모드)
+- 필요한 것: Android는 Android Studio(SDK·에뮬레이터) 또는 USB 디버깅을 켠 폰, iOS는 Mac의 Xcode + CocoaPods(`brew install cocoapods`)
+- Android 에뮬레이터·iOS 시뮬레이터: `flutter run` (주소를 안 넣으면 개발 컴퓨터의 3000번을 부름)
+- 실제 폰 (같은 Wi-Fi): Mac 주소 확인 `ipconfig getifaddr en0` → `flutter run --dart-define=API_BASE_URL=http://192.168.x.x:3000`, 또는 그냥 설치한 뒤 앱 사이드바(☰) > "서버 주소"에 넣기 (저장됨)
+- Android APK만 만들기: `flutter build apk --debug --dart-define=API_BASE_URL=...` → `build/app/outputs/flutter-apk/app-debug.apk`를 폰에 설치
+- iPhone: `open ios/Runner.xcworkspace` → Runner > Signing & Capabilities에서 Team(내 Apple ID, 무료 개인 팀) 선택 → 폰 연결 후 `flutter run --dart-define=API_BASE_URL=...`. 폰에서 설정 > 일반 > VPN 및 기기 관리에서 개발자 앱 신뢰, 처음 연결 때 "로컬 네트워크" 허용
+- 평문 `http://` 서버는 Android debug·profile 빌드와 iOS 로컬 네트워크에서만 됩니다. `--release` Android 빌드는 `https://` 서버 주소가 필요합니다 (ADR-022)
+- 마이크 버튼을 처음 누르면 OS가 마이크(·iOS는 음성 인식) 권한을 묻습니다. 거부했다면 기기 설정 > 앱에서 허용
+
 ---
 
 ## Tech Stack
 
-- Flutter SDK, `package:http`, `fetch_client` (웹만), `speech_to_text`·`flutter_tts` (음성), `flutter_test`, `flutter_lints` (ARCHITECTURE.md §2.2)
+- Flutter SDK, `package:http`, `fetch_client` (웹만), `speech_to_text`·`flutter_tts` (음성), `shared_preferences` (기기 저장), `flutter_test`, `flutter_lints` (ARCHITECTURE.md §2.2)
 
 ---
 
@@ -101,7 +121,8 @@ flowchart LR
 - 위젯에서 `HttpChatApi`를 직접 호출 (컨트롤러를 거침)
 - 클라이언트에서 Claude API를 직접 호출하거나 키를 빌드에 넣기 (`--dart-define`으로 키 주입 금지)
 - 상태 관리 패키지(Riverpod·Bloc·Provider), WebSocket 패키지 (ADR-010, ADR-002)
-- 실제 서버·네트워크에 의존하는 테스트
+- 실제 서버·네트워크에 의존하는 테스트 (모바일 스트리밍 테스트는 테스트 안의 localhost 소켓만 씀)
+- `android/app/src/main/AndroidManifest.xml`(release)에 `usesCleartextTraffic`, iOS `NSAllowsArbitraryLoads` 추가 (ADR-022 — `test/mobile/platform_config_test.dart`가 검사)
 
 ### 필수 (Required)
 

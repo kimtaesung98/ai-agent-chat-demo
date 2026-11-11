@@ -14,7 +14,7 @@
 
 | 기능 ID | 작업 내용 | 담당 폴더 | 이어받을 지점 |
 |---------|-----------|-----------|---------------|
-| F-014 | 클라우드 배포 (AWS EC2 + Cloudflare Tunnel·Access) | `/deploy`, 루트 | 배포 파일·CI 이미지 검사 완료. 사용자가 `deploy/README.md` 1~8단계(AWS CLI 로그인, `provision.sh`, Cloudflare 도메인·Tunnel·Access, SSM 비밀값, GitHub 변수) 후 첫 배포 → AC2~AC5. 다음은 F-015 Polly |
+| F-017 | 모바일 네이티브 앱 (Android·iOS) | `/app` | `android/`·`ios/`·권한·서버 주소(ADR-022)·자동 테스트·Android APK 빌드 완료. 남은 것: iOS 빌드(사용자 Mac, Xcode 서명), AC6 실제 폰 확인. Q-005는 사용자가 `shared_preferences` 선택 → 페르소나·서버 주소 기기 저장 구현(ADR-023). F-014 배포는 사용자 지시로 정지 |
 | F-005 | 페르소나 설정 (피그마 시안 A·C → Flutter Material 3, API-001 `persona`) | `/app`, `/server`, `/src/server` | 사용자가 "Flutter에 바로 M3로 구현" 선택. 구현·자동 테스트·웹 빌드 캡처 완료. ADR-016 승인됨. 남은 것: AC8 실제 Claude 확인, Q-005 저장 유지 결정 |
 | F-012 | 음성 대화 (듣기 → 자동 전송 → 문장별 읽기 → 끼어들기) | `/app`, `/server` | 사용자가 `speech_to_text`·`flutter_tts` 선택(ADR-014), F-012·ADR-015 승인. 구현·자동 테스트·가짜 음성 API 브라우저 확인 완료. 남은 것: AC8 실제 마이크 확인(사용자) → ✅ |
 
@@ -33,6 +33,7 @@
 | 2 | 화면 로직(`chat-controller.js`)과 DOM(`app.js`) 분리 — 화면 동작은 가짜 ui로 테스트 | 2026-11-02 | `public/*` |
 | 3 | 기능 단위로 브랜치를 만들고 PR로 main에 합친다 (SPEC §13 GitHub Flow) | 2026-11-02 | — |
 | 4 | 사용자 선호 언어(C/C++/Go/Flutter) 기준 목표 스택: 서버 Go, 클라이언트 Flutter (승인). C/C++ 미사용은 제안 상태. ADR은 ARCHITECTURE.md로 이동 | 2026-11-04 | `ARCHITECTURE.md`, `SPEC.md`, `README.md`, `CLAUDE.md` |
+| 5 | 모바일 앱을 만든다 (SPEC §1.4 비목표 해제, F-017). AWS·Cloudflare 배포는 정지. 페르소나·내 프로필은 기기에 저장 (Q-005) | 2026-11-11 | `SPEC.md`, `ARCHITECTURE.md`, `app/**` |
 
 ---
 
@@ -76,7 +77,6 @@
 
 | 날짜 | 기능 ID | 수행 작업 | 변경 파일 | 다음 세션 인계 사항 |
 |------|---------|-----------|-----------|---------------------|
-| 2026-11-04 | - | ARCHITECTURE.md 작성 (현재 Node MVP + 목표 Go·Flutter, ADR-001~013, 전환 5단계), SPEC ADR 이관, 프레임워크 v2.1 반영 | `ARCHITECTURE.md`, `SPEC.md`, `README.md`, `CLAUDE.md`, `templates/*` | Q-004 결정 전에는 F-003 착수 보류. 제안 ADR(007~013) 사용자 승인 대기 |
 | 2026-11-04 | F-009 | 사용자 계획 승인(전환 먼저, 음성은 Flutter 뒤). Q-004 결정 기록, ADR-012 승인. `server/contract` Go 계약 테스트 17개 시나리오, `npm run test:contract`, CI 워크플로 추가. Node 서버에 통과, 모의 모드 아니면 실패 확인 | `server/**`, `scripts/contract-node.js`, `.github/workflows/ci.yml`, `package.json`, `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `CLAUDE.md` | CI 초록 확인 후 ✅. ADR-007·008·013 등 나머지 제안 ADR은 단계 2 전에 사용자 승인 필요 |
 | 2026-11-05 | F-010 | 사용자 ADR-007·008·013 승인. Go 서버 구현(config·chat·provider·mock·anthropic(SDK v2.6.0)·httpapi·cmd/chatd), 의존 규칙 테스트, `npm run test:contract:go`, CI 확장. 계약 테스트 Node·Go 둘 다 통과, 브라우저로 기존 화면 확인 | `server/**`, `scripts/contract.js`(이름 변경), `.github/workflows/ci.yml`, `package.json`, `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `CLAUDE.md` | SDK v2는 `Authorization: Bearer`로 키 전송 — 실제 키로 Claude 모드 수동 확인 필요 (테스트는 가짜 업스트림) |
 | 2026-11-05 | F-011, F-003 | 사용자 ADR-009·010·011 승인. Flutter 3.47.9 설치, `app/` 구현(api·chat·ui), 중단 버튼, 위젯·단위·의존 규칙 테스트 33개, Go 서버가 Flutter 빌드 파일 형식 제공, CI에 flutter 작업 추가, 브라우저로 Go 서버 + Flutter 스트리밍 확인 | `app/**`, `server/internal/httpapi/*`, `.github/workflows/ci.yml`, `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `CLAUDE.md` | 한글 폰트를 gstatic에서 받음 (R-A08) — 공개 전 결정. `public/`·Node는 단계 4에서 제거 |
@@ -87,6 +87,7 @@
 | 2026-11-10 | F-004, F-008 | MVP HTML 디자인(Design 캔버스, 7화면) 작성 → 사용자가 "순서대로, 판단은 맡김". ADR-016 승인 반영, F-004 다시 시도(Flutter) 완료, F-008 Google 로그인 SPEC·ADR-017 제안 | `SPEC.md`, `ARCHITECTURE.md`, `app/lib/chat/chat_controller.dart`, `app/lib/ui/chat_page.dart`, 테스트 | 디자인은 claude.ai 비공개 Artifact. 네이티브 앱의 기준 화면으로 씀 |
 | 2026-11-10 | F-013, F-008 | 사용자가 Google 로그인 보류(Phase 3) 선택 → §10 단계 4 진행. `src/`·`public/`·`tests/`·`scripts/`·`package.json` 삭제, 계약 테스트가 모의 모드 `chatd`를 직접 띄우게 바꿈(`go test ./...`에 포함), CI Node 작업 제거, 문서 갱신 | `server/contract/*`, `.github/workflows/ci.yml`, `README.md`, `CLAUDE.md`, `SPEC.md` v1.8, `ARCHITECTURE.md` v1.7, `server/README.md` | ADR-001 대체됨, ADR-017 보류, TD-001~003 해소 |
 | 2026-11-10 | - | AWS·Cloudflare 배포·음성 설계안(Claude 문서) 작성, ADR-018~021 제안, SPEC Q-003 방향·Q-007 추가 | `ARCHITECTURE.md`, `SPEC.md`, `README.md`, `CLAUDE.md`, `Dockerfile`, `deploy/*`, `.github/workflows/*` | 사용자 "추천안 전체" 선택 → ADR-018~021 승인, F-014~016 등록, F-014 배포 파일 작성. Current Focus에 F-014 추가, 'MVP HTML 디자인 반영'은 Roadmap 5번으로만 남김 |
+| 2026-11-11 | F-017 | 사용자 "배포 정지, 모바일 앱 진행". SPEC §1.4 비목표 해제·F-017 등록, `flutter create --platforms=android,ios`, 매니페스트·Info.plist 권한, 플랫폼별 서버 주소, iOS 오디오 세션, 앱용 음성 안내, Q-005 `shared_preferences` 저장·앱 안 서버 주소(ADR-023), 테스트(서버 주소·dart:io 스트리밍·설정 파일·저장), CI `android` 작업 | `app/**`, `SPEC.md` v1.10, `ARCHITECTURE.md` v1.9, `README.md`, `.github/workflows/ci.yml` | 클라우드 환경에 `dl.google.com` 허용 추가(Android SDK). iOS는 이 컨테이너에서 빌드 불가 — 사용자 Mac |
 
 ---
 

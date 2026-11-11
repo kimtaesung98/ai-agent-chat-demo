@@ -110,6 +110,7 @@
 | Go (F-015·F-016, 승인) | `aws-sdk-go-v2` (`config`, `service/polly`, `service/transcribestreaming`) | Polly·Transcribe 호출 | 해당 단계에서 추가. `internal/speech` 안에서만 import — ADR-020·021 |
 | Go (F-016, 승인) | WebSocket 라이브러리 1개 (착수 때 선정, 순수 Go) | `/api/stt` 중계 | `httpapi`의 `/api/stt` 처리에서만 — ADR-021 |
 | Flutter (F-016, 승인) | `record`, WebSocket 패키지 | 마이크 PCM 스트림, `/api/stt` 연결 | `voice/` 안에서만 — ADR-021 |
+| Flutter (Q-005·F-017) | `shared_preferences` | 페르소나·내 프로필·앱 서버 주소 기기 저장 | `app/lib/storage/prefs_store.dart`에서만 import (의존 규칙 테스트) — ADR-023. 간접 의존: `shared_preferences_*` 플랫폼 구현, `jni`·`jni_util`(Android), `path_provider_*`·`xdg_directories`(데스크톱) |
 | Flutter 개발 (목표) | `flutter_test`, `flutter_lints` | 테스트, 린트 | dev_dependencies |
 
 **금지:**
@@ -164,9 +165,10 @@ flowchart LR
 | httpapi | `/server/internal/httpapi` | 라우팅, 요청 파싱, SSE 쓰기, 정적 파일 | chat, provider |
 | contract | `/server/contract` | HTTP 수준 계약 테스트 (어느 서버에나 실행) | (표준 라이브러리만) |
 | archtest | `/server/internal/archtest` | §3.3 의존 규칙 검사 테스트 (모듈 맵에 없는 패키지도 실패) | (표준 라이브러리만) |
-| app/api | `/app/lib/api` | `/api/chat` 호출, SSE 파싱 (웹·모바일 클라이언트 분기) | (없음) |
-| app/chat | `/app/lib/chat` | `ChatController` (`ChangeNotifier`): 내역·바쁨 상태. `PersonaController`: 페르소나 목록·선택·내 프로필 (F-005) | api |
+| app/api | `/app/lib/api` | `/api/chat` 호출, SSE 파싱 (웹·모바일 클라이언트 분기), 플랫폼별 서버 주소 정하기 (F-017) | (없음) |
+| app/chat | `/app/lib/chat` | `ChatController` (`ChangeNotifier`): 내역·바쁨 상태. `PersonaController`: 페르소나 목록·선택·내 프로필 (F-005). `ServerSettings`: 앱 서버 주소 (F-017) | api |
 | app/voice | `/app/lib/voice` | `VoiceEngine` 인터페이스(듣기·읽기)와 패키지 구현(`PluginVoiceEngine`), 문장 분리기, `VoiceController` (듣기 → 자동 전송 → 문장별 읽기 → 끼어들기) | chat |
+| app/storage | `/app/lib/storage` | 기기 저장: `KeyValueStore` 인터페이스, `PrefsStore`(`shared_preferences`), 페르소나·서버 주소 불러오기·저장 (Q-005, ADR-023) | chat |
 | app/ui | `/app/lib/ui` | 위젯: 대화 목록, 입력창, 모드 배지, 마이크 버튼, 페르소나 사이드바·편집 화면(F-005) | chat, voice |
 
 ### 3.3 의존 규칙
@@ -189,6 +191,7 @@ flowchart TD
         UI[ui] --> CTRL[chat]
         UI --> VOICE[voice]
         VOICE --> CTRL
+        STORE[storage] --> CTRL
         CTRL --> API[api]
     end
     API -.->|"HTTP 계약만"| HTTP
@@ -200,6 +203,7 @@ flowchart TD
 - Flutter `chat`은 `package:flutter/foundation.dart`까지만 import한다 — `material`·`widgets` 금지 (위젯 없이 단위 테스트)
 - Flutter `api`는 `chat`·`ui`를 import하지 않는다
 - Flutter `voice`는 `chat`을 쓰고 `ui`를 import하지 않는다. `chat`·`api`는 `voice`를 모른다. `voice`도 `foundation.dart`까지만 (위젯 없이 단위 테스트). `speech_to_text`·`flutter_tts`는 `voice/plugin_voice_engine.dart`에서만 import한다. 조립은 `main.dart`
+- Flutter `storage`는 `chat`만 쓰고, 다른 모듈은 `storage`를 모른다. `shared_preferences`는 `storage/prefs_store.dart`에서만 import한다. 조립은 `main.dart` (ADR-023)
 - 앱과 서버는 코드를 공유하지 않는다 — HTTP 계약으로만 연결
 - 검사 방법: Go는 `go vet` + import 검사 테스트(`internal/archtest`, F-010), Flutter는 `flutter analyze` + import 검사 테스트(`app/test/architecture_test.dart`)
 
@@ -369,7 +373,7 @@ flowchart LR
 | `ANTHROPIC_API_KEY` | N | (없음 → 모의 모드) | **Y** | Claude API 키 | 둘 다 |
 | `ANTHROPIC_MODEL` | N | `claude-sonnet-5-5` | N | 사용할 모델 | 둘 다 |
 | `STATIC_DIR` | N | `./web` | N | 정적 파일 위치 — Flutter 웹 빌드(`../app/build/web`) | Go |
-| `API_BASE_URL` | N | (웹: 같은 출처) | N | 모바일 앱이 호출할 서버 주소 — **빌드 시** `--dart-define`으로 주입, 키는 절대 주입 금지 | 목표 (Flutter) |
+| `API_BASE_URL` | N | 웹: 같은 출처 · Android 에뮬레이터: `http://10.0.2.2:3000` · iOS 시뮬레이터: `http://localhost:3000` | N | 모바일 앱이 호출할 서버 주소 — **빌드 시** `--dart-define`으로 주입, 키는 절대 주입 금지. 실제 폰은 개발 컴퓨터 LAN 주소 (ADR-022, `app/lib/api/server_address.dart`) | Flutter (F-017) |
 
 ---
 
@@ -428,6 +432,8 @@ flowchart LR
 | ADR-019 | 공개 전 접근 제어는 **Cloudflare Access**(Zero Trust, 허용 이메일 목록, 일회용 코드)로 사이트 전체를 막는다. F-008 로그인 전까지의 임시 장치 | ① 막지 않음 ② F-008을 앞당김 ③ 서버에 기본 인증 | 코드 변경 없이 Claude·AWS 요금 남용을 막음, 50명까지 무료. 단 브라우저 쿠키 방식이라 모바일 앱(§10 단계 5)에는 F-008 필요 | 승인 (사용자 "추천안 전체", 2026-11-10) | 2026-11-10 |
 | ADR-020 | TTS는 **Amazon Polly**: 서버 `POST /api/tts`(문장·목소리 → `audio/mpeg`), 앱은 `VoiceEngine` 새 구현이 문장마다 호출해 재생. AWS 권한이 없으면 지금처럼 `flutter_tts`. ADR-014 대안 ②를 읽기 쪽에 채택(부분 대체) | 브라우저·OS TTS 유지, 다른 클라우드 TTS | 사용자 요청(AWS 음성 서비스). 목소리 품질·브라우저 간 일관성. 호출은 서버만 하므로 키가 클라이언트로 가지 않음. 새 의존: `aws-sdk-go-v2`(config·polly) — 새 모듈 `internal/speech` 안에서만 import | 승인 (사용자 "추천안 전체", 2026-11-10) | 2026-11-10 |
 | ADR-021 | STT는 **Amazon Transcribe 스트리밍**, 서버 중계: 앱 마이크 PCM → WebSocket `/api/stt` → chatd → Transcribe(HTTP/2) → 중간·최종 결과를 같은 WebSocket으로. ADR-002(WebSocket 불필요)는 **채팅 응답 스트림**에 한정한다 | ② 서버가 서명 URL을 주고 앱이 Transcribe에 직접 연결 ③ 발화가 끝나면 녹음 파일을 POST | AWS 호출이 서버 한 곳, 웹·모바일 동일, 미리 보기 유지, 사용량 제한을 서버에서. ②는 앱이 AWS 이벤트 스트림을 다루고 임시 자격 증명이 클라이언트로 나감, ③은 미리 보기 없음·지연. 새 의존: Go WebSocket 라이브러리 1개, Flutter `record`·WebSocket 패키지 | 승인 (사용자 "추천안 전체", 2026-11-10) | 2026-11-10 |
+| ADR-022 | 모바일 앱(F-017)의 서버 주소는 **빌드 때 `API_BASE_URL`**(앱 안 설정이 있으면 그것 — ADR-023), 비우면 에뮬레이터·시뮬레이터에서 개발 컴퓨터(`10.0.2.2`·`localhost`의 3000번). 평문 HTTP는 **Android debug·profile 빌드와 iOS 로컬 네트워크(`NSAllowsLocalNetworking`)** 에만 허용하고, Android release는 HTTPS만 | ① 빌드 주소만 ② release에도 평문 허용 ③ 모든 빌드 HTTPS만 | ①은 ADR-023(Q-005)으로 함께 넣음 — 빌드 주소가 기본, 앱 설정 > 서버 주소로 덮어쓴다. ②는 배포 뒤 키 없는 트래픽이 평문으로 나갈 수 있음. ③은 같은 Wi-Fi의 개발용 `chatd`(http)로 실제 폰 확인이 안 됨 | 적용 (F-017 구현, 사용자 "모바일 진행" 2026-11-11 — PR 검토로 확인) | 2026-11-11 |
+| ADR-023 | 페르소나·내 프로필·(앱) 서버 주소는 **`shared_preferences`** 로 기기에 저장한다 (Android SharedPreferences · iOS NSUserDefaults · 웹 localStorage). 패키지는 `app/lib/storage/prefs_store.dart`에서만 import, `KeyValueStore` 인터페이스 뒤에 둔다. 대화 내용은 저장하지 않는다 (F-007) | ① 앱 메모리만 (지금까지) ② 서버 저장 ③ 파일·SQLite 패키지 | ①은 앱을 다시 열 때마다 페르소나를 다시 만들어야 함. ②는 로그인(F-008)이 먼저. ③은 키 몇 개에 비해 무거움. 단점: Android 구현이 `jni`(네이티브 C 코드를 빌드하는 간접 의존)를 끌고 옴 — 우리 코드의 C/C++ 금지(ADR-007)와는 별개, NDK는 Flutter Android 빌드에 원래 필요 | 승인 (사용자 선택, 2026-11-11, Q-005) | 2026-11-11 |
 
 ---
 
@@ -442,7 +448,7 @@ Node MVP → Go + Flutter. 단계 1~4 완료 (2026-11-10). **각 단계는 따�
 | 2 | **Go 서버** — `server/` 모듈 구현 (모의·Claude 제공자, 검증, 20턴 정리, SSE, 정적 파일) | 계약 테스트가 Go 서버에 통과, `go test ./...` 통과, 기존 `public/` 화면이 Go 서버로 동작 | ADR-005, 008, 013 |
 | 3 | **Flutter 웹 클라이언트** — `app/` 구현 (S-001 화면 동등 기능) | F-001·F-002 화면 수용 기준을 위젯·단위 테스트로 통과, 웹에서 실시간 스트리밍 확인, Go 서버가 웹 빌드 제공 | ADR-006, 009, 010, 011 |
 | 4 | **Node MVP 제거** — `src/`, `public/`, `package.json`, Node 테스트 삭제 | 단계 1~3 완료 기준 유지, 루트 README·폴더 README·DFD를 새 구조로 갱신, ADR-001 "대체됨" | ADR-001 |
-| 5 | (선택) **모바일 빌드** — iOS·Android. **SPEC §1.4 비목표를 사용자가 바꾼 뒤에만** | 같은 코드로 빌드, `API_BASE_URL` 주입, 실제 기기에서 스트리밍 확인 | ADR-006 |
+| 5 | **모바일 빌드** — iOS·Android = F-017 (2026-11-11 등록, 사용자가 SPEC §1.4 비목표 해제) | 같은 코드로 빌드, `API_BASE_URL` 주입, 실제 기기에서 스트리밍 확인 | ADR-006, 022 |
 
 **남은 MVP 기능(F-003·F-004)과 음성 대화는 전환 뒤에 만듭니다** (SPEC §16 Q-004 결정). F-003은 단계 3에서 구현합니다.
 
@@ -475,6 +481,8 @@ flowchart LR
 | R-A09 | 스피커로 읽는 답을 마이크가 다시 듣고 사용자 말로 착각 (에코) | 끼어들기가 저절로 일어나 답이 끊김 | 읽는 중 인식된 문장이 지금 읽는 문장과 비슷하면 무시, 브라우저 에코 제거에 의존. 그래도 잦으면 "읽는 중에는 버튼으로만 끼어들기" 설정 — F-012 AC8 수동 확인에서 판단 |
 | R-A10 | 브라우저 음성 인식은 브라우저 회사 서버로 음성을 보낼 수 있음 (Chrome → Google), Firefox 미지원 | 개인정보 안내 필요, 일부 브라우저에서 음성 불가 | 미지원 시 텍스트로 계속 (F-012 AC7), 공개 배포(Q-001) 전 안내 문구. 필요하면 ADR-014 대안 ②로 |
 | R-A11 | `speech_to_text` 웹 구현의 특이점: ① 결과를 항상 '중간'으로 주고 멈춘 뒤 `finalTimeout`(기본 2초)이 지나야 확정 ② 상태 알림 안에서 바로 다시 `listen`하면 새 세션의 끝 알림이 오지 않음 ③ 플러그인 생성자가 Flutter 바인딩을 씀 | 말을 마치고 2초 늦게 전송, 조용한 뒤 듣기가 멈춤, 앱 시작 실패 | `PluginVoiceEngine`에서 웹은 `finalTimeout` 150ms, 다시 듣기는 다음 이벤트 차례에, 플러그인은 처음 쓸 때 생성. 패키지를 올릴 때 브라우저 확인(가짜 음성 API로 실제 웹 빌드 구동)을 다시 함 |
+| R-A12 | 모바일 앱은 Cloudflare Access(ADR-019)의 브라우저 쿠키 로그인을 통과하지 못함 | F-014 배포 주소를 앱에서 부를 수 없음 | 지금은 같은 Wi-Fi의 개발용 `chatd`로만 씀. 배포 주소를 앱에서 쓰려면 F-008 로그인 또는 Access 서비스 토큰 — 배포 재개 때 결정 |
+| R-A13 | 모바일 OS 음성 엔진은 기기마다 다름 (Android 인식기가 읽는 소리를 다시 듣거나, 읽는 중 듣기가 멈출 수 있음, iOS 오디오 세션 전환) | 끼어들기·자동 재듣기가 웹과 다르게 동작 | iOS는 `playAndRecord`+스피커 공유 세션, F-017 AC6 실제 기기 확인에서 판단 |
 
 ---
 
@@ -491,3 +499,4 @@ flowchart LR
 | v1.6 | 2026-11-10 | kimtaesung98 | ADR-016 승인. F-008 Google 로그인 — ADR-017 제안, `google_sign_in` 허용 후보(§2.2) |
 | v1.7 | 2026-11-10 | kimtaesung98 | §10 단계 4(F-013) — Node MVP 제거: ADR-001 대체됨, ADR-012 Go만, ADR-017 보류(사용자 결정), 스택·모듈 맵·개발 도구·인터페이스에서 Node 제거, TD-001~003 해소 |
 | v1.8 | 2026-11-10 | kimtaesung98 | ADR-018~021 승인 (사용자 "추천안 전체") — AWS EC2 + Cloudflare 배포, Cloudflare Access, Polly TTS, Transcribe STT. 허용 목록·§6 환경 갱신, F-014 등록 |
+| v1.9 | 2026-11-11 | kimtaesung98 | §10 단계 5 착수(F-017 모바일 앱): ADR-022 서버 주소·평문 HTTP 범위, §6.3 `API_BASE_URL` 기본값, R-A12·R-A13. ADR-023 `shared_preferences` 승인(Q-005), `app/storage` 모듈 |

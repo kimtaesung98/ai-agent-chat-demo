@@ -60,6 +60,17 @@ class PluginVoiceEngine implements VoiceEngine {
       _sttReady = false;
     }
     try {
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        // iOS: 음성 인식이 마이크를 잡고 있어도 답을 수화기가 아닌 스피커로 읽고(끼어들기용으로 듣기와 함께),
+        // 블루투스 이어폰도 쓰게 한다 (F-017 AC4). 앱 전체가 하나의 오디오 세션을 쓴다.
+        await _tts.setSharedInstance(true);
+        await _tts.autoStopSharedSession(false); // 읽기가 끝나도 오디오 세션을 닫지 않는다 — 듣기가 이어진다
+        await _tts.setIosAudioCategory(IosTextToSpeechAudioCategory.playAndRecord, [
+          IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
+          IosTextToSpeechAudioCategoryOptions.allowBluetooth,
+          IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
+        ], IosTextToSpeechAudioMode.voicePrompt);
+      }
       await _tts.awaitSpeakCompletion(false); // 완료는 아래 핸들러로 직접 받는다 (웹에서 취소 시 future가 끝나지 않음)
       _tts
         ..setCompletionHandler(_speechEnded)

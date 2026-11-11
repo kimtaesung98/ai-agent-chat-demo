@@ -34,10 +34,17 @@ abstract final class ClientMessages {
 class HttpChatApi implements ChatApi {
   /// [baseUrl]이 비어 있으면 같은 출처(웹)로 부른다. 모바일은 `--dart-define=API_BASE_URL=...`.
   HttpChatApi({String baseUrl = '', http.Client Function()? clientFactory})
-    : _base = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl,
+    : _base = _trim(baseUrl),
       _newClient = clientFactory ?? createHttpClient;
 
-  final String _base;
+  String _base;
+
+  /// 서버 주소. 앱 설정에서 바꾸면 다음 요청부터 쓴다 (F-017).
+  String get baseUrl => _base;
+  set baseUrl(String value) => _base = _trim(value);
+
+  static String _trim(String v) => v.endsWith('/') ? v.substring(0, v.length - 1) : v;
+
   final http.Client Function() _newClient;
 
   Uri _uri(String path) => _base.isEmpty ? Uri.base.resolve(path) : Uri.parse('$_base$path');
