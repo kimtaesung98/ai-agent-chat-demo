@@ -217,4 +217,27 @@ void main() {
     expect(engine.spoken, isEmpty);
     expect(api.modes.single, ChatMode.text);
   });
+
+  test('F-018 AC3 지금 읽는 문장을 자막으로 알려 주고, 끼어들거나 다 읽으면 비운다', () async {
+    await voice.start();
+    await say('안녕');
+    expect(voice.sentence, isEmpty);
+    await delta('첫 문장이에요. 두 번');
+    expect(voice.sentence, '첫 문장이에요.');
+    await delta('째예요. 끝');
+    engine.finishAll();
+    await pump();
+    expect(voice.sentence, '두 번째예요.');
+
+    voice.toggle(); // 끼어들기
+    expect(voice.sentence, isEmpty);
+    expect(voice.state, VoiceState.listening);
+
+    await say('다시');
+    await delta('짧아요.');
+    await done();
+    await speakAll();
+    expect(voice.state, VoiceState.listening);
+    expect(voice.sentence, isEmpty);
+  });
 }

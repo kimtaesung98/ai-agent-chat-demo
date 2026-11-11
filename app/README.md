@@ -1,6 +1,6 @@
 # app — Overview
 
-> **담당 기능**: `SPEC.md`의 `F-011` (Flutter 웹 클라이언트), `F-017` (Android·iOS 앱), `F-003` (응답 중단 — 화면), `F-012` (음성 대화), `F-005` (페르소나 — 화면·상태), F-001 · F-002의 화면 부분  
+> **담당 기능**: `SPEC.md`의 `F-011` (Flutter 웹 클라이언트), `F-017` (Android·iOS 앱), `F-003` (응답 중단 — 화면), `F-012` (음성 대화), `F-018` (음성 전용 화면), `F-005` (페르소나 — 화면·상태), F-001 · F-002의 화면 부분  
 > (진행 상태는 `/README.md` Progress Tracker에서 관리)
 
 이 폴더는 **Flutter로 만든 채팅 화면(S-001)** 을 담당합니다. 웹 빌드는 Go 서버가 같은 출처로 제공합니다 (ARCHITECTURE.md ADR-011).  
@@ -50,6 +50,10 @@ flowchart LR
     Voice -->|"문장 분리 (sentences.dart)<br>speak · cancelSpeech"| Engine
     Engine -->|"소리"| User
     Voice -->|"상태 · 미리 보기 · 안내"| UI
+    UI -->|"음성 전용 화면 열기 · 글로 보기 · 끝내기"| VoicePage[ui/voice_page.dart<br>S-003]
+    VoicePage -->|"start · toggle · stop"| Voice
+    Voice -->|"상태 · 미리 보기 · 읽는 문장 · 안내"| VoicePage
+    VoicePage -->|"큰 상태 원 · 자막"| User
     User -->|"페르소나 선택 · 편집 · 내 프로필"| UI
     UI -->|"select · save · setAbout"| Persona[chat/persona_controller.dart<br>ChangeNotifier]
     Persona -->|"PersonaRequest (persona · about)"| Ctrl
@@ -75,8 +79,9 @@ flowchart LR
 | `lib/voice/voice_engine.dart` | `VoiceEngine` 인터페이스와 들은 것(`HeardPartial`·`HeardFinal`·`ListenEnded`·`ListenFailed`) |
 | `lib/voice/plugin_voice_engine.dart` | `speech_to_text`·`flutter_tts`로 만든 엔진 — 패키지는 이 파일에서만 import (R-A11 특이점 처리) |
 | `lib/voice/sentences.dart` | 스트리밍 답을 읽을 문장으로 나누고 마크다운·URL·코드를 빼는 순수 함수 |
-| `lib/voice/voice_controller.dart` | 음성 대화 진행: 듣기 → 자동 전송 → 문장별 읽기 → 다시 듣기, 끼어들기·에코 무시 (위젯 없음, 테스트 대상) |
+| `lib/voice/voice_controller.dart` | 음성 대화 진행: 듣기 → 자동 전송 → 문장별 읽기 → 다시 듣기, 끼어들기·에코 무시, 지금 읽는 문장(`sentence`, F-018 자막) (위젯 없음, 테스트 대상) |
 | `lib/ui/chat_page.dart` | S-001 화면 (페르소나 사이드바·서랍 · 상단 페르소나 · 모드 배지 · 편집 · 새 대화 · 대화 영역 · 음성 상태 · 입력창 · 마이크 · 전송/중단) |
+| `lib/ui/voice_page.dart` | S-003 음성 전용 화면 (F-018): 상태 원 · 상태 문구 · 자막(인식 중 · 보낸 말 · 읽는 문장) · 단계 칩 · 글로 보기 · 듣기/멈춤/끼어들기 · 끝내기. 채팅 화면 상단 바 버튼으로 열면 듣기 시작 |
 | `lib/ui/persona_widgets.dart` | 페르소나 아바타 · 사이드바 · 내 프로필 대화상자 (900px 미만은 서랍) |
 | `lib/ui/persona_editor.dart` | S-002 페르소나 편집 화면 (이름 · 역할 칩 · 말투 칩 최대 6개 · 추가 지시) |
 | `lib/ui/server_dialog.dart` | 서버 주소 대화상자 (모바일 앱만, 사이드바 "서버 주소") |

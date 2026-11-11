@@ -54,6 +54,7 @@ class VoiceController extends ChangeNotifier {
 
   VoiceState _state = VoiceState.off;
   String _partial = '';
+  String _sentence = '';
   String? _notice;
   ChatEntry? _answer; // 음성으로 보낸 질문의 답 말풍선
   var _answerDone = false;
@@ -66,6 +67,9 @@ class VoiceController extends ChangeNotifier {
 
   /// 인식 중인 문장 (미리 보기).
   String get partial => _partial;
+
+  /// 지금 읽고 있는 문장 (음성 전용 화면 자막, F-018). 읽는 중이 아니면 빈 문자열.
+  String get sentence => _sentence;
 
   /// 미지원·권한 거부 등 안내 (F-012 AC7). 없으면 null.
   String? get notice => _notice;
@@ -202,10 +206,9 @@ class VoiceController extends ChangeNotifier {
     while (_queue.isNotEmpty && gen == _gen && !_disposed) {
       final s = _queue.removeAt(0);
       _spoken.add(s);
-      if (_state != VoiceState.speaking) {
-        _state = VoiceState.speaking;
-        _notify();
-      }
+      _sentence = s;
+      _state = VoiceState.speaking;
+      _notify();
       await _engine.speak(s);
     }
     if (gen != _gen || _disposed) return; // 끼어들기·끄기가 이미 상태를 정리했다
@@ -220,6 +223,7 @@ class VoiceController extends ChangeNotifier {
 
   void _backToListening() {
     _answer = null;
+    _sentence = '';
     _state = VoiceState.listening;
     _engine.startListening();
     _notify();
@@ -238,6 +242,7 @@ class VoiceController extends ChangeNotifier {
 
   void _silence() {
     _gen++;
+    _sentence = '';
     _queue.clear();
     _speakingNow = false;
     _engine.cancelSpeech();
