@@ -12,6 +12,7 @@ import 'persona_editor.dart';
 import 'persona_widgets.dart';
 import 'server_dialog.dart';
 import 'theme.dart';
+import 'voice_page.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key, required this.controller, this.voice, this.server});
@@ -154,6 +155,13 @@ class _ChatPageState extends State<ChatPage> {
               actions: [
                 // 아주 좁은 화면은 페르소나 이름 자리를 위해 모드 배지를 숨긴다
                 if (personas == null || box.maxWidth >= 600) ...[_ModeBadge(chat: _chat), const SizedBox(width: 8)],
+                if (_voice case final voice?)
+                  IconButton(
+                    key: const Key('open-voice-page'),
+                    tooltip: '음성 전용 화면',
+                    onPressed: () => openVoicePage(context, chat: _chat, voice: voice),
+                    icon: const Icon(Icons.record_voice_over_outlined),
+                  ),
                 if (personas != null)
                   IconButton(
                     key: const Key('edit-persona'),
