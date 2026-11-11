@@ -29,12 +29,15 @@ func (p *Provider) Name() string  { return "mock" }
 func (p *Provider) Model() string { return "mock-echo" }
 
 // Stream은 system을 쓰지 않는다 — 계약 테스트가 보는 답 문구가 모드와 상관없이 같아야 한다.
-// 하나만 예외: 요약 요청(chat.SummarySystemPrompt)이면 정해진 모양의 요약 JSON을 답한다 (F-019).
+// 예외: 요약 요청(chat.SummarySystemPrompt)·장기 기억 요청(chat.ConsolidateSystemPrompt)이면 정해진 모양의 JSON을 답한다 (F-019·F-020).
 func (p *Provider) Stream(ctx context.Context, system string, msgs []chat.Message) iter.Seq2[provider.Chunk, error] {
 	return func(yield func(provider.Chunk, error) bool) {
 		text := buildReply(msgs)
-		if system == chat.SummarySystemPrompt {
+		switch system {
+		case chat.SummarySystemPrompt:
 			text = buildSummary(msgs)
+		case chat.ConsolidateSystemPrompt:
+			text = buildLongTerm(msgs)
 		}
 		reply := []rune(text)
 		for i := 0; i < len(reply); i += chunkSize {
@@ -86,6 +89,26 @@ func buildSummary(msgs []chat.Message) string {
 		"facts":     []string{"모의 모드에서 나눈 대화예요."},
 		"followUps": []string{},
 	})
+	return string(b)
+}
+
+// buildLongTerm은 장기 기억 기록(chat.ConsolidateRequest.Transcript)에서 묶은 요약 수를 세어 장기 기억 JSON을 만든다.
+// 계약 테스트가 "대화 요약 N개"로 확인하므로 문구를 바꾸면 안 된다.
+func buildLongTerm(msgs []chat.Message) string {
+	n, carried := 0, false
+	if len(msgs) > 0 {
+		for _, line := range strings.Split(msgs[len(msgs)-1].Content, "\n") {
+			if strings.HasPrefix(line, chat.ConsolidateTranscriptItem) {
+				n++
+			}
+			carried = carried || strings.HasPrefix(line, "이전 장기 기억: ")
+		}
+	}
+	summary := fmt.Sprintf("모의 모드 장기 기억이에요. 대화 요약 %d개를 묶었어요.", n)
+	if carried {
+		summary += " 이전 장기 기억도 이어 받았어요."
+	}
+	b, _ := json.Marshal(map[string]any{"summary": summary, "facts": []string{"모의 모드에서 나눈 대화예요."}})
 	return string(b)
 }
 

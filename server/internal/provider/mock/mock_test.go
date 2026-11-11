@@ -78,3 +78,20 @@ func TestF019Summary(t *testing.T) {
 		}
 	})
 }
+
+func TestF020LongTerm(t *testing.T) {
+	t.Run("F-020 AC1 장기 기억 요청이면 묶은 요약 수를 담은 JSON을 답한다", func(t *testing.T) {
+		req, _ := chat.ParseConsolidateRequest([]byte(`{"longTerm":{"summary":"예전"},"sessions":[{"summary":"a"},{"summary":"b"},{"summary":"c"}]}`))
+		var b strings.Builder
+		for c, err := range (&Provider{}).Stream(context.Background(), chat.ConsolidateSystemPrompt, req.Transcript()) {
+			if err != nil {
+				t.Fatal(err)
+			}
+			b.WriteString(c.Text)
+		}
+		lt, ok := chat.ParseLongTerm(b.String())
+		if !ok || lt.Summary != "모의 모드 장기 기억이에요. 대화 요약 3개를 묶었어요. 이전 장기 기억도 이어 받았어요." {
+			t.Fatalf("%q", b.String())
+		}
+	})
+}

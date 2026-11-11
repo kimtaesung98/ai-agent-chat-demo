@@ -235,6 +235,46 @@ func TestF019(t *testing.T) {
 	})
 }
 
+func TestF020(t *testing.T) {
+	t.Run("F-020 AC3 longTerm이 있는 요청은 지금과 같이 스트리밍하고, 형식이 틀리면 400", func(t *testing.T) {
+		b := chatBody(message{"user", "또 왔어요"})
+		b["longTerm"] = map[string]any{"summary": "산책 이야기를 자주 해요", "facts": []string{"무릎이 약함"}}
+		b["memory"] = []map[string]any{{"summary": "어제 이야기"}}
+		if _, text := requireStream(t, postChat(t, b)); !strings.Contains(text, "또 왔어요") {
+			t.Fatalf("응답 = %q", text)
+		}
+		b["longTerm"] = map[string]any{"summary": ""}
+		requireErrorJSON(t, postChat(t, b), http.StatusBadRequest)
+	})
+
+	t.Run("F-020 AC1 POST /api/consolidate는 요약들을 장기 기억 JSON으로 묶는다", func(t *testing.T) {
+		res := postJSON(t, "/api/consolidate", map[string]any{
+			"persona":  map[string]any{"name": "노인복지사 미소"},
+			"longTerm": map[string]any{"summary": "예전 이야기"},
+			"sessions": []map[string]any{{"date": "2026-11-01", "summary": "산책"}, {"summary": "손주"}},
+		})
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("상태 %d", res.StatusCode)
+		}
+		var got struct {
+			Summary string   `json:"summary"`
+			Facts   []string `json:"facts"`
+		}
+		if err := json.NewDecoder(res.Body).Decode(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got.Summary != "모의 모드 장기 기억이에요. 대화 요약 2개를 묶었어요. 이전 장기 기억도 이어 받았어요." || got.Facts == nil {
+			t.Fatalf("%+v", got)
+		}
+	})
+
+	t.Run("F-020 AC1 /api/consolidate 형식 오류는 400", func(t *testing.T) {
+		for _, b := range []any{"x", map[string]any{}, map[string]any{"sessions": []any{}}} {
+			requireErrorJSON(t, postJSON(t, "/api/consolidate", b), http.StatusBadRequest)
+		}
+	})
+}
+
 // API-001·API-002 공통 계약: 메서드·경로 오류, 정적 화면
 func TestAPI(t *testing.T) {
 	do := func(t *testing.T, method, path string) *http.Response {

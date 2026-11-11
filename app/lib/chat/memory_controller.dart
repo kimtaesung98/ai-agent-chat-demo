@@ -7,27 +7,37 @@ import 'package:flutter/foundation.dart';
 
 import '../api/models.dart';
 
-export '../api/models.dart' show SessionSummary;
+export '../api/models.dart' show LongTermMemory, SessionSummary, dayString;
 
 class MemoryController extends ChangeNotifier {
-  MemoryController([List<SessionSummary> initial = const []]) : _all = [...initial]..sort(_byEnd);
+  MemoryController([List<SessionSummary> initial = const [], List<LongTermMemory> longTerm = const []])
+    : _all = [...initial]..sort(_byEnd),
+      _longTerm = {for (final l in longTerm) l.personaId: l};
 
   /// 저장해 둔 값으로 시작한다. 없거나 모양이 틀리면 빈 기억.
   factory MemoryController.restore(Object? saved) {
     if (saved is! Map) return MemoryController();
     final list = saved['sessions'];
     final seen = <String>{};
-    return MemoryController([
-      if (list is List)
-        for (final item in list)
-          if (SessionSummary.fromStoreJson(item) case final s? when seen.add(s.id)) s,
-    ]).._trim();
+    final longTerm = saved['longTerm'];
+    return MemoryController(
+      [
+        if (list is List)
+          for (final item in list)
+            if (SessionSummary.fromStoreJson(item) case final s? when seen.add(s.id)) s,
+      ],
+      [
+        if (longTerm is List)
+          for (final item in longTerm) ?LongTermMemory.fromStoreJson(item),
+      ],
+    ).._trim();
   }
 
   /// 저장할 값 — [MemoryController.restore]가 읽는다.
   Map<String, Object> snapshot() => {
     'v': 1,
     'sessions': [for (final s in _all) s.toStoreJson()],
+    'longTerm': [for (final l in _longTerm.values) l.toStoreJson()],
   };
 
   /// 페르소나마다 기기에 남기는 요약 수. 넘치면 오래된 것부터 지운다.
@@ -37,6 +47,31 @@ class MemoryController extends ChangeNotifier {
   static const sendPerRequest = 5;
 
   final List<SessionSummary> _all; // 끝난 시각 순 (오래된 것부터)
+  final Map<String, LongTermMemory> _longTerm; // 페르소나 id → 장기 기억 (F-020)
+
+  /// [personaId]의 장기 기억. 없으면 null.
+  LongTermMemory? longTermFor(String personaId) => _longTerm[personaId];
+
+  /// 장기 기억으로 아직 묶지 않은 오래된 요약, 오래된 것부터 (F-020 AC2).
+  /// 최근 [sendPerRequest]개는 그대로 보내므로 빼고, 이미 묶은 시각([LongTermMemory.coversUntil]) 뒤의 것만.
+  List<SessionSummary> pendingFold(String personaId) {
+    final list = [
+      for (final s in _all)
+        if (s.personaId == personaId) s,
+    ];
+    if (list.length <= sendPerRequest) return const [];
+    final covers = _longTerm[personaId]?.coversUntil;
+    return [
+      for (final s in list.sublist(0, list.length - sendPerRequest))
+        if (covers == null || s.endedAt.isAfter(covers)) s,
+    ];
+  }
+
+  /// 장기 기억을 넣는다 (같은 페르소나는 바꾼다).
+  void setLongTerm(LongTermMemory l) {
+    _longTerm[l.personaId] = l;
+    notifyListeners();
+  }
 
   static int _byEnd(SessionSummary a, SessionSummary b) => a.endedAt.compareTo(b.endedAt);
 
@@ -72,11 +107,12 @@ class MemoryController extends ChangeNotifier {
     if (_all.length != before) notifyListeners();
   }
 
-  /// [personaId]의 기억을 모두 지운다.
+  /// [personaId]의 기억(요약·장기 기억)을 모두 지운다.
   void clear(String personaId) {
     final before = _all.length;
     _all.removeWhere((e) => e.personaId == personaId);
-    if (_all.length != before) notifyListeners();
+    final hadLongTerm = _longTerm.remove(personaId) != null;
+    if (_all.length != before || hadLongTerm) notifyListeners();
   }
 
   void _trim() {

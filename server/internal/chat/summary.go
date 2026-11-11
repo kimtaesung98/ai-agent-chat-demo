@@ -97,24 +97,38 @@ type Summary struct {
 // ParseSummary는 모델 답에서 요약을 꺼낸다. JSON 객체를 찾아 읽고, 못 읽으면 답 전체를 요약 문장으로 쓴다.
 // 길이는 memory 제한으로 자른다. 요약이 비면 false.
 func ParseSummary(text string) (Summary, bool) {
+	raw := readModelJSON(text)
+	s := Summary{
+		Summary:   cutUTF16(strings.Join(strings.Fields(raw.Summary), " "), MaxMemorySummary),
+		Facts:     cleanList(raw.Facts, MaxMemoryFacts),
+		FollowUps: cleanList(raw.FollowUps, MaxMemoryFollowUps),
+	}
+	return s, s.Summary != ""
+}
+
+// modelJSON은 모델이 답한 요약 JSON이다. 필드 모양은 믿지 않는다.
+type modelJSON struct {
+	Summary   string
+	Facts     any
+	FollowUps any
+}
+
+// readModelJSON은 답에서 JSON 객체를 찾아 읽는다. 못 읽으면 답 전체를 Summary로 쓴다.
+func readModelJSON(text string) modelJSON {
 	var raw struct {
 		Summary   any `json:"summary"`
 		Facts     any `json:"facts"`
 		FollowUps any `json:"followUps"`
 	}
-	s := Summary{Facts: []string{}, FollowUps: []string{}}
 	start, end := strings.Index(text, "{"), strings.LastIndex(text, "}")
-	if start >= 0 && end > start && json.Unmarshal([]byte(text[start:end+1]), &raw) == nil {
-		if v, ok := raw.Summary.(string); ok {
-			s.Summary = v
-		}
-		s.Facts = cleanList(raw.Facts, MaxMemoryFacts)
-		s.FollowUps = cleanList(raw.FollowUps, MaxMemoryFollowUps)
-	} else {
-		s.Summary = text
+	if start < 0 || end <= start || json.Unmarshal([]byte(text[start:end+1]), &raw) != nil {
+		return modelJSON{Summary: text}
 	}
-	s.Summary = cutUTF16(strings.Join(strings.Fields(s.Summary), " "), MaxMemorySummary)
-	return s, s.Summary != ""
+	out := modelJSON{Facts: raw.Facts, FollowUps: raw.FollowUps}
+	if v, ok := raw.Summary.(string); ok {
+		out.Summary = v
+	}
+	return out
 }
 
 func cleanList(v any, max int) []string {

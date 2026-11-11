@@ -313,9 +313,10 @@ class _MemoryList extends StatelessWidget {
       listenable: memory,
       builder: (context, _) {
         final list = memory.forPersona(personaId);
-        if (list.isEmpty) {
+        final longTerm = memory.longTermFor(personaId);
+        if (list.isEmpty && longTerm == null) {
           return Text(
-            '아직 없어요. 대화를 끝내면(새 대화, 다른 페르소나, 대화 끝내기) 요약이 쌓이고, 다음 대화에서 최근 ${MemoryController.sendPerRequest}개를 참고해요.',
+            '아직 없어요. 대화를 끝내면(새 대화, 다른 페르소나, 대화 끝내기) 요약이 쌓이고, 다음 대화에서 최근 ${MemoryController.sendPerRequest}개를 참고해요. 그보다 오래된 요약은 장기 기억 하나로 묶어요.',
             key: const Key('memory-empty'),
             style: theme.bodySmall?.copyWith(color: c.muted),
           );
@@ -323,6 +324,43 @@ class _MemoryList extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (longTerm != null)
+              Card(
+                key: const Key('memory-long-term'),
+                margin: const EdgeInsets.only(bottom: 12),
+                elevation: 0,
+                color: c.panel,
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(color: c.line),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.auto_stories_outlined, size: 18, color: c.muted),
+                          const SizedBox(width: 6),
+                          Text('장기 기억', style: theme.labelLarge),
+                          const Spacer(),
+                          Text(
+                            '${dayString(longTerm.coversUntil)}까지 묶음',
+                            style: theme.labelMedium?.copyWith(color: c.muted),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(longTerm.summary, style: theme.bodyMedium),
+                      if (longTerm.facts.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text('알고 있는 것: ${longTerm.facts.join(' · ')}', style: theme.bodySmall),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
             for (final s in list)
               Card(
                 key: Key('memory-${s.id}'),

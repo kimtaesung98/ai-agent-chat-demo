@@ -63,7 +63,8 @@ flowchart LR
     Ctrl -->|"endSession: 새 대화 · 페르소나 바꾸기 · 대화 끝내기 · 앱 뒤로"| Api
     Api -->|"POST /api/summary → 요약 JSON"| Ctrl
     Ctrl -->|"put(SessionSummary)"| Memory[chat/memory_controller.dart<br>ChangeNotifier]
-    Memory -->|"recentFor(페르소나) → memory[]"| Ctrl
+    Memory -->|"recentFor(페르소나) → memory[] · longTermFor → longTerm"| Ctrl
+    Ctrl -->|"pendingFold → POST /api/consolidate (F-020)"| Api
     Memory <-->|"snapshot · restore (memory.v1)"| Store
     UI -->|"편집 화면: 지난 대화 기억 보기 · 지우기"| Memory
     UI -->|"서버 주소 (모바일)"| Server2[chat/server_settings.dart]

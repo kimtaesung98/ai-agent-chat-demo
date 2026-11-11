@@ -35,34 +35,47 @@ const (
 	memoryInvalidText    = "요청 형식이 올바르지 않아요. memory 형식을 확인해 주세요."
 )
 
-// MemoryPrompt는 지난 대화 기억을 시스템 프롬프트 한 덩어리로 바꾼다. 없으면 빈 문자열.
-func MemoryPrompt(entries []MemoryEntry) string {
-	if len(entries) == 0 {
+// MemoryPrompt는 지난 대화 기억(장기 기억 + 최근 요약)을 시스템 프롬프트 한 덩어리로 바꾼다. 둘 다 없으면 빈 문자열.
+func MemoryPrompt(longTerm *LongTerm, entries []MemoryEntry) string {
+	if longTerm == nil && len(entries) == 0 {
 		return ""
 	}
 	lines := []string{memoryIntro}
+	if lt := longTermPrompt(longTerm); lt != "" {
+		lines = append(lines, lt)
+	}
 	for _, e := range entries {
-		line := "- "
-		if e.Date != "" {
-			line += e.Date + ": "
-		}
-		line += e.Summary
-		if len(e.Facts) > 0 {
-			line += " / " + memoryFactsLabel + strings.Join(e.Facts, "; ")
-		}
-		if len(e.FollowUps) > 0 {
-			line += " / " + memoryFollowUpsLabel + strings.Join(e.FollowUps, "; ")
-		}
-		lines = append(lines, line)
+		lines = append(lines, memoryLine(e))
 	}
 	return strings.Join(lines, "\n")
 }
 
+// memoryLine은 요약 하나를 "- 날짜: 요약 / 알게 된 점: … / 다음에 이어 갈 것: …" 한 줄로 만든다.
+func memoryLine(e MemoryEntry) string {
+	line := "- "
+	if e.Date != "" {
+		line += e.Date + ": "
+	}
+	line += e.Summary
+	if len(e.Facts) > 0 {
+		line += " / " + memoryFactsLabel + strings.Join(e.Facts, "; ")
+	}
+	if len(e.FollowUps) > 0 {
+		line += " / " + memoryFollowUpsLabel + strings.Join(e.FollowUps, "; ")
+	}
+	return line
+}
+
 // parseMemory는 API-001 memory 값을 검증한다: 0~5개, 각 요약 1~600자. 모르는 필드는 무시한다.
 func parseMemory(raw json.RawMessage) ([]MemoryEntry, *ValidationError) {
+	return parseMemoryList(raw, MaxMemoryEntries)
+}
+
+// parseMemoryList는 요약 배열을 검증한다: 0~max개. 빈 배열은 nil.
+func parseMemoryList(raw json.RawMessage, max int) ([]MemoryEntry, *ValidationError) {
 	bad := invalid("INVALID_INPUT", memoryInvalidText)
 	var list []json.RawMessage
-	if !bytes.HasPrefix(bytes.TrimSpace(raw), []byte("[")) || json.Unmarshal(raw, &list) != nil || len(list) > MaxMemoryEntries {
+	if !bytes.HasPrefix(bytes.TrimSpace(raw), []byte("[")) || json.Unmarshal(raw, &list) != nil || len(list) > max {
 		return nil, bad
 	}
 	out := make([]MemoryEntry, 0, len(list))

@@ -23,6 +23,15 @@ abstract interface class ChatApi {
     ChatMode mode = ChatMode.text,
     PersonaRequest? persona,
     List<SessionSummary> memory = const [],
+    LongTermMemory? longTerm,
+  });
+
+  /// 오래된 요약 [sessions](오래된 것부터)를 이전 [longTerm]과 묶어 장기 기억을 만든다 (F-020, API-004).
+  /// 실패하면 [SummaryFailed]. 돌려주는 값의 `summary`·`facts`만 쓴다.
+  Future<Map<String, Object?>> consolidate(
+    List<SessionSummary> sessions, {
+    PersonaRequest? persona,
+    LongTermMemory? longTerm,
   });
 
   /// 끝난 대화 세션을 요약한다 (F-019, API-003). 실패하면 [SummaryFailed]를 던진다.
@@ -81,19 +90,29 @@ class HttpChatApi implements ChatApi {
   }
 
   @override
-  Future<Map<String, Object?>> summarize(List<Message> messages, {PersonaRequest? persona}) async {
+  Future<Map<String, Object?>> summarize(List<Message> messages, {PersonaRequest? persona}) => _postJson(
+    '/api/summary',
+    {'messages': messages.map((m) => m.toJson()).toList(), if (persona != null) 'persona': persona.toJson()},
+  );
+
+  @override
+  Future<Map<String, Object?>> consolidate(
+    List<SessionSummary> sessions, {
+    PersonaRequest? persona,
+    LongTermMemory? longTerm,
+  }) => _postJson('/api/consolidate', {
+    'sessions': sessions.map((s) => s.toRequestJson()).toList(),
+    if (persona != null) 'persona': persona.toJson(),
+    if (longTerm != null) 'longTerm': longTerm.toRequestJson(),
+  });
+
+  /// JSON을 보내고 JSON 객체를 받는다. 실패는 화면용 문장의 [SummaryFailed].
+  Future<Map<String, Object?>> _postJson(String path, Map<String, Object> payload) async {
     final client = _newClient();
     try {
       final http.Response res;
       try {
-        res = await client.post(
-          _uri('/api/summary'),
-          headers: {'content-type': 'application/json'},
-          body: jsonEncode({
-            'messages': messages.map((m) => m.toJson()).toList(),
-            if (persona != null) 'persona': persona.toJson(),
-          }),
-        );
+        res = await client.post(_uri(path), headers: {'content-type': 'application/json'}, body: jsonEncode(payload));
       } catch (_) {
         throw const SummaryFailed(ClientMessages.connect);
       }
@@ -120,6 +139,7 @@ class HttpChatApi implements ChatApi {
     ChatMode mode = ChatMode.text,
     PersonaRequest? persona,
     List<SessionSummary> memory = const [],
+    LongTermMemory? longTerm,
   }) {
     final client = _newClient();
     final abort = Completer<void>();
@@ -135,6 +155,7 @@ class HttpChatApi implements ChatApi {
             if (mode == ChatMode.voice) 'mode': 'voice', // 기본(text)은 보내지 않는다 — 기존 요청과 같음
             if (persona != null) 'persona': persona.toJson(), // F-005
             if (memory.isNotEmpty) 'memory': memory.map((m) => m.toRequestJson()).toList(), // F-019
+            if (longTerm != null) 'longTerm': longTerm.toRequestJson(), // F-020
           });
 
         final http.StreamedResponse res;

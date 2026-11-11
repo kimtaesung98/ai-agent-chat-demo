@@ -188,6 +188,13 @@ class PersonaRequest {
   };
 }
 
+/// 사람이 읽는 날짜 (기기 시간대) — `2026-11-11`.
+String dayString(DateTime at) {
+  final t = at.toLocal();
+  String two(int v) => v.toString().padLeft(2, '0');
+  return '${t.year}-${two(t.month)}-${two(t.day)}';
+}
+
 /// 끝난 대화 세션 하나의 요약 (F-019, SPEC.md API-003). 기기에 저장해 두고 다음 대화 요청의 `memory`에 싣는다.
 class SessionSummary {
   const SessionSummary({
@@ -223,11 +230,7 @@ class SessionSummary {
   static const maxSummary = 600, maxFacts = 5, maxFollowUps = 3, maxItem = 100;
 
   /// 사람이 읽는 날짜 (기기 시간대) — `2026-11-11`.
-  String get date {
-    final t = endedAt.toLocal();
-    String two(int v) => v.toString().padLeft(2, '0');
-    return '${t.year}-${two(t.month)}-${two(t.day)}';
-  }
+  String get date => dayString(endedAt);
 
   /// API-003 응답을 읽는다. 모양이 틀리거나 요약이 비면 null.
   static SessionSummary? fromApiJson(
@@ -284,4 +287,82 @@ class SessionSummary {
 
   @override
   String toString() => 'SessionSummary($id, $personaId, $summary)';
+}
+
+/// 오래된 대화 요약을 묶은 장기 기억 (F-020, SPEC.md API-004). 페르소나마다 하나, 기기에 저장한다.
+class LongTermMemory {
+  const LongTermMemory({
+    required this.personaId,
+    required this.summary,
+    this.facts = const [],
+    required this.updatedAt,
+    required this.coversUntil,
+  });
+
+  final String personaId;
+
+  /// 지금까지 함께 나눈 이야기의 흐름 (1,000자).
+  final String summary;
+
+  /// 오래 기억할 사실 (최대 10개).
+  final List<String> facts;
+  final DateTime updatedAt;
+
+  /// 이 시각까지 끝난 세션 요약을 묶었다. 그 뒤 세션만 다음에 묶는다.
+  final DateTime coversUntil;
+
+  /// 서버 제한 (API-001 `longTerm`, API-004 응답과 같다).
+  static const maxSummary = 1000, maxFacts = 10, maxItem = 100;
+
+  /// API-004 응답을 읽는다. 모양이 틀리거나 요약이 비면 null.
+  static LongTermMemory? fromApiJson(
+    Object? json, {
+    required String personaId,
+    required DateTime updatedAt,
+    required DateTime coversUntil,
+  }) {
+    if (json is! Map) return null;
+    final summary = SessionSummary._cut(json['summary'], maxSummary).trim();
+    if (summary.isEmpty) return null;
+    final facts = json['facts'];
+    return LongTermMemory(
+      personaId: personaId,
+      summary: summary,
+      facts: [
+        if (facts is List)
+          for (final f
+              in facts
+                  .whereType<String>()
+                  .map((f) => SessionSummary._cut(f, maxItem).trim())
+                  .where((f) => f.isNotEmpty)
+                  .take(maxFacts))
+            f,
+      ],
+      updatedAt: updatedAt,
+      coversUntil: coversUntil,
+    );
+  }
+
+  /// API-001 `longTerm` · API-004 `longTerm`.
+  Map<String, Object> toRequestJson() => {'summary': summary, 'facts': facts};
+
+  Map<String, Object> toStoreJson() => {
+    'personaId': personaId,
+    'summary': summary,
+    'facts': facts,
+    'updatedAt': updatedAt.toUtc().toIso8601String(),
+    'coversUntil': coversUntil.toUtc().toIso8601String(),
+  };
+
+  static LongTermMemory? fromStoreJson(Object? json) {
+    if (json is! Map) return null;
+    final personaId = json['personaId'];
+    final updated = DateTime.tryParse(json['updatedAt'] is String ? json['updatedAt'] as String : '');
+    final covers = DateTime.tryParse(json['coversUntil'] is String ? json['coversUntil'] as String : '');
+    if (personaId is! String || personaId.isEmpty || updated == null || covers == null) return null;
+    return fromApiJson(json, personaId: personaId, updatedAt: updated, coversUntil: covers);
+  }
+
+  @override
+  String toString() => 'LongTermMemory($personaId, $summary)';
 }

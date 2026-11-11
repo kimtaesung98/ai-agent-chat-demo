@@ -58,6 +58,7 @@ func New(p provider.Provider, staticDir string, log *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/chat", only(http.MethodPost, "POST만 지원해요.", s.handleChat))
 	mux.HandleFunc("/api/summary", only(http.MethodPost, "POST만 지원해요.", s.handleSummary))
+	mux.HandleFunc("/api/consolidate", only(http.MethodPost, "POST만 지원해요.", s.handleConsolidate))
 	mux.HandleFunc("/api/config", only(http.MethodGet, "GET만 지원해요.", s.handleConfig))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -110,30 +111,62 @@ func (s *server) handleSummary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, verr.Code, verr.Message)
 		return
 	}
-	ctx := r.Context()
-	var text strings.Builder
-	for c, err := range s.provider.Stream(ctx, chat.SummarySystemPrompt, req.Transcript()) {
-		if err != nil {
-			msg := provider.GenericMessage
-			var pe *provider.Error
-			if errors.As(err, &pe) {
-				msg = pe.UserMessage
-				s.log.Warn("provider error", "code", pe.Code, "status", pe.Status, "route", "summary")
-			}
-			writeError(w, http.StatusBadGateway, "PROVIDER_ERROR", msg)
-			return
-		}
-		text.WriteString(c.Text)
+	text, ok := s.collect(w, r, "summary", chat.SummarySystemPrompt, req.Transcript())
+	if !ok {
+		return
 	}
-	if ctx.Err() != nil {
-		return // 클라이언트가 끊음
-	}
-	sum, ok := chat.ParseSummary(text.String())
+	sum, ok := chat.ParseSummary(text)
 	if !ok {
 		writeError(w, http.StatusBadGateway, "PROVIDER_ERROR", chat.SummaryUnavailable)
 		return
 	}
 	writeJSON(w, http.StatusOK, sum)
+}
+
+// handleConsolidate는 이전 장기 기억과 오래된 요약을 장기 기억 하나로 묶는다 (API-004, F-020). 저장·로그 없음.
+func (s *server) handleConsolidate(w http.ResponseWriter, r *http.Request) {
+	body, ok := readBody(w, r)
+	if !ok {
+		return
+	}
+	req, verr := chat.ParseConsolidateRequest(body)
+	if verr != nil {
+		writeError(w, http.StatusBadRequest, verr.Code, verr.Message)
+		return
+	}
+	text, ok := s.collect(w, r, "consolidate", chat.ConsolidateSystemPrompt, req.Transcript())
+	if !ok {
+		return
+	}
+	lt, ok := chat.ParseLongTerm(text)
+	if !ok {
+		writeError(w, http.StatusBadGateway, "PROVIDER_ERROR", chat.SummaryUnavailable)
+		return
+	}
+	writeJSON(w, http.StatusOK, lt)
+}
+
+// collect는 제공자 답을 끝까지 모은다. 제공자 오류면 502를 쓰고, 클라이언트가 끊으면 아무것도 쓰지 않고 false.
+func (s *server) collect(w http.ResponseWriter, r *http.Request, route, system string, msgs []chat.Message) (string, bool) {
+	ctx := r.Context()
+	var text strings.Builder
+	for c, err := range s.provider.Stream(ctx, system, msgs) {
+		if err != nil {
+			msg := provider.GenericMessage
+			var pe *provider.Error
+			if errors.As(err, &pe) {
+				msg = pe.UserMessage
+				s.log.Warn("provider error", "code", pe.Code, "status", pe.Status, "route", route)
+			}
+			writeError(w, http.StatusBadGateway, "PROVIDER_ERROR", msg)
+			return "", false
+		}
+		text.WriteString(c.Text)
+	}
+	if ctx.Err() != nil {
+		return "", false // 클라이언트가 끊음
+	}
+	return text.String(), true
 }
 
 func (s *server) handleChat(w http.ResponseWriter, r *http.Request) {
