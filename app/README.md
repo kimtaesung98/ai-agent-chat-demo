@@ -68,7 +68,7 @@ flowchart LR
 | `lib/api/chat_api.dart` | `ChatApi` 인터페이스, `HttpChatApi` (구독 취소 시 요청 중단) |
 | `lib/api/client_factory*.dart` | 웹은 `fetch_client`, 그 밖은 `package:http` (조건부 import, ADR-009) |
 | `lib/chat/chat_controller.dart` | 말풍선 목록·바쁨·중단·새 대화·대화 내역, 요청에 선택한 페르소나 싣기 (위젯 없음, 테스트 대상) |
-| `lib/chat/persona_controller.dart` | 페르소나 목록(기본 3개)·선택·저장·내 프로필, 저장용 `snapshot`·`restore` (F-005, Q-005) |
+| `lib/chat/persona_controller.dart` | 페르소나 목록(기본 4개, 노인복지사 포함)·선택·저장·내 프로필, 저장용 `snapshot`·`restore` (F-005, Q-005) |
 | `lib/chat/server_settings.dart` | 모바일 앱 서버 주소: 빌드 주소 + 앱에서 넣은 주소, 주소 검사 (F-017 AC7) |
 | `lib/storage/app_storage.dart` | `KeyValueStore`·`MemoryStore`, 페르소나·서버 주소 불러오기와 바뀔 때 저장 (Q-005, ADR-023) |
 | `lib/storage/prefs_store.dart` | `shared_preferences` 구현 — 패키지는 이 파일에서만 import |

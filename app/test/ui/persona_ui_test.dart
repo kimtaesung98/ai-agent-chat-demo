@@ -144,7 +144,7 @@ void main() {
     await tester.tap(find.byKey(const Key('save-persona')));
     await tester.pumpAndSettle();
 
-    expect(personas.personas, hasLength(4));
+    expect(personas.personas, hasLength(defaultPersonas.length + 1));
     expect(inTitle('면접관 민수'), findsOneWidget);
     expect(chat.entries, isEmpty);
     expect(find.byKey(Key('persona-${personas.selected.id}')), findsOneWidget);

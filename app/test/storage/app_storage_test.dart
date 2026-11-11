@@ -40,7 +40,7 @@ void main() {
       'about': 'x' * 2000,
     });
     final c = loadPersonas(MemoryStore({StoreKeys.personas: saved}));
-    expect(c.personas, hasLength(1));
+    expect(c.personas.map((p) => p.id), ['a', ...defaultPersonas.map((p) => p.id)], reason: '중복은 버리고, 빠진 기본 페르소나는 뒤에 붙인다');
     expect(c.selected.name.length, Persona.maxName);
     expect(c.selected.tones, hasLength(Persona.maxTones));
     expect(c.about.length, Persona.maxAbout);
@@ -62,5 +62,21 @@ void main() {
 
   test('Q-005 대화 내용은 저장하지 않는다 (F-007 전)', () {
     expect(StoreKeys.all, {StoreKeys.personas, StoreKeys.server});
+  });
+
+  test('F-005 Q-005 예전에 저장한 기기에도 새로 생긴 기본 페르소나(노인복지사)가 뒤에 붙고, 선택·내 것은 그대로다', () {
+    final saved = jsonEncode({
+      'v': 1,
+      'personas': [
+        for (final p in defaultPersonas.where((p) => p.id != 'elder-care')) p.toStoreJson(),
+        {'id': 'custom-1', 'name': '면접관 민수'},
+      ],
+      'selected': 'custom-1',
+      'about': '3년 차 개발자',
+    });
+    final c = loadPersonas(MemoryStore({StoreKeys.personas: saved}));
+    expect(c.personas.map((p) => p.id), ['planner', 'coach', 'friend', 'custom-1', 'elder-care']);
+    expect(c.selected.id, 'custom-1');
+    expect(c.about, '3년 차 개발자');
   });
 }

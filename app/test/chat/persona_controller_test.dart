@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import '../fakes.dart';
 
 void main() {
-  test('F-005 기본 페르소나 3개 중 첫 번째가 선택돼 있다 (Q-002)', () {
+  test('F-005 기본 페르소나 4개 중 첫 번째가 선택돼 있다 (Q-002)', () {
     final p = PersonaController();
-    expect(p.personas.map((e) => e.name), ['기획 파트너 지은', '영어 회화 코치', '다정한 친구']);
+    expect(p.personas.map((e) => e.name), ['기획 파트너 지은', '영어 회화 코치', '다정한 친구', '노인복지사 미소']);
     expect(p.selected.id, 'planner');
     expect(p.selected.initial, '지');
     expect(p.selected.summary, '기획 파트너 · 차분하게 · 존댓말 · 질문으로 정리');
@@ -28,12 +28,12 @@ void main() {
     final p = PersonaController();
     p.save(p.selected.copyWith(name: '지은 2', tones: ['짧게']));
     expect(p.personas.first.name, '지은 2');
-    expect(p.personas, hasLength(3));
+    expect(p.personas, hasLength(4));
 
     final fresh = p.blank().copyWith(name: '면접관 민수', role: '면접관');
     expect(fresh.id, isNot(p.blank().id));
     p.save(fresh);
-    expect(p.personas, hasLength(4));
+    expect(p.personas, hasLength(5));
     expect(p.selected, fresh);
   });
 
@@ -58,5 +58,20 @@ void main() {
   test('F-005 내 프로필은 1,000자까지만 둔다', () {
     final p = PersonaController()..setAbout('가' * 1200);
     expect(p.about.length, Persona.maxAbout);
+  });
+
+  test('F-005 노인복지사 페르소나는 존댓말로 천천히 쉽게, 의료·응급·사기 경계를 지시한다 (서버 제한 안)', () {
+    final p = PersonaController();
+    expect(p.select('elder-care'), isTrue);
+    final e = p.selected;
+    expect(e.name, '노인복지사 미소');
+    expect(e.initial, '미');
+    expect(e.summary, '노인복지사 · 존댓말 · 천천히 · 쉽게');
+    for (final word in ['어르신', '119', '129', '109', '의사', '비밀번호']) {
+      expect(e.instructions, contains(word));
+    }
+    expect(e.instructions.length, lessThanOrEqualTo(Persona.maxInstructions));
+    expect(e.tones.length, lessThanOrEqualTo(Persona.maxTones));
+    expect(p.request.toJson()['name'], '노인복지사 미소');
   });
 }
