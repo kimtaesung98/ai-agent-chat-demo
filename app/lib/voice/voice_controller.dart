@@ -37,13 +37,20 @@ abstract final class VoiceMessages {
   static const noMicrophone = '마이크를 찾을 수 없어요.';
   static const network = '음성 인식 서비스에 연결할 수 없어요. 네트워크를 확인해 주세요.';
   static const failed = '음성 인식이 멈췄어요. 마이크 버튼을 다시 눌러 주세요.';
+  static const reconnecting = '잠깐 잘 안 들렸어요. 다시 듣고 있어요.';
 }
 
 class VoiceController extends ChangeNotifier {
-  VoiceController(this._chat, this._engine) {
+  VoiceController(this._chat, this._engine, {this.retryDelay = const Duration(seconds: 1)}) {
     _heardSub = _engine.heard.listen(_onHeard);
     _chat.addListener(_onChat);
   }
+
+  /// 인식이 잠깐 끊겼을 때(네트워크·엔진 오류) 다시 듣기까지 기다리는 시간 (F-018 AC6).
+  final Duration retryDelay;
+
+  /// 연달아 이만큼 끊기면 그때 멈추고 안내한다.
+  static const maxRetries = 3;
 
   final ChatController _chat;
   final VoiceEngine _engine;
@@ -61,6 +68,7 @@ class VoiceController extends ChangeNotifier {
   var _gen = 0; // 읽기 세대 — 끼어들기·끄기 때마다 늘려 이전 읽기 결과를 무시한다
   var _speakingNow = false;
   var _disposed = false;
+  var _retries = 0;
 
   VoiceState get state => _state;
   bool get active => _state != VoiceState.off;
@@ -88,6 +96,19 @@ class VoiceController extends ChangeNotifier {
     }
   }
 
+  /// 음성 전용 화면을 누름 (F-018): 꺼짐 → 켜기, 생각·읽는 중 → 끼어들기.
+  /// 듣는 중에는 아무것도 하지 않는다 — 잘못 눌러 대화가 꺼지는 일이 없게 (끄기는 "대화 끝내기"만).
+  void tap() {
+    switch (_state) {
+      case VoiceState.off:
+        unawaited(start());
+      case VoiceState.listening:
+        break;
+      case VoiceState.thinking || VoiceState.speaking:
+        _bargeIn();
+    }
+  }
+
   var _starting = false;
 
   /// 음성 모드를 켜고 듣기 시작한다.
@@ -103,6 +124,7 @@ class VoiceController extends ChangeNotifier {
       return;
     }
     _notice = null;
+    _retries = 0;
     _state = VoiceState.listening;
     _engine.startListening();
     _notify();
@@ -123,6 +145,10 @@ class VoiceController extends ChangeNotifier {
 
   void _onHeard(Heard h) {
     if (_state == VoiceState.off) return;
+    if (h is HeardPartial || h is HeardFinal) {
+      _retries = 0;
+      if (_notice == VoiceMessages.reconnecting) _notice = null;
+    }
     switch (h) {
       case HeardPartial(:final text):
         if (_state != VoiceState.listening) {
@@ -143,6 +169,18 @@ class VoiceController extends ChangeNotifier {
         _send(text);
       case ListenEnded():
         _engine.startListening(); // 음성 모드인 동안은 계속 듣는다 (읽는 중에도 — 끼어들기)
+      case ListenFailed(:final reason)
+          when (reason == ListenFailure.network || reason == ListenFailure.other) && _retries < maxRetries:
+        // 잠깐 끊긴 것은 손대지 않아도 다시 듣는다 (F-018 AC6). 권한·마이크 없음은 바로 안내한다
+        _retries++;
+        _notice = VoiceMessages.reconnecting;
+        _notify();
+        unawaited(
+          Future<void>.delayed(retryDelay, () {
+            if (_disposed || _state == VoiceState.off) return;
+            _engine.startListening();
+          }),
+        );
       case ListenFailed(:final reason):
         final notice = switch (reason) {
           ListenFailure.notAllowed => VoiceMessages.notAllowed,

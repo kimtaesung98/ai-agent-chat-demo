@@ -122,7 +122,7 @@ flowchart LR
 | F-014 | 클라우드 배포 (AWS + Cloudflare) | 🔄 In Progress | `/deploy`, 루트 | 2026-11-10 | 사용자 "추천안 전체" 선택(ADR-018~021 승인). `Dockerfile`(22.6MB, 비root, arm64 교차 빌드), CI `image` 작업(이미지에 계약 테스트 — AC1), `deploy.yml`(OIDC → ECR → SSM), `provision.sh`. **사용자 준비(AWS·Cloudflare 계정·도메인) 후 첫 배포와 AC2~AC5 확인 남음** |
 | F-015 | Polly 음성 답 | ⏳ Pending | `/server`, `/app` | 2026-11-10 | F-014 뒤 (ADR-020) |
 | F-016 | Transcribe 음성 인식 | ⏳ Pending | `/server`, `/app` | 2026-11-10 | F-015 뒤, 서버 중계 (ADR-021) |
-| F-018 | 음성 전용 화면 | 🔄 In Progress | `/app` | 2026-11-11 | 사용자 "음성 전용 화면 만들자". MVP HTML 디자인의 음성 대화 화면(S-003)을 Flutter로 구현, AC1~AC7 위젯·단위 테스트 통과(`flutter test` 119개), 모의 모드 웹 빌드 + 가짜 음성 API로 듣기 → 읽기 → 다시 듣기 캡처 확인. **AC8 실제 폰·마이크 확인(사용자) 남음** |
+| F-018 | 음성 전용 화면 | 🔄 In Progress | `/app` | 2026-11-11 | 사용자 "음성 전용 화면 만들자". MVP HTML 디자인의 음성 대화 화면(S-003)을 Flutter로 구현(PR #14). 사용자 피드백(어르신은 토글·버튼이 불편)으로 개정: 모드 버튼 제거, 화면 누르기 끼어들기, 끊김 자동 복구, 쉼 2초, 큰 글씨. AC1~AC7 위젯·단위 테스트 통과(`flutter test` 123개), 모의 모드 웹 빌드 + 가짜 음성 API로 캡처 확인. **AC8 실제 폰·마이크 확인(사용자) 남음** |
 | F-017 | 모바일 네이티브 앱 (Android·iOS) | 🔄 In Progress | `/app` | 2026-11-11 | 사용자 "모바일 진행"(SPEC §1.4 비목표 해제). AC2~AC5·AC7 자동 테스트 통과(`flutter test` 108개: 서버 주소·앱 안 주소 설정·저장, dart:io 스트리밍·중단, 매니페스트·Info.plist), AC1 Android APK 클라우드 빌드·CI `android` 작업. **iOS 빌드(Mac)·AC6 실제 폰 확인(사용자) 남음** |
 
 ---

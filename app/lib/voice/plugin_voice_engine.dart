@@ -13,7 +13,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'voice_engine.dart';
 
 class PluginVoiceEngine implements VoiceEngine {
-  PluginVoiceEngine({this.locale = 'ko-KR', this.pauseFor = const Duration(milliseconds: 1200)});
+  PluginVoiceEngine({this.locale = 'ko-KR', this.pauseFor = const Duration(milliseconds: 2000)});
 
   /// 인식·합성 언어.
   final String locale;
