@@ -68,10 +68,64 @@ void main() {
     expect(e.initial, '미');
     expect(e.summary, '노인복지사 · 존댓말 · 천천히 · 쉽게');
     for (final word in ['어르신', '119', '129', '109', '의사', '비밀번호']) {
-      expect(e.instructions, contains(word));
+      expect(e.base, contains(word));
     }
-    expect(e.instructions.length, lessThanOrEqualTo(Persona.maxInstructions));
+    expect(e.base.length, lessThanOrEqualTo(Persona.maxBase));
+    expect(e.instructions, isEmpty, reason: '탑재 페르소나의 지시는 기본 지시 층에 있고, 내 요구 사항은 비어 있다 (F-019)');
     expect(e.tones.length, lessThanOrEqualTo(Persona.maxTones));
     expect(p.request.toJson()['name'], '노인복지사 미소');
+  });
+
+  group('F-019 AC2 기본 지시와 내 요구 사항', () {
+    test('탑재 페르소나는 모두 기본 지시가 있고 서버 제한 안이다', () {
+      for (final p in defaultPersonas) {
+        expect(p.base, isNotEmpty, reason: p.name);
+        expect(p.base.length, lessThanOrEqualTo(Persona.maxBase));
+        expect(p.instructions, isEmpty);
+        expect(isBuiltInPersona(p.id), isTrue);
+      }
+      expect(isBuiltInPersona('custom-1'), isFalse);
+    });
+
+    test('요청에는 기본 지시(base)와 내 요구 사항(instructions)이 따로 실린다', () {
+      final p = PersonaController()..select('elder-care');
+      p.save(p.selected.copyWith(instructions: ' 아침마다 혈압약을 챙겨 줘 '));
+      final json = p.request.toJson();
+      expect(json['base'], defaultPersonas[3].base);
+      expect(json['instructions'], '아침마다 혈압약을 챙겨 줘');
+    });
+
+    test('탑재 페르소나의 기본 지시는 저장해도 바뀌지 않고, 내가 만든 페르소나는 바뀐다', () {
+      final p = PersonaController();
+      p.save(p.selected.copyWith(base: '바꾼 기본 지시', instructions: '내 요청'));
+      expect(p.selected.base, defaultPersonas.first.base);
+      expect(p.selected.instructions, '내 요청');
+
+      final mine = p.blank().copyWith(name: '면접관', base: '한 번에 하나씩 질문해');
+      p.save(mine);
+      expect(p.selected.base, '한 번에 하나씩 질문해');
+      p.save(p.selected.copyWith(base: '압박 면접처럼'));
+      expect(p.selected.base, '압박 면접처럼');
+    });
+
+    test('예전에 저장한 탑재 페르소나: 손대지 않은 지시는 기본 지시로 옮기고, 고친 지시는 내 요구 사항으로 남긴다', () {
+      final elder = defaultPersonas[3];
+      final restored = PersonaController.restore({
+        'personas': [
+          {'id': 'planner', 'name': '기획 파트너 지은', 'instructions': '전혀 다른 내 지시'},
+          {'id': 'elder-care', 'name': elder.name, 'instructions': elder.base},
+          {'id': 'coach', 'name': '영어 회화 코치', 'base': '저장소에서 바뀐 기본 지시'},
+          {'id': 'custom-1', 'name': '내 것', 'base': '내 기본', 'instructions': '내 요청'},
+        ],
+      });
+      Persona byId(String id) => restored.personas.firstWhere((p) => p.id == id);
+      expect(byId('planner').base, defaultPersonas[0].base);
+      expect(byId('planner').instructions, '전혀 다른 내 지시');
+      expect(byId('elder-care').base, elder.base);
+      expect(byId('elder-care').instructions, isEmpty);
+      expect(byId('coach').base, defaultPersonas[1].base, reason: '탑재 페르소나의 기본 지시는 늘 앱의 것');
+      expect(byId('custom-1').base, '내 기본');
+      expect(byId('custom-1').instructions, '내 요청');
+    });
   });
 }

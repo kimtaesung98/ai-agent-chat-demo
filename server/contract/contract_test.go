@@ -181,6 +181,60 @@ func TestF005(t *testing.T) {
 	})
 }
 
+func TestF019(t *testing.T) {
+	persona := map[string]any{"name": "노인복지사 미소", "base": "어르신을 존중해요", "instructions": "혈압약을 챙겨 줘"}
+
+	t.Run("F-019 AC1·AC4 base와 memory가 있는 요청은 지금과 같이 스트리밍한다", func(t *testing.T) {
+		b := chatBody(message{"user", "기억하고 계세요?"})
+		b["persona"] = persona
+		b["memory"] = []map[string]any{{"date": "2026-11-10", "summary": "산책 이야기를 했어요", "facts": []string{"무릎이 아프심"}, "followUps": []string{}}}
+		b["mode"] = "voice"
+		if _, text := requireStream(t, postChat(t, b)); !strings.Contains(text, "기억하고 계세요?") {
+			t.Fatalf("응답 = %q", text)
+		}
+	})
+
+	t.Run("F-019 AC4 memory 형식이 틀리면 400", func(t *testing.T) {
+		for _, m := range []any{"x", map[string]any{}, []any{1}, []any{map[string]any{"summary": ""}}, []any{map[string]any{"summary": strings.Repeat("가", 601)}}} {
+			b := chatBody(message{"user", "q"})
+			b["memory"] = m
+			requireErrorJSON(t, postChat(t, b), http.StatusBadRequest)
+		}
+	})
+
+	t.Run("F-019 AC3 POST /api/summary는 끝난 대화를 요약 JSON으로 답한다", func(t *testing.T) {
+		res := postJSON(t, "/api/summary", map[string]any{"persona": persona, "messages": []message{
+			{"user", "오늘 산책 다녀왔어요"}, {"assistant", "잘하셨어요"}, {"user", "무릎이 좀 아파요"}, {"assistant", "쉬세요"},
+		}})
+		if res.StatusCode != http.StatusOK || !strings.HasPrefix(res.Header.Get("Content-Type"), "application/json") {
+			t.Fatalf("상태 %d, %q", res.StatusCode, res.Header.Get("Content-Type"))
+		}
+		var got struct {
+			Summary   string   `json:"summary"`
+			Facts     []string `json:"facts"`
+			FollowUps []string `json:"followUps"`
+		}
+		if err := json.NewDecoder(res.Body).Decode(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got.Summary != `모의 모드 요약이에요. 사용자 말 2개를 나눴어요. 처음 말: "오늘 산책 다녀왔어요"` || got.Facts == nil || got.FollowUps == nil {
+			t.Fatalf("%+v", got)
+		}
+	})
+
+	t.Run("F-019 AC3 /api/summary 형식 오류는 400, GET은 405", func(t *testing.T) {
+		for _, b := range []any{"x", map[string]any{"messages": []message{}}, map[string]any{"messages": []message{{"assistant", "a"}}}} {
+			requireErrorJSON(t, postJSON(t, "/api/summary", b), http.StatusBadRequest)
+		}
+		res, err := client.Get(*baseURL + "/api/summary")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		requireErrorJSON(t, res, http.StatusMethodNotAllowed)
+	})
+}
+
 // API-001·API-002 공통 계약: 메서드·경로 오류, 정적 화면
 func TestAPI(t *testing.T) {
 	do := func(t *testing.T, method, path string) *http.Response {

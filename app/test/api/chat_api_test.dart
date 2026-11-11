@@ -147,4 +147,89 @@ void main() {
       'about': '기획자',
     });
   });
+
+  test('F-019 AC1·AC4 base와 지난 대화 요약(memory)을 본문에 싣는다', () async {
+    final client = FakeClient((_) async => sse(Stream.value('event: done\ndata: {"stopReason":"end_turn"}\n\n')));
+    final api = HttpChatApi(baseUrl: 'http://srv', clientFactory: () => client);
+    const persona = Persona(id: 'x', name: '미소', base: ' 어르신을 존중해요 ', instructions: '혈압약 챙겨 줘');
+    await api
+        .stream(
+          msgs,
+          persona: const PersonaRequest(persona),
+          memory: [
+            SessionSummary(
+              id: 's',
+              personaId: 'x',
+              endedAt: DateTime(2026, 11, 10, 12),
+              summary: '산책 이야기',
+              facts: const ['무릎'],
+            ),
+          ],
+        )
+        .toList();
+    final body = jsonDecode((client.last! as http.Request).body) as Map<String, dynamic>;
+    expect(body['persona'], {'name': '미소', 'base': '어르신을 존중해요', 'instructions': '혈압약 챙겨 줘'});
+    expect(body['memory'], [
+      {
+        'date': '2026-11-10',
+        'summary': '산책 이야기',
+        'facts': ['무릎'],
+        'followUps': [],
+      },
+    ]);
+
+    await api.stream(msgs).toList();
+    expect(jsonDecode((client.last! as http.Request).body), isNot(contains('memory')));
+  });
+
+  test('F-019 AC3 summarize는 /api/summary로 보내고 요약 JSON을 돌려준다', () async {
+    final client = FakeClient(
+      (_) async => http.StreamedResponse(
+        Stream.value(utf8.encode('{"summary":"산책 이야기","facts":[],"followUps":["병원"]}')),
+        200,
+        headers: {'content-type': 'application/json'},
+      ),
+    );
+    final api = HttpChatApi(baseUrl: 'http://srv', clientFactory: () => client);
+    final got = await api.summarize(
+      msgs,
+      persona: const PersonaRequest(Persona(id: 'x', name: '미소')),
+    );
+    expect(got['summary'], '산책 이야기');
+    final req = client.last! as http.Request;
+    expect(req.url.toString(), 'http://srv/api/summary');
+    expect(jsonDecode(req.body), {
+      'messages': [
+        {'role': 'user', 'content': '안녕'},
+        {'role': 'assistant', 'content': '네'},
+        {'role': 'user', 'content': '또'},
+      ],
+      'persona': {'name': '미소'},
+    });
+    expect(client.closed, isTrue);
+  });
+
+  test('F-019 AC3 summarize 실패는 화면용 문장으로 SummaryFailed', () async {
+    final error = HttpChatApi(
+      baseUrl: 'http://srv',
+      clientFactory: () => FakeClient(
+        (_) async => http.StreamedResponse(
+          Stream.value(utf8.encode('{"error":{"code":"PROVIDER_ERROR","message":"잠시 후 다시"}}')),
+          502,
+        ),
+      ),
+    );
+    await expectLater(
+      error.summarize(msgs),
+      throwsA(isA<SummaryFailed>().having((e) => e.message, 'message', '잠시 후 다시')),
+    );
+    final down = HttpChatApi(
+      baseUrl: 'http://srv',
+      clientFactory: () => FakeClient((_) => Future.error(Exception('x'))),
+    );
+    await expectLater(
+      down.summarize(msgs),
+      throwsA(isA<SummaryFailed>().having((e) => e.message, 'message', ClientMessages.connect)),
+    );
+  });
 }

@@ -59,18 +59,38 @@ class ServerConfig {
 }
 
 /// 대화 상대 페르소나 (F-005, SPEC.md API-001 `persona`). 값 객체 — 바꿀 때는 [copyWith].
+/// 지시는 두 층이다 (F-019): [base]는 페르소나를 정하는 기본 지시(탑재 페르소나는 앱에 고정),
+/// [instructions]는 사용자가 덧붙이는 요구 사항.
 class Persona {
-  const Persona({required this.id, required this.name, this.role = '', this.tones = const [], this.instructions = ''});
+  const Persona({
+    required this.id,
+    required this.name,
+    this.role = '',
+    this.tones = const [],
+    this.base = '',
+    this.instructions = '',
+  });
 
   /// 화면에서만 쓰는 구분자. 서버에는 보내지 않는다.
   final String id;
   final String name;
   final String role;
   final List<String> tones;
+
+  /// 기본 지시 (API-001 `persona.base`).
+  final String base;
+
+  /// 사용자의 요구 사항 (API-001 `persona.instructions`).
   final String instructions;
 
   /// 서버 제한 (SPEC.md API-001). 화면 입력도 같은 값으로 막는다.
-  static const maxName = 40, maxRole = 40, maxTones = 6, maxTone = 20, maxInstructions = 1000, maxAbout = 1000;
+  static const maxName = 40,
+      maxRole = 40,
+      maxTones = 6,
+      maxTone = 20,
+      maxBase = 1000,
+      maxInstructions = 1000,
+      maxAbout = 1000;
 
   /// 아바타 글자: 이름 마지막 낱말의 첫 글자 ("기획 파트너 지은" → "지").
   String get initial {
@@ -88,6 +108,7 @@ class Persona {
     'name': name,
     if (role.isNotEmpty) 'role': role,
     if (tones.isNotEmpty) 'tones': tones,
+    if (base.isNotEmpty) 'base': base,
     if (instructions.isNotEmpty) 'instructions': instructions,
   };
 
@@ -107,17 +128,20 @@ class Persona {
           for (final t in tones.take(maxTones))
             if (t is String && t.trim().isNotEmpty) cut(t, maxTone),
       ],
+      base: cut(json['base'], maxBase),
       instructions: cut(json['instructions'], maxInstructions),
     );
   }
 
-  Persona copyWith({String? id, String? name, String? role, List<String>? tones, String? instructions}) => Persona(
-    id: id ?? this.id,
-    name: name ?? this.name,
-    role: role ?? this.role,
-    tones: tones ?? this.tones,
-    instructions: instructions ?? this.instructions,
-  );
+  Persona copyWith({String? id, String? name, String? role, List<String>? tones, String? base, String? instructions}) =>
+      Persona(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        role: role ?? this.role,
+        tones: tones ?? this.tones,
+        base: base ?? this.base,
+        instructions: instructions ?? this.instructions,
+      );
 
   @override
   bool operator ==(Object other) =>
@@ -125,11 +149,12 @@ class Persona {
       other.id == id &&
       other.name == name &&
       other.role == role &&
+      other.base == base &&
       other.instructions == instructions &&
       _listEquals(other.tones, tones);
 
   @override
-  int get hashCode => Object.hash(id, name, role, instructions, Object.hashAll(tones));
+  int get hashCode => Object.hash(id, name, role, base, instructions, Object.hashAll(tones));
 
   @override
   String toString() => 'Persona($id, $name)';
@@ -157,7 +182,106 @@ class PersonaRequest {
     'name': persona.name.trim(),
     if (persona.role.trim().isNotEmpty) 'role': persona.role.trim(),
     if (persona.tones.isNotEmpty) 'tones': persona.tones,
+    if (persona.base.trim().isNotEmpty) 'base': persona.base.trim(),
     if (persona.instructions.trim().isNotEmpty) 'instructions': persona.instructions.trim(),
     if (about.trim().isNotEmpty) 'about': about.trim(),
   };
+}
+
+/// 끝난 대화 세션 하나의 요약 (F-019, SPEC.md API-003). 기기에 저장해 두고 다음 대화 요청의 `memory`에 싣는다.
+class SessionSummary {
+  const SessionSummary({
+    required this.id,
+    required this.personaId,
+    required this.endedAt,
+    required this.summary,
+    this.facts = const [],
+    this.followUps = const [],
+    this.turns = 0,
+  });
+
+  /// 대화 세션 구분자. 같은 세션을 다시 정리하면 같은 id로 바꾼다.
+  final String id;
+
+  /// 이 대화를 나눈 페르소나. 기억은 페르소나마다 따로 쌓인다.
+  final String personaId;
+  final DateTime endedAt;
+
+  /// 무엇을 이야기했는지 (2~4문장).
+  final String summary;
+
+  /// 사용자에 대해 새로 알게 된 것.
+  final List<String> facts;
+
+  /// 다음에 이어 갈 것.
+  final List<String> followUps;
+
+  /// 정리할 때 사용자 메시지 수.
+  final int turns;
+
+  /// 서버 제한 (API-001 `memory`, API-003 응답과 같다).
+  static const maxSummary = 600, maxFacts = 5, maxFollowUps = 3, maxItem = 100;
+
+  /// 사람이 읽는 날짜 (기기 시간대) — `2026-11-11`.
+  String get date {
+    final t = endedAt.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${t.year}-${two(t.month)}-${two(t.day)}';
+  }
+
+  /// API-003 응답을 읽는다. 모양이 틀리거나 요약이 비면 null.
+  static SessionSummary? fromApiJson(
+    Object? json, {
+    required String id,
+    required String personaId,
+    required DateTime endedAt,
+    int turns = 0,
+  }) {
+    if (json is! Map) return null;
+    final summary = _cut(json['summary'], maxSummary).trim();
+    if (summary.isEmpty) return null;
+    return SessionSummary(
+      id: id,
+      personaId: personaId,
+      endedAt: endedAt,
+      summary: summary,
+      facts: _list(json['facts'], maxFacts),
+      followUps: _list(json['followUps'], maxFollowUps),
+      turns: turns,
+    );
+  }
+
+  /// API-001 `memory` 항목.
+  Map<String, Object> toRequestJson() => {'date': date, 'summary': summary, 'facts': facts, 'followUps': followUps};
+
+  /// 기기 저장용 (Q-005 · F-019).
+  Map<String, Object> toStoreJson() => {
+    'id': id,
+    'personaId': personaId,
+    'endedAt': endedAt.toUtc().toIso8601String(),
+    'summary': summary,
+    'facts': facts,
+    'followUps': followUps,
+    'turns': turns,
+  };
+
+  /// 저장된 값을 읽는다. 모양이 틀리면 null (저장소는 믿지 않는다).
+  static SessionSummary? fromStoreJson(Object? json) {
+    if (json is! Map) return null;
+    final id = json['id'], personaId = json['personaId'], endedAt = json['endedAt'], turns = json['turns'];
+    if (id is! String || id.isEmpty || personaId is! String || personaId.isEmpty || endedAt is! String) return null;
+    final at = DateTime.tryParse(endedAt);
+    if (at == null) return null;
+    return fromApiJson(json, id: id, personaId: personaId, endedAt: at, turns: turns is int ? turns : 0);
+  }
+
+  static String _cut(Object? v, int max) => v is String ? (v.length > max ? v.substring(0, max) : v) : '';
+
+  static List<String> _list(Object? v, int max) => [
+    if (v is List)
+      for (final s in v.whereType<String>().map((s) => _cut(s, maxItem).trim()).where((s) => s.isNotEmpty).take(max)) s,
+  ];
+
+  @override
+  String toString() => 'SessionSummary($id, $personaId, $summary)';
 }

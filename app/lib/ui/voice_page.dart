@@ -58,9 +58,10 @@ class _VoicePageState extends State<VoicePage> with SingleTickerProviderStateMix
   /// 글자로 보기: 음성 대화는 그대로 두고 채팅 화면으로 (F-018 AC5).
   void _toText() => Navigator.of(context).maybePop();
 
-  /// 대화 끝내기: 음성 모드를 끄고 채팅 화면으로 (F-018 AC5, F-012 AC4).
+  /// 대화 끝내기: 음성 모드를 끄고 채팅 화면으로 (F-018 AC5, F-012 AC4). 지금 대화를 정리해 다음 대화의 기억으로 남긴다 (F-019 AC3).
   void _end() {
     _voice.stop();
+    _chat.endSession();
     Navigator.of(context).maybePop();
   }
 

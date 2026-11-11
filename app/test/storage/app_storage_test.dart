@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:ai_agent_chat/chat/memory_controller.dart';
 import 'package:ai_agent_chat/chat/persona_controller.dart';
 import 'package:ai_agent_chat/storage/app_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,7 +41,10 @@ void main() {
       'about': 'x' * 2000,
     });
     final c = loadPersonas(MemoryStore({StoreKeys.personas: saved}));
-    expect(c.personas.map((p) => p.id), ['a', ...defaultPersonas.map((p) => p.id)], reason: '중복은 버리고, 빠진 기본 페르소나는 뒤에 붙인다');
+    expect(c.personas.map((p) => p.id), [
+      'a',
+      ...defaultPersonas.map((p) => p.id),
+    ], reason: '중복은 버리고, 빠진 기본 페르소나는 뒤에 붙인다');
     expect(c.selected.name.length, Persona.maxName);
     expect(c.selected.tones, hasLength(Persona.maxTones));
     expect(c.about.length, Persona.maxAbout);
@@ -60,8 +64,40 @@ void main() {
     expect(loadServer(store, fallback: 'http://10.0.2.2:3000').address, 'http://10.0.2.2:3000');
   });
 
-  test('Q-005 대화 내용은 저장하지 않는다 (F-007 전)', () {
-    expect(StoreKeys.all, {StoreKeys.personas, StoreKeys.server});
+  test('Q-005 F-019 대화 내용 자체는 저장하지 않고 끝난 대화의 요약만 남긴다 (F-007 전)', () {
+    expect(StoreKeys.all, {StoreKeys.personas, StoreKeys.server, StoreKeys.memory});
+  });
+
+  test('F-019 AC5 대화 요약이 앱을 다시 열어도 남고, 깨진 값이면 빈 기억으로 시작한다', () async {
+    final store = MemoryStore();
+    final first = loadMemory(store);
+    first.put(
+      SessionSummary(
+        id: 's1',
+        personaId: 'elder-care',
+        endedAt: DateTime.utc(2026, 11, 10, 9),
+        summary: '산책 이야기를 했어요',
+        facts: const ['무릎이 아프심'],
+        turns: 3,
+      ),
+    );
+    await settle();
+    final again = loadMemory(store);
+    final s = again.forPersona('elder-care').single;
+    expect(s.summary, '산책 이야기를 했어요');
+    expect(s.facts, ['무릎이 아프심']);
+    expect(s.turns, 3);
+    expect(s.endedAt, DateTime.utc(2026, 11, 10, 9));
+
+    expect(loadMemory(MemoryStore({StoreKeys.memory: '{깨짐'})).forPersona('elder-care'), isEmpty);
+    expect(
+      loadMemory(
+        MemoryStore({
+          StoreKeys.memory: '{"sessions":[{"id":1},{"id":"a","personaId":"p","endedAt":"x","summary":"s"}]}',
+        }),
+      ).forPersona('p'),
+      isEmpty,
+    );
   });
 
   test('F-005 Q-005 예전에 저장한 기기에도 새로 생긴 기본 페르소나(노인복지사)가 뒤에 붙고, 선택·내 것은 그대로다', () {

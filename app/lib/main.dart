@@ -37,7 +37,7 @@ Future<void> main() async {
   final fallback = resolveServerAddress(configured: apiBaseUrl, platform: _platform);
   final server = kIsWeb ? null : loadServer(store, fallback: fallback);
   final api = HttpChatApi(baseUrl: server?.address ?? fallback);
-  final controller = ChatController(api, personas: loadPersonas(store))..loadConfig();
+  final controller = ChatController(api, personas: loadPersonas(store), memory: loadMemory(store))..loadConfig();
   server?.addListener(() {
     api.baseUrl = server.address;
     controller.loadConfig(); // 새 서버의 모드(모의·Claude)를 다시 읽는다

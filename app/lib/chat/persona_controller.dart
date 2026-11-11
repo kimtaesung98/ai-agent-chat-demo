@@ -9,33 +9,39 @@ import '../api/chat_api.dart';
 
 export '../api/models.dart' show Persona;
 
-/// 처음 보이는 기본 페르소나 (SPEC.md Q-002).
+/// 앱에 탑재한 기본 페르소나 (SPEC.md Q-002). [Persona.base]는 고정이고 사용자는 [Persona.instructions]만 덧붙인다 (F-019).
 const defaultPersonas = [
   Persona(
     id: 'planner',
     name: '기획 파트너 지은',
     role: '기획 파트너',
     tones: ['차분하게', '존댓말', '질문으로 정리'],
-    instructions: '답을 바로 주기보다 질문 한두 개로 내 생각을 먼저 끌어내 줘. 목록은 세 개 이하로.',
+    base: '답을 바로 주기보다 질문 한두 개로 내 생각을 먼저 끌어내 줘. 목록은 세 개 이하로.',
   ),
   Persona(
     id: 'coach',
     name: '영어 회화 코치',
     role: '영어 회화 코치',
     tones: ['짧게', '친근하게'],
-    instructions: '영어로 짧게 대화하고, 내가 어색한 표현을 쓰면 한국어로 한 줄만 고쳐 줘.',
+    base: '영어로 짧게 대화하고, 내가 어색한 표현을 쓰면 한국어로 한 줄만 고쳐 줘.',
   ),
-  Persona(id: 'friend', name: '다정한 친구', role: '친구', tones: ['편하게', '반말', '공감 먼저']),
+  Persona(
+    id: 'friend',
+    name: '다정한 친구',
+    role: '친구',
+    tones: ['편하게', '반말', '공감 먼저'],
+    base: '오랜 친구처럼 편하게 이야기해. 조언보다 먼저 들어 주고 공감해 줘.',
+  ),
   Persona(
     id: 'elder-care',
     name: '노인복지사 미소',
     role: '노인복지사',
     tones: ['존댓말', '천천히', '쉽게', '공감 먼저'],
-    instructions: _elderCareInstructions,
+    base: _elderCareInstructions,
   ),
 ];
 
-/// 노인복지사 페르소나 지시 (어르신과 음성으로 대화하는 것을 먼저 생각했다). 1,000자 제한 안.
+/// 노인복지사 페르소나 기본 지시 (어르신과 음성으로 대화하는 것을 먼저 생각했다). 1,000자 제한 안.
 const _elderCareInstructions =
     '어르신과 이야기하는 노인복지사예요. 어르신을 존중하고 "어르신"이라고 불러 주세요. '
     '한 번에 한두 문장으로 짧게, 쉬운 우리말로 말하고 어려운 말·영어·줄임말은 쓰지 마세요. '
@@ -54,6 +60,20 @@ const roleSuggestions = ['기획 파트너', '영어 회화 코치', '친구', '
 /// 말투 추천 (편집 화면 칩).
 const toneSuggestions = ['차분하게', '친근하게', '존댓말', '반말', '짧게', '자세하게', '질문으로 정리', '공감 먼저', '유머 있게', '편하게'];
 
+/// 탑재 페르소나인지 — 기본 지시를 바꿀 수 없다 (F-019 AC2).
+bool isBuiltInPersona(String id) => defaultPersonas.any((p) => p.id == id);
+
+/// 저장된 탑재 페르소나의 기본 지시를 앱의 것으로 맞춘다 (F-019 AC2). 앱을 고치면 기본 지시도 따라 바뀐다.
+/// 예전(F-019 전)에는 기본 지시가 `instructions`에 있었다 — 손대지 않았으면 비우고, 고쳤으면 사용자 요구 사항으로 남긴다.
+Persona _withFixedBase(Persona p, List<Persona> builtIns) {
+  for (final b in builtIns) {
+    if (b.id != p.id) continue;
+    final legacy = p.base.isEmpty && p.instructions.trim() == b.base.trim();
+    return p.copyWith(base: b.base, instructions: legacy ? '' : p.instructions);
+  }
+  return p;
+}
+
 class PersonaController extends ChangeNotifier {
   PersonaController({List<Persona> initial = defaultPersonas})
     : assert(initial.isNotEmpty),
@@ -70,7 +90,7 @@ class PersonaController extends ChangeNotifier {
     if (list is List) {
       for (final item in list) {
         final p = Persona.fromStoreJson(item);
-        if (p != null && seen.add(p.id)) personas.add(p);
+        if (p != null && seen.add(p.id)) personas.add(_withFixedBase(p, fallback));
       }
     }
     if (personas.isEmpty) return c;
@@ -119,8 +139,9 @@ class PersonaController extends ChangeNotifier {
   /// 새 페르소나를 만들 때 쓸 빈 값.
   Persona blank() => Persona(id: 'custom-${DateTime.now().microsecondsSinceEpoch}-${_seq++}', name: '');
 
-  /// 저장한다. 목록에 있으면 바꾸고, 없으면 추가하고 선택한다.
+  /// 저장한다. 목록에 있으면 바꾸고, 없으면 추가하고 선택한다. 탑재 페르소나의 기본 지시는 바뀌지 않는다 (F-019 AC2).
   void save(Persona persona) {
+    persona = _withFixedBase(persona, defaultPersonas);
     final i = _personas.indexWhere((p) => p.id == persona.id);
     if (i >= 0) {
       _personas[i] = persona;

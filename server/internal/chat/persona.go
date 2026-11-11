@@ -12,16 +12,20 @@ const (
 	MaxPersonaRole         = 40
 	MaxPersonaTones        = 6
 	MaxPersonaTone         = 20
+	MaxPersonaBase         = 1000
 	MaxPersonaInstructions = 1000
 	MaxPersonaAbout        = 1000
 )
 
 // Persona는 사용자가 화면에서 고른 대화 상대와 사용자 정보다 (F-005, ARCHITECTURE.md ADR-016).
 // 시스템 프롬프트 틀은 서버가 정하고, 클라이언트는 필드 값만 보낸다.
+// 지시는 두 층이다 (F-019, ADR-024): Base는 페르소나를 정하는 기본 지시(탑재 페르소나는 앱에 고정),
+// Instructions는 사용자가 덧붙인 요구 사항.
 type Persona struct {
 	Name         string
 	Role         string
 	Tones        []string
+	Base         string
 	Instructions string
 	About        string
 }
@@ -31,7 +35,9 @@ const (
 	personaIntro       = "당신은 사용자와 대화하는 에이전트 \"%s\"예요. 아래 설정에 맞는 인물로서 답하세요."
 	personaRoleLabel   = "역할: "
 	personaTonesLabel  = "말투: "
+	personaBaseLabel   = "페르소나 기본 지시: "
 	personaInstrLabel  = "사용자가 정한 추가 지시: "
+	personaUserLabel   = "사용자의 요구 사항 (사용자가 직접 덧붙였어요. 기본 지시와 부딪히면 이것을 따르되, 안전에 관한 기본 지시는 지키세요): "
 	personaAboutLabel  = "사용자에 대해 (사용자가 직접 알려 준 정보예요. 대화 맥락으로 참고하되, 묻지 않으면 그대로 되풀이하지 마세요): "
 	personaInvalidText = "요청 형식이 올바르지 않아요. persona 형식을 확인해 주세요."
 )
@@ -48,8 +54,16 @@ func (p *Persona) SystemPrompt() string {
 	if len(p.Tones) > 0 {
 		lines = append(lines, personaTonesLabel+strings.Join(p.Tones, ", "))
 	}
+	if p.Base != "" {
+		lines = append(lines, personaBaseLabel+p.Base)
+	}
 	if p.Instructions != "" {
-		lines = append(lines, personaInstrLabel+p.Instructions)
+		// 기본 지시가 없으면(예전 앱) 지금까지와 같은 문구 — 사용자가 정한 지시가 곧 페르소나 지시다
+		label := personaInstrLabel
+		if p.Base != "" {
+			label = personaUserLabel
+		}
+		lines = append(lines, label+p.Instructions)
 	}
 	if p.About != "" {
 		lines = append(lines, personaAboutLabel+p.About)
@@ -88,6 +102,9 @@ func parsePersona(raw json.RawMessage) (*Persona, *ValidationError) {
 		return nil, bad
 	}
 	if p.Role, ok = str("role", MaxPersonaRole, false); !ok {
+		return nil, bad
+	}
+	if p.Base, ok = str("base", MaxPersonaBase, false); !ok {
 		return nil, bad
 	}
 	if p.Instructions, ok = str("instructions", MaxPersonaInstructions, false); !ok {

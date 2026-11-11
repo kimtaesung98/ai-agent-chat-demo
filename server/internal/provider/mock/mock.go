@@ -5,6 +5,7 @@ package mock
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"iter"
 	"strings"
@@ -28,9 +29,14 @@ func (p *Provider) Name() string  { return "mock" }
 func (p *Provider) Model() string { return "mock-echo" }
 
 // Stream은 system을 쓰지 않는다 — 계약 테스트가 보는 답 문구가 모드와 상관없이 같아야 한다.
-func (p *Provider) Stream(ctx context.Context, _ string, msgs []chat.Message) iter.Seq2[provider.Chunk, error] {
+// 하나만 예외: 요약 요청(chat.SummarySystemPrompt)이면 정해진 모양의 요약 JSON을 답한다 (F-019).
+func (p *Provider) Stream(ctx context.Context, system string, msgs []chat.Message) iter.Seq2[provider.Chunk, error] {
 	return func(yield func(provider.Chunk, error) bool) {
-		reply := []rune(buildReply(msgs))
+		text := buildReply(msgs)
+		if system == chat.SummarySystemPrompt {
+			text = buildSummary(msgs)
+		}
+		reply := []rune(text)
 		for i := 0; i < len(reply); i += chunkSize {
 			if !sleep(ctx, p.ChunkDelay) {
 				return
@@ -58,6 +64,29 @@ func buildReply(msgs []chat.Message) string {
 		fmt.Sprintf("지금은 이 대화의 %d번째 질문이에요.", turns),
 		"ANTHROPIC_API_KEY를 설정하고 서버를 다시 시작하면 실제 Claude가 답해요.",
 	}, "\n")
+}
+
+// buildSummary는 대화 기록(chat.SummaryRequest.Transcript)에서 사용자 말 수와 첫 말을 세어 요약 JSON을 만든다.
+// 계약 테스트가 "사용자 말 N개"로 넘긴 기록을 확인하므로 문구를 바꾸면 안 된다.
+func buildSummary(msgs []chat.Message) string {
+	var first string
+	n := 0
+	if len(msgs) > 0 {
+		for _, line := range strings.Split(msgs[len(msgs)-1].Content, "\n") {
+			if rest, ok := strings.CutPrefix(line, chat.TranscriptUser); ok {
+				if n == 0 {
+					first = rest
+				}
+				n++
+			}
+		}
+	}
+	b, _ := json.Marshal(map[string]any{
+		"summary":   fmt.Sprintf("모의 모드 요약이에요. 사용자 말 %d개를 나눴어요. 처음 말: \"%s\"", n, truncate(first, 40)),
+		"facts":     []string{"모의 모드에서 나눈 대화예요."},
+		"followUps": []string{},
+	})
+	return string(b)
 }
 
 func truncate(s string, max int) string {

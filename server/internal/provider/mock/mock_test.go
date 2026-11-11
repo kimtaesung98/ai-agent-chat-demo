@@ -61,3 +61,20 @@ func TestMock(t *testing.T) {
 		}
 	})
 }
+
+func TestF019Summary(t *testing.T) {
+	t.Run("F-019 AC3 요약 요청이면 사용자 말 수와 첫 말을 담은 요약 JSON을 답한다", func(t *testing.T) {
+		req, _ := chat.ParseSummaryRequest([]byte(`{"messages":[{"role":"user","content":"산책 다녀왔어"},{"role":"assistant","content":"좋네요"},{"role":"user","content":"응"}]}`))
+		var b strings.Builder
+		for c, err := range (&Provider{}).Stream(context.Background(), chat.SummarySystemPrompt, req.Transcript()) {
+			if err != nil {
+				t.Fatal(err)
+			}
+			b.WriteString(c.Text)
+		}
+		s, ok := chat.ParseSummary(b.String())
+		if !ok || s.Summary != `모의 모드 요약이에요. 사용자 말 2개를 나눴어요. 처음 말: "산책 다녀왔어"` || len(s.Facts) != 1 {
+			t.Fatalf("%q", b.String())
+		}
+	})
+}
