@@ -93,7 +93,10 @@ flowchart LR
 - Android 에뮬레이터·iOS 시뮬레이터: `flutter run` (주소를 안 넣으면 개발 컴퓨터의 3000번을 부름)
 - 실제 폰 (같은 Wi-Fi): Mac 주소 확인 `ipconfig getifaddr en0` → `flutter run --dart-define=API_BASE_URL=http://192.168.x.x:3000`, 또는 그냥 설치한 뒤 앱 사이드바(☰) > "서버 주소"에 넣기 (저장됨)
 - Android APK만 만들기: `flutter build apk --debug --dart-define=API_BASE_URL=...` → `build/app/outputs/flutter-apk/app-debug.apk`를 폰에 설치
-- iPhone: `open ios/Runner.xcworkspace` → Runner > Signing & Capabilities에서 Team(내 Apple ID, 무료 개인 팀) 선택 → 폰 연결 후 `flutter run --dart-define=API_BASE_URL=...`. 폰에서 설정 > 일반 > VPN 및 기기 관리에서 개발자 앱 신뢰, 처음 연결 때 "로컬 네트워크" 허용
+- iPhone: **처음 한 번은 Flutter 명령으로 빌드**해야 합니다 — `flutter_tts`는 CocoaPods로만 들어와서, Flutter가 `ios/Podfile`을 만들고 `pod install`을 해야 Xcode가 찾습니다 (Xcode에서 먼저 빌드하면 "Module 'flutter_tts' not found")
+  1. `brew install cocoapods` → `flutter pub get` → `flutter build ios --simulator` (Podfile 생성 + pod install)
+  2. `open ios/Runner.xcworkspace` → Runner > Signing & Capabilities에서 Team(내 Apple ID, 무료 개인 팀) 선택
+  3. 폰 연결 후 `flutter run --dart-define=API_BASE_URL=...`. 폰에서 설정 > 일반 > VPN 및 기기 관리에서 개발자 앱 신뢰, 처음 연결 때 "로컬 네트워크" 허용
 - 평문 `http://` 서버는 Android debug·profile 빌드와 iOS 로컬 네트워크에서만 됩니다. `--release` Android 빌드는 `https://` 서버 주소가 필요합니다 (ADR-022)
 - 마이크 버튼을 처음 누르면 OS가 마이크(·iOS는 음성 인식) 권한을 묻습니다. 거부했다면 기기 설정 > 앱에서 허용
 
