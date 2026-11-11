@@ -70,6 +70,38 @@ void main() {
     }
   });
 
+  test('F-017 storage는 chat 모델까지만 알고, 다른 모듈은 storage를 모른다 (ADR-023)', () {
+    for (final MapEntry(:key, :value) in importsOf('storage').entries) {
+      for (final p in value) {
+        final ok =
+            p.startsWith('dart:') ||
+            p == 'package:flutter/foundation.dart' ||
+            p.startsWith('../chat/') ||
+            p.startsWith('package:shared_preferences/') ||
+            !p.contains('/');
+        expect(ok, isTrue, reason: '$key → $p');
+      }
+    }
+    for (final dir in ['chat', 'api', 'voice', 'ui']) {
+      for (final MapEntry(:key, :value) in importsOf(dir).entries) {
+        for (final p in value) {
+          expect(p.contains('storage/'), isFalse, reason: '$key → $p');
+        }
+      }
+    }
+  });
+
+  test('F-017 shared_preferences는 storage/prefs_store.dart에서만 import한다 (ADR-023)', () {
+    for (final f in Directory(
+      'lib',
+    ).listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
+      final uses = importRe
+          .allMatches(f.readAsStringSync())
+          .any((m) => m.group(1)!.startsWith('package:shared_preferences/'));
+      if (uses) expect(f.path.replaceAll(r'\\', '/'), endsWith('storage/prefs_store.dart'));
+    }
+  });
+
   test('F-012 음성 패키지는 plugin_voice_engine.dart에서만 import한다 (ADR-014)', () {
     for (final f in Directory(
       'lib',

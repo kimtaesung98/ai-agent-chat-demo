@@ -82,6 +82,35 @@ class Persona {
   /// 상단 바·목록에 보여 줄 한 줄 요약 (역할 · 말투).
   String get summary => [if (role.isNotEmpty) role, ...tones.take(3)].join(' · ');
 
+  /// 기기 저장용 (Q-005). 서버로 보내는 [PersonaRequest.toJson]과 다르게 id까지 담는다.
+  Map<String, Object> toStoreJson() => {
+    'id': id,
+    'name': name,
+    if (role.isNotEmpty) 'role': role,
+    if (tones.isNotEmpty) 'tones': tones,
+    if (instructions.isNotEmpty) 'instructions': instructions,
+  };
+
+  /// 저장된 값을 읽는다. 모양이 틀리면 null, 길이는 서버 제한으로 자른다 (저장소는 믿지 않는다).
+  static Persona? fromStoreJson(Object? json) {
+    if (json is! Map) return null;
+    final id = json['id'], name = json['name'];
+    if (id is! String || id.isEmpty || name is! String || name.trim().isEmpty) return null;
+    String cut(Object? v, int max) => v is String ? (v.length > max ? v.substring(0, max) : v) : '';
+    final tones = json['tones'];
+    return Persona(
+      id: id,
+      name: cut(name, maxName),
+      role: cut(json['role'], maxRole),
+      tones: [
+        if (tones is List)
+          for (final t in tones.take(maxTones))
+            if (t is String && t.trim().isNotEmpty) cut(t, maxTone),
+      ],
+      instructions: cut(json['instructions'], maxInstructions),
+    );
+  }
+
   Persona copyWith({String? id, String? name, String? role, List<String>? tones, String? instructions}) => Persona(
     id: id ?? this.id,
     name: name ?? this.name,

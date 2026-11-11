@@ -6,18 +6,23 @@ import 'package:flutter/services.dart';
 
 import '../chat/chat_controller.dart';
 import '../chat/persona_controller.dart';
+import '../chat/server_settings.dart';
 import '../voice/voice_controller.dart';
 import 'persona_editor.dart';
 import 'persona_widgets.dart';
+import 'server_dialog.dart';
 import 'theme.dart';
 
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key, required this.controller, this.voice});
+  const ChatPage({super.key, required this.controller, this.voice, this.server});
 
   final ChatController controller;
 
   /// 음성 대화 (F-012). 없으면 마이크 버튼을 그리지 않는다.
   final VoiceController? voice;
+
+  /// 모바일 앱의 서버 주소 설정 (F-017 AC7). 웹은 null.
+  final ServerSettings? server;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -111,6 +116,14 @@ class _ChatPageState extends State<ChatPage> {
         close();
         _editProfile();
       },
+      serverAddress: widget.server?.address,
+      onEditServer: switch (widget.server) {
+        final server? => () {
+          close();
+          showServerDialog(context, server);
+        },
+        null => null,
+      },
     );
   }
 
@@ -119,7 +132,7 @@ class _ChatPageState extends State<ChatPage> {
     final c = ChatColors.of(context);
     final personas = _personas;
     return ListenableBuilder(
-      listenable: Listenable.merge([_chat, ?_voice, ?personas]),
+      listenable: Listenable.merge([_chat, ?_voice, ?personas, ?widget.server]),
       builder: (context, _) => LayoutBuilder(
         builder: (context, box) {
           final wide = personas != null && box.maxWidth >= sidebarBreakpoint;

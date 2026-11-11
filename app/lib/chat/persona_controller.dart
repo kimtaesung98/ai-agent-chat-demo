@@ -1,6 +1,6 @@
 /// 페르소나 목록·선택·내 프로필 (SPEC.md F-005, ARCHITECTURE.md ADR-016).
 /// `package:flutter/foundation.dart`까지만 import한다 — 위젯 없이 단위 테스트한다.
-/// 이번 단계는 앱 메모리에만 둔다 — 새로고침하면 기본값 (SPEC.md Q-005).
+/// 기기 저장은 [snapshot]·[PersonaController.restore]로 바깥(`storage/`)이 한다 — 이 파일은 저장소를 모른다 (SPEC.md Q-005).
 library;
 
 import 'package:flutter/foundation.dart';
@@ -39,6 +39,36 @@ class PersonaController extends ChangeNotifier {
     : assert(initial.isNotEmpty),
       _personas = [...initial],
       _selectedId = initial.first.id;
+
+  /// 저장해 둔 값으로 시작한다. 없거나 모양이 틀리면 [fallback] (Q-005).
+  factory PersonaController.restore(Object? saved, {List<Persona> fallback = defaultPersonas}) {
+    final c = PersonaController(initial: fallback);
+    if (saved is! Map) return c;
+    final list = saved['personas'];
+    final personas = <Persona>[];
+    final seen = <String>{};
+    if (list is List) {
+      for (final item in list) {
+        final p = Persona.fromStoreJson(item);
+        if (p != null && seen.add(p.id)) personas.add(p);
+      }
+    }
+    if (personas.isEmpty) return c;
+    final restored = PersonaController(initial: personas);
+    final selected = saved['selected'];
+    if (selected is String) restored.select(selected);
+    final about = saved['about'];
+    if (about is String) restored.setAbout(about);
+    return restored;
+  }
+
+  /// 저장할 값 — [PersonaController.restore]가 읽는다.
+  Map<String, Object> snapshot() => {
+    'v': 1,
+    'personas': [for (final p in _personas) p.toStoreJson()],
+    'selected': _selectedId,
+    'about': _about,
+  };
 
   final List<Persona> _personas;
   String _selectedId;

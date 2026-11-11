@@ -26,9 +26,14 @@ enum VoiceState {
 }
 
 /// 화면에 보여 줄 음성 안내 문장.
+/// 미지원·권한 안내는 웹(브라우저)과 모바일 앱(OS 설정)에서 다르게 말한다 (F-017 AC4).
 abstract final class VoiceMessages {
-  static const unsupported = '이 브라우저는 음성 인식을 지원하지 않아요. Chrome이나 Edge에서 써 주세요.';
-  static const notAllowed = '마이크 권한이 필요해요. 브라우저 주소창에서 마이크를 허용해 주세요.';
+  static const unsupportedWeb = '이 브라우저는 음성 인식을 지원하지 않아요. Chrome이나 Edge에서 써 주세요.';
+  static const unsupportedApp = '이 기기에서는 음성 인식을 쓸 수 없어요. 기기 설정에서 음성 인식 서비스를 확인해 주세요.';
+  static const notAllowedWeb = '마이크 권한이 필요해요. 브라우저 주소창에서 마이크를 허용해 주세요.';
+  static const notAllowedApp = '마이크·음성 인식 권한이 필요해요. 기기 설정 > 앱에서 권한을 허용해 주세요.';
+  static String get unsupported => kIsWeb ? unsupportedWeb : unsupportedApp;
+  static String get notAllowed => kIsWeb ? notAllowedWeb : notAllowedApp;
   static const noMicrophone = '마이크를 찾을 수 없어요.';
   static const network = '음성 인식 서비스에 연결할 수 없어요. 네트워크를 확인해 주세요.';
   static const failed = '음성 인식이 멈췄어요. 마이크 버튼을 다시 눌러 주세요.';

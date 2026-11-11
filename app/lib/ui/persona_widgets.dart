@@ -42,6 +42,8 @@ class PersonaSidebar extends StatelessWidget {
     required this.onSelect,
     required this.onCreate,
     required this.onEditProfile,
+    this.serverAddress,
+    this.onEditServer,
   });
 
   final PersonaController personas;
@@ -51,6 +53,10 @@ class PersonaSidebar extends StatelessWidget {
   final ValueChanged<Persona> onSelect;
   final VoidCallback onCreate;
   final VoidCallback onEditProfile;
+
+  /// 모바일 앱의 서버 주소 (F-017 AC7). 웹은 null이라 그리지 않는다.
+  final String? serverAddress;
+  final VoidCallback? onEditServer;
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +125,19 @@ class PersonaSidebar extends StatelessWidget {
                 onTap: onEditProfile,
               ),
             ),
+            if (onEditServer case final onEditServer?)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: ListTile(
+                  key: const Key('server'),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                  leading: const SizedBox(width: 36, child: Icon(Icons.dns_outlined, size: 20)),
+                  title: const Text('서버 주소'),
+                  subtitle: Text(serverAddress ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+                  trailing: const Icon(Icons.edit_outlined, size: 20),
+                  onTap: onEditServer,
+                ),
+              ),
           ],
         ),
       ),

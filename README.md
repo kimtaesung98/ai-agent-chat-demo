@@ -95,7 +95,7 @@ flowchart LR
 | 폴더 | DFD 레벨 | 담당 기능 ID | 설명 |
 |------|----------|--------------|------|
 | `/server` | Level 1 | F-001 ~ F-004 서버, F-009, F-010, F-013 · F-005 · F-012 서버 | Go 서버 `chatd` (API-001·002, Flutter 웹 빌드 제공, 페르소나·음성 프롬프트) · HTTP 계약 테스트(`contract/`) |
-| `/app` | Level 1 | F-011, F-001 ~ F-005 화면, F-012 | Flutter 웹 클라이언트 (S-001) · 음성 대화 |
+| `/app` | Level 1 | F-011, F-001 ~ F-005 화면, F-012, F-017 | Flutter 클라이언트 (S-001) — 웹 · Android·iOS 앱 (`android/`·`ios/`) · 음성 대화 |
 | `/deploy` | Level 1 | F-014 | AWS·Cloudflare 배포: EC2 설정 스크립트(`provision.sh`), 컨테이너 실행(`run-chatd.sh`), IAM 정책. 이미지는 루트 `Dockerfile`, 실행은 `deploy.yml` |
 
 ---
@@ -110,7 +110,7 @@ flowchart LR
 | F-002 | 대화 맥락 유지 | ✅ Done | `/server`, `/app` | 2026-11-02 | AC1~AC3 자동 테스트 통과. 응답 중 새 대화 버튼은 비활성 (중단은 F-003). Node 구현은 F-013에서 제거 — 서버는 계약 테스트(Go), 화면은 Flutter 테스트로 유지 |
 | F-003 | 응답 중단 | ✅ Done | `/app`, `/server` | 2026-11-05 | Flutter에서 구현 (Q-004). AC1·AC3 위젯·단위 테스트, AC2 서버 취소는 Go·Node 모두 테스트. PR #5 CI 통과 |
 | F-004 | 오류 처리와 재시도 | ✅ Done | `/server`, `/app` | 2026-11-10 | AC1·AC3 Go 테스트(업스트림 오류 → 사용자용 문장, 원문·키 숨김, 서버 계속 동작), AC2 Flutter 단위·위젯 테스트(다시 시도 → 같은 질문 재요청). `flutter test` 84개 |
-| F-005 | 페르소나 설정 | 🔄 In Progress | `/app`, `/server` | 2026-11-10 | AC1~AC7 자동 테스트 통과 (Flutter 81개, Go 단위, 계약 테스트). 피그마 시안 A·C를 Material 3로 구현, 웹 빌드 화면 캡처 확인. ADR-016 승인. **AC8 실제 Claude 모드 확인(사용자) 남음** |
+| F-005 | 페르소나 설정 | 🔄 In Progress | `/app`, `/server` | 2026-11-10 | AC1~AC7 자동 테스트 통과 (Flutter 81개, Go 단위, 계약 테스트). 피그마 시안 A·C를 Material 3로 구현, 웹 빌드 화면 캡처 확인. ADR-016 승인. Q-005 결정: 페르소나·내 프로필 기기 저장(`shared_preferences`, ADR-023, 2026-11-11). **AC8 실제 Claude 모드 확인(사용자) 남음** |
 | F-006 | 도구 사용 (Tool use) | ⏳ Pending | - | - | Phase 2 |
 | F-007 | 대화 기록 저장 | ⏳ Pending | - | - | Phase 2 |
 | F-008 | 사용자 로그인 | ⏳ Pending | `/server`, `/app` | 2026-11-10 | Phase 3 그대로 (Q-006 사용자 결정). Google 로그인 상세·AC 초안과 ADR-017(보류)만 작성, MVP 디자인 01 화면에 반영 |
@@ -122,6 +122,7 @@ flowchart LR
 | F-014 | 클라우드 배포 (AWS + Cloudflare) | 🔄 In Progress | `/deploy`, 루트 | 2026-11-10 | 사용자 "추천안 전체" 선택(ADR-018~021 승인). `Dockerfile`(22.6MB, 비root, arm64 교차 빌드), CI `image` 작업(이미지에 계약 테스트 — AC1), `deploy.yml`(OIDC → ECR → SSM), `provision.sh`. **사용자 준비(AWS·Cloudflare 계정·도메인) 후 첫 배포와 AC2~AC5 확인 남음** |
 | F-015 | Polly 음성 답 | ⏳ Pending | `/server`, `/app` | 2026-11-10 | F-014 뒤 (ADR-020) |
 | F-016 | Transcribe 음성 인식 | ⏳ Pending | `/server`, `/app` | 2026-11-10 | F-015 뒤, 서버 중계 (ADR-021) |
+| F-017 | 모바일 네이티브 앱 (Android·iOS) | 🔄 In Progress | `/app` | 2026-11-11 | 사용자 "모바일 진행"(SPEC §1.4 비목표 해제). AC2~AC5·AC7 자동 테스트 통과(`flutter test` 108개: 서버 주소·앱 안 주소 설정·저장, dart:io 스트리밍·중단, 매니페스트·Info.plist), AC1 Android APK 클라우드 빌드·CI `android` 작업. **iOS 빌드(Mac)·AC6 실제 폰 확인(사용자) 남음** |
 
 ---
 
@@ -129,9 +130,9 @@ flowchart LR
 
 <!-- SPEC §16 Q-004 결정 (2026-11-04): 남은 MVP 기능과 음성 대화는 Go + Flutter 전환 뒤에 만든다 -->
 
-1. F-014 클라우드 배포 — 사용자가 `deploy/README.md` 순서대로 AWS·Cloudflare 준비 → 첫 배포 → AC2~AC5 확인 → `/deploy`
-2. F-015 Polly 음성 답 → F-016 Transcribe 음성 인식 (ADR-020·021) → `/server`, `/app`
-3. F-005 페르소나 마무리 — 실제 Claude 모드에서 말투 확인(AC8, 사용자), 저장 유지(Q-005) 결정 → `/app`
-4. F-012 음성 대화 마무리 — 실제 마이크로 Chrome·Edge 확인(AC8, 사용자), 필요하면 끝맺음 시간·에코 조정 → `/app`
-5. MVP HTML 디자인을 Flutter 화면에 반영 — 첫 실행(페르소나 고르기)·음성 전용 화면 등 디자인에 있고 앱에 없는 것부터 SPEC 제안 → `/app`
+1. F-017 모바일 앱 — iOS는 Mac Xcode에서 빌드·서명, Android·iPhone 실제 기기에서 AC6 확인(사용자) → `/app`
+2. F-005 페르소나 마무리 — 실제 Claude 모드에서 말투 확인(AC8, 사용자). 저장 유지(Q-005)는 결정·구현됨 → `/app`
+3. MVP HTML 디자인을 Flutter 화면에 반영 — 첫 실행(페르소나 고르기)·음성 전용 화면 등 디자인에 있고 앱에 없는 것부터 SPEC 제안 → `/app`
+4. F-012 음성 대화 마무리 — 실제 마이크로 Chrome·Edge·폰 확인(AC8, 사용자), 필요하면 끝맺음 시간·에코 조정 → `/app`
+5. F-014 클라우드 배포 — **정지** (사용자, 2026-11-11). 재개 때 `deploy/README.md` 순서대로 → AC2~AC5. 앱에서 배포 주소를 쓰려면 R-A12 결정 → `/deploy`. 그 뒤 F-015 Polly → F-016 Transcribe
 6. F-006 도구 사용 · F-007 대화 기록 저장 (Phase 2). F-008 Google 로그인은 Phase 3 (Q-006)

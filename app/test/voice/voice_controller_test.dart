@@ -202,6 +202,14 @@ void main() {
     expect(chat.send('텍스트는 그대로'), isTrue, reason: '텍스트 채팅은 계속 동작');
   });
 
+  test('F-017 AC4 모바일 앱에서는 브라우저가 아니라 기기 설정으로 안내한다', () {
+    // 테스트는 웹이 아닌 VM에서 돈다 = 앱과 같은 문장
+    expect(VoiceMessages.unsupported, VoiceMessages.unsupportedApp);
+    expect(VoiceMessages.notAllowed, VoiceMessages.notAllowedApp);
+    expect(VoiceMessages.notAllowedApp, isNot(contains('브라우저')));
+    expect(VoiceMessages.unsupportedApp, isNot(contains('Chrome')));
+  });
+
   test('F-012 텍스트로 보낸 질문은 음성 모드가 꺼져 있으면 읽지 않는다', () async {
     chat.send('텍스트 질문');
     await delta('답이에요. 끝');

@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The INTERNET permission is required for development. Specifically,
+         the Flutter tool needs it to communicate with the running application
+         to allow setting breakpoints, to provide hot reload, etc.
+    -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- F-017: 개발용 chatd(http://10.0.2.2:3000, http://<Mac LAN 주소>:3000)를 부르기 위해 평문 HTTP 허용.
+         debug·profile 빌드에만 있다 — release 빌드는 HTTPS 서버만 부른다 (ARCHITECTURE.md ADR-022) -->
+    <application android:usesCleartextTraffic="true"/>
+</manifest>
