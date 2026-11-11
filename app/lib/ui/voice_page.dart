@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../chat/chat_controller.dart';
 import '../voice/voice_controller.dart';
+import 'keep_awake.dart';
 import 'persona_widgets.dart';
 import 'theme.dart';
 
@@ -36,8 +37,20 @@ class _VoicePageState extends State<VoicePage> with SingleTickerProviderStateMix
   VoiceController get _voice => widget.voice;
   ChatController get _chat => widget.chat;
 
+  /// 탭·앱이 다시 보이면 화면 꺼짐 막기를 다시 켠다 (브라우저는 가려질 때 스스로 푼다).
+  late final _lifecycle = AppLifecycleListener(onShow: () => setKeepAwake(true));
+
+  @override
+  void initState() {
+    super.initState();
+    setKeepAwake(true); // 이 화면에 있는 동안은 화면이 꺼지지 않는다 — 늘 듣기 위해 (F-018 AC8)
+    _lifecycle;
+  }
+
   @override
   void dispose() {
+    setKeepAwake(false);
+    _lifecycle.dispose();
     _pulse.dispose();
     super.dispose();
   }

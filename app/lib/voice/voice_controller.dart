@@ -46,11 +46,11 @@ class VoiceController extends ChangeNotifier {
     _chat.addListener(_onChat);
   }
 
-  /// 인식이 잠깐 끊겼을 때(네트워크·엔진 오류) 다시 듣기까지 기다리는 시간 (F-018 AC6).
+  /// 인식이 끊겼을 때(네트워크·엔진 오류·마이크 잠깐 없음) 처음 다시 듣기까지 기다리는 시간 (F-018 AC6).
+  /// 연달아 끊기면 1 · 2 · 4 · 8 · 16배로 늘리되 포기하지 않는다 — 음성 모드는 늘 듣는 것이 목표다.
   final Duration retryDelay;
 
-  /// 연달아 이만큼 끊기면 그때 멈추고 안내한다.
-  static const maxRetries = 3;
+  Duration get _backoff => retryDelay * (1 << (_retries - 1).clamp(0, 4));
 
   final ChatController _chat;
   final VoiceEngine _engine;
@@ -69,6 +69,7 @@ class VoiceController extends ChangeNotifier {
   var _speakingNow = false;
   var _disposed = false;
   var _retries = 0;
+  var _suspended = false; // 앱이 뒤로 갔다 — 돌아오면 다시 듣는다 (F-018 AC9)
 
   VoiceState get state => _state;
   bool get active => _state != VoiceState.off;
@@ -126,7 +127,7 @@ class VoiceController extends ChangeNotifier {
     _notice = null;
     _retries = 0;
     _state = VoiceState.listening;
-    _engine.startListening();
+    _listen();
     _notify();
   }
 
@@ -139,12 +140,13 @@ class VoiceController extends ChangeNotifier {
     _answer = null; // 먼저 비워야 _chat.stop()의 알림이 다시 듣기를 시작하지 않는다
     if (answer != null && _chat.busy) _chat.stop();
     _partial = '';
+    _suspended = false;
     _state = VoiceState.off;
     _notify();
   }
 
   void _onHeard(Heard h) {
-    if (_state == VoiceState.off) return;
+    if (_state == VoiceState.off || _suspended) return;
     if (h is HeardPartial || h is HeardFinal) {
       _retries = 0;
       if (_notice == VoiceMessages.reconnecting) _notice = null;
@@ -160,7 +162,7 @@ class VoiceController extends ChangeNotifier {
       case HeardFinal(:final text):
         if (_state != VoiceState.listening) {
           if (_isEcho(text)) {
-            _engine.startListening();
+            _listen();
             return;
           }
           _bargeIn(listen: false);
@@ -168,17 +170,18 @@ class VoiceController extends ChangeNotifier {
         _partial = '';
         _send(text);
       case ListenEnded():
-        _engine.startListening(); // 음성 모드인 동안은 계속 듣는다 (읽는 중에도 — 끼어들기)
-      case ListenFailed(:final reason)
-          when (reason == ListenFailure.network || reason == ListenFailure.other) && _retries < maxRetries:
-        // 잠깐 끊긴 것은 손대지 않아도 다시 듣는다 (F-018 AC6). 권한·마이크 없음은 바로 안내한다
+        _listen(); // 음성 모드인 동안은 계속 듣는다 (읽는 중에도 — 끼어들기)
+      case ListenFailed(:final reason) when reason != ListenFailure.notAllowed:
+        // 끊긴 것은 손대지 않아도 다시 듣는다 — 포기하지 않는다 (F-018 AC6). 권한 거부만은 사용자가 풀어야 한다
         _retries++;
         _notice = VoiceMessages.reconnecting;
         _notify();
+        final retry = _retries;
         unawaited(
-          Future<void>.delayed(retryDelay, () {
-            if (_disposed || _state == VoiceState.off) return;
-            _engine.startListening();
+          Future<void>.delayed(_backoff, () {
+            // 그사이 끄거나, 다시 들리거나(횟수 초기화), 앱이 돌아와 이미 다시 들었으면 하지 않는다
+            if (_disposed || _state == VoiceState.off || retry != _retries) return;
+            _listen();
           }),
         );
       case ListenFailed(:final reason):
@@ -194,10 +197,33 @@ class VoiceController extends ChangeNotifier {
     }
   }
 
+  /// 앱이 뒤로 감 (화면 잠금·다른 앱): 마이크를 놓는다. 음성 모드 상태는 그대로 (F-018 AC9).
+  void pause() {
+    if (_state == VoiceState.off || _suspended) return;
+    _suspended = true;
+    _engine.stopListening();
+  }
+
+  /// 앱이 돌아옴: 음성 모드였으면 바로 다시 듣는다 — 버튼을 누를 필요 없다 (F-018 AC9).
+  void resume() {
+    final was = _suspended;
+    _suspended = false;
+    if (_state == VoiceState.off) return;
+    _retries = 0;
+    if (_notice == VoiceMessages.reconnecting) _notice = null;
+    if (was) _engine.stopListening(); // 멈춘 세션 정리
+    _listen();
+    _notify();
+  }
+
+  void _listen() {
+    if (!_suspended) _engine.startListening();
+  }
+
   void _send(String text) {
     if (_chat.busy) _chat.stop();
     if (!_chat.send(text, voice: true)) {
-      _engine.startListening();
+      _listen();
       _notify();
       return;
     }
@@ -206,7 +232,7 @@ class VoiceController extends ChangeNotifier {
     _splitter.reset();
     _spoken.clear();
     _state = VoiceState.thinking;
-    _engine.startListening(); // 생각·읽는 중에도 듣는다 — 끼어들기
+    _listen(); // 생각·읽는 중에도 듣는다 — 끼어들기
     _notify();
   }
 
@@ -263,7 +289,7 @@ class VoiceController extends ChangeNotifier {
     _answer = null;
     _sentence = '';
     _state = VoiceState.listening;
-    _engine.startListening();
+    _listen();
     _notify();
   }
 
@@ -274,7 +300,7 @@ class VoiceController extends ChangeNotifier {
     _answer = null;
     if (answer != null && answer.status == EntryStatus.streaming && _chat.busy) _chat.stop();
     _state = VoiceState.listening;
-    if (listen) _engine.startListening();
+    if (listen) _listen();
     _notify();
   }
 

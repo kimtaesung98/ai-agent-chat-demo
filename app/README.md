@@ -54,6 +54,8 @@ flowchart LR
     VoicePage -->|"start · tap(화면 누르기) · stop"| Voice
     Voice -->|"상태 · 미리 보기 · 읽는 문장 · 안내"| VoicePage
     VoicePage -->|"큰 상태 원 · 자막"| User
+    VoicePage -->|"화면 꺼짐 막기 켜기·끄기"| Awake[ui/keep_awake.dart<br>Wake Lock · 네이티브 채널]
+    UI -->|"앱 뒤로 · 돌아옴 (pause · resume)"| Voice
     User -->|"페르소나 선택 · 편집 · 내 프로필"| UI
     UI -->|"select · save · setAbout"| Persona[chat/persona_controller.dart<br>ChangeNotifier]
     Persona -->|"PersonaRequest (persona · about)"| Ctrl
@@ -79,9 +81,10 @@ flowchart LR
 | `lib/voice/voice_engine.dart` | `VoiceEngine` 인터페이스와 들은 것(`HeardPartial`·`HeardFinal`·`ListenEnded`·`ListenFailed`) |
 | `lib/voice/plugin_voice_engine.dart` | `speech_to_text`·`flutter_tts`로 만든 엔진 — 패키지는 이 파일에서만 import (R-A11 특이점 처리) |
 | `lib/voice/sentences.dart` | 스트리밍 답을 읽을 문장으로 나누고 마크다운·URL·코드를 빼는 순수 함수 |
-| `lib/voice/voice_controller.dart` | 음성 대화 진행: 듣기 → 자동 전송 → 문장별 읽기 → 다시 듣기, 끼어들기·에코 무시, 지금 읽는 문장(`sentence`, F-018 자막), 화면 누르기(`tap`), 잠깐 끊긴 인식 자동 복구(최대 3번) (위젯 없음, 테스트 대상) |
+| `lib/voice/voice_controller.dart` | 음성 대화 진행: 듣기 → 자동 전송 → 문장별 읽기 → 다시 듣기, 끼어들기·에코 무시, 지금 읽는 문장(`sentence`, F-018 자막), 화면 누르기(`tap`), 끊긴 인식 자동 복구(포기 안 함, 1~16초 간격), 앱이 뒤로 갔다 오면 `pause`·`resume` (위젯 없음, 테스트 대상) |
 | `lib/ui/chat_page.dart` | S-001 화면 (페르소나 사이드바·서랍 · 상단 페르소나 · 모드 배지 · 편집 · 새 대화 · 대화 영역 · 음성 상태 · 입력창 · 마이크 · 전송/중단) |
 | `lib/ui/voice_page.dart` | S-003 음성 대화 화면 (F-018, 어르신용 상시 대화): 상태 원 · 큰 상태 문구 · 큰 자막(인식 중 · 보낸 말 · 읽는 문장) · 안내. 모드 버튼 없음 — 화면 누르기 = 끼어들기(`tap`), 글자로 보기 · 대화 끝내기만. 채팅 화면 상단 바 버튼으로 열면 듣기 시작 |
+| `lib/ui/keep_awake*.dart` | 음성 대화 화면 동안 화면 꺼짐 막기 (F-018 AC8): 웹은 Screen Wake Lock API(`dart:js_interop`), 앱은 채널 `ai_agent_chat/screen` → Android `MainActivity.kt` `FLAG_KEEP_SCREEN_ON` · iOS `AppDelegate.swift` `isIdleTimerDisabled`. 새 패키지 없음 |
 | `lib/ui/persona_widgets.dart` | 페르소나 아바타 · 사이드바 · 내 프로필 대화상자 (900px 미만은 서랍) |
 | `lib/ui/persona_editor.dart` | S-002 페르소나 편집 화면 (이름 · 역할 칩 · 말투 칩 최대 6개 · 추가 지시) |
 | `lib/ui/server_dialog.dart` | 서버 주소 대화상자 (모바일 앱만, 사이드바 "서버 주소") |
