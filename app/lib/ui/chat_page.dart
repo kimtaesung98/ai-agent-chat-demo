@@ -36,7 +36,14 @@ class _ChatPageState extends State<ChatPage> {
   bool _wasBusy = false;
 
   /// 앱이 뒤로 가면 마이크를 놓고, 돌아오면 음성 모드였을 때 바로 다시 듣는다 (F-018 AC9).
-  late final _lifecycle = AppLifecycleListener(onHide: () => _voice?.pause(), onShow: () => _voice?.resume());
+  /// 뒤로 갈 때 지금 대화도 정리해 둔다 — 앱을 그대로 닫아도 요약이 남는다 (F-019 AC3).
+  late final _lifecycle = AppLifecycleListener(
+    onHide: () {
+      _voice?.pause();
+      _chat.endSession();
+    },
+    onShow: () => _voice?.resume(),
+  );
 
   ChatController get _chat => widget.controller;
   VoiceController? get _voice => widget.voice;
@@ -85,7 +92,7 @@ class _ChatPageState extends State<ChatPage> {
   Future<void> _editPersona(Persona p, {bool isNew = false}) async {
     final personas = _personas;
     if (personas == null) return;
-    final saved = await openPersonaEditor(context, p, isNew: isNew);
+    final saved = await openPersonaEditor(context, p, isNew: isNew, memory: _chat.memory);
     if (saved == null || !mounted) return; // 취소하면 바뀌지 않는다 (F-005 AC2)
     final switching = saved.id != personas.selected.id;
     if (switching && _chat.busy) return;

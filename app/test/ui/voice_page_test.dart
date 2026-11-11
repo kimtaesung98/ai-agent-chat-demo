@@ -1,5 +1,6 @@
 import 'package:ai_agent_chat/api/chat_api.dart';
 import 'package:ai_agent_chat/chat/chat_controller.dart';
+import 'package:ai_agent_chat/chat/memory_controller.dart';
 import 'package:ai_agent_chat/chat/persona_controller.dart';
 import 'package:ai_agent_chat/main.dart';
 import 'package:ai_agent_chat/voice/voice_controller.dart';
@@ -14,6 +15,7 @@ void main() {
   late FakeApi api;
   late ChatController chat;
   late PersonaController personas;
+  late MemoryController memory;
   late FakeVoiceEngine engine;
   late VoiceController voice;
 
@@ -23,7 +25,8 @@ void main() {
     addTearDown(tester.view.reset);
     api = FakeApi();
     personas = PersonaController();
-    chat = ChatController(api, personas: personas);
+    memory = MemoryController();
+    chat = ChatController(api, personas: personas, memory: memory);
     engine = FakeVoiceEngine(null, canListen);
     voice = VoiceController(chat, engine, retryDelay: const Duration(milliseconds: 100));
     addTearDown(voice.dispose);
@@ -130,6 +133,23 @@ void main() {
     expect(find.byKey(const Key('voice-page')), findsNothing);
     expect(voice.state, VoiceState.off);
     expect(engine.listening, isFalse);
+  });
+
+  testWidgets('F-019 AC3 대화 끝내기를 누르면 그때까지의 음성 대화를 정리해 기억에 넣는다', (tester) async {
+    await open(tester);
+    engine.hear(const HeardFinal('오늘 산책했어요'));
+    await tester.pump();
+    api.current
+      ..add(const ChatDelta('잘하셨어요.'))
+      ..add(const ChatDone('end_turn'));
+    await tester.pump();
+    engine.finishAll();
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('voice-end')));
+    await tester.pumpAndSettle();
+    expect(api.summaryRequests.single.map((m) => m.content), ['오늘 산책했어요', '잘하셨어요.']);
+    expect(memory.forPersona('planner'), hasLength(1));
+    expect(find.text('오늘 산책했어요'), findsOneWidget, reason: '채팅 내역은 그대로 남는다');
   });
 
   testWidgets('F-018 AC6 인식이 잠깐 끊기면 손대지 않아도 다시 듣는다', (tester) async {

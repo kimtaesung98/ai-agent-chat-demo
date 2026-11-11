@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../api/chat_api.dart';
+import 'memory_controller.dart';
 import 'persona_controller.dart';
 
 /// 말풍선 상태.
@@ -26,14 +27,36 @@ class ChatEntry {
   bool get isUser => role == Role.user;
 }
 
+/// 대화 세션 하나 (F-019). 첫 메시지 때의 페르소나로 정리한다 — 페르소나를 바꾸면 새 세션이다.
+class _Session {
+  _Session(this.id, this.persona);
+  final String id;
+  final PersonaRequest? persona;
+
+  /// 마지막으로 정리한 메시지 수.
+  int summarizedCount = 0;
+}
+
 /// 채팅 화면 컨트롤러. 위젯은 [ListenableBuilder]로 구독만 한다.
 class ChatController extends ChangeNotifier {
-  ChatController(this._api, {this.personas});
+  ChatController(this._api, {this.personas, this.memory, DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
 
   final ChatApi _api;
 
   /// 선택한 페르소나와 내 프로필 (F-005). 없으면 `persona` 없이 보낸다.
   final PersonaController? personas;
+
+  /// 지난 대화 기억 (F-019). 없으면 요약하지 않고 `memory` 없이 보낸다. 페르소나가 있어야 쓴다.
+  final MemoryController? memory;
+  final DateTime Function() _clock;
+
+  /// 지금 대화 세션. 첫 메시지를 보낼 때 정하고 [reset]에서 끝난다.
+  _Session? _session;
+  var _sessionSeq = 0;
+
+  /// 요약 요청이 진행 중인 수 (테스트·화면용).
+  int get summarizing => _summarizing;
+  var _summarizing = 0;
   final List<ChatEntry> _entries = [];
   StreamSubscription<ChatEvent>? _sub;
   ServerConfig? _config;
@@ -66,12 +89,22 @@ class ChatController extends ChangeNotifier {
   bool send(String text, {bool voice = false}) {
     if (busy || text.trim().isEmpty) return false;
     final messages = [...history, Message(Role.user, text)];
+    final persona = personas?.request;
+    final session = _session ??= _Session('session-${_clock().microsecondsSinceEpoch}-${_sessionSeq++}', persona);
     final question = ChatEntry._(Role.user, text, EntryStatus.done);
     final answer = ChatEntry._(Role.assistant, '', EntryStatus.streaming);
     _entries.addAll([question, answer]);
 
     _sub = _api
-        .stream(messages, mode: voice ? ChatMode.voice : ChatMode.text, persona: personas?.request)
+        .stream(
+          messages,
+          mode: voice ? ChatMode.voice : ChatMode.text,
+          persona: persona,
+          memory: switch (session.persona) {
+            final p? => memory?.recentFor(p.persona.id, exceptSession: session.id) ?? const [],
+            null => const [],
+          },
+        )
         .listen(
           (event) {
             switch (event) {
@@ -129,11 +162,56 @@ class ChatController extends ChangeNotifier {
     _notify();
   }
 
-  /// 새 대화 (F-002 AC3). 응답 중이면 먼저 멈춘다.
+  /// 새 대화 (F-002 AC3). 응답 중이면 먼저 멈춘다. 지금 대화 세션을 정리하고(F-019) 다음 세션을 연다.
   void reset() {
     stop();
+    endSession();
     _entries.clear();
+    _session = null;
     _notify();
+  }
+
+  /// 지금 대화 세션을 요약해 기억에 넣는다 (F-019 AC3). 새 대화·페르소나 바꾸기·음성 "대화 끝내기"·앱이 뒤로 갈 때 부른다.
+  /// 끝난 주고받기(질문 + 답)가 하나도 없거나 지난 정리 뒤로 바뀐 것이 없으면 아무것도 하지 않고 false.
+  /// 요약은 뒤에서 만들고, 실패해도 대화에는 영향이 없다 (다음 정리 때 다시 시도).
+  bool endSession() {
+    final session = _session;
+    final store = memory;
+    final persona = session?.persona;
+    if (session == null || store == null || persona == null) return false;
+    final messages = [
+      for (final e in _entries)
+        if (e.inHistory && e.status != EntryStatus.streaming && e.text.trim().isNotEmpty) Message(e.role, e.text),
+    ];
+    final hasAnswer = messages.any((m) => m.role == Role.assistant);
+    if (!hasAnswer || messages.length == session.summarizedCount) return false;
+    session.summarizedCount = messages.length;
+    final endedAt = _clock();
+    final turns = messages.where((m) => m.role == Role.user).length;
+    _summarizing++;
+    unawaited(
+      _api
+          .summarize(messages, persona: persona)
+          .then((json) {
+            final s = SessionSummary.fromApiJson(
+              json,
+              id: session.id,
+              personaId: persona.persona.id,
+              endedAt: endedAt,
+              turns: turns,
+            );
+            if (s != null) store.put(s);
+          })
+          .catchError((Object e) {
+            session.summarizedCount = 0; // 다음 정리 때 다시 시도
+            debugPrint('대화 정리 실패'); // 내용은 로그에 남기지 않는다
+          })
+          .whenComplete(() {
+            _summarizing--;
+            _notify();
+          }),
+    );
+    return true;
   }
 
   void _finish() => _sub = null;

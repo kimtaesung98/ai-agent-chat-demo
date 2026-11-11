@@ -57,6 +57,7 @@ func New(p provider.Provider, staticDir string, log *slog.Logger) http.Handler {
 	// 메서드가 틀린 요청도 오류 JSON으로 답하려고 메서드는 핸들러에서 확인한다
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/chat", only(http.MethodPost, "POST만 지원해요.", s.handleChat))
+	mux.HandleFunc("/api/summary", only(http.MethodPost, "POST만 지원해요.", s.handleSummary))
 	mux.HandleFunc("/api/config", only(http.MethodGet, "GET만 지원해요.", s.handleConfig))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -82,15 +83,62 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"provider": s.provider.Name(), "model": s.provider.Model()})
 }
 
-func (s *server) handleChat(w http.ResponseWriter, r *http.Request) {
+// readBody는 본문을 MaxBodyBytes까지 읽는다. 실패하면 오류 응답을 쓰고 false.
+func readBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, MaxBodyBytes))
 	if err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
 			writeError(w, http.StatusRequestEntityTooLarge, "TOO_LARGE", "요청이 너무 커요.")
-			return
+			return nil, false
 		}
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", "요청 본문이 올바른 JSON이 아니에요.")
+		return nil, false
+	}
+	return body, true
+}
+
+// handleSummary는 끝난 대화 세션을 요약해 JSON으로 답한다 (API-003, F-019). 스트리밍하지 않는다.
+// 요약은 저장하지 않고 로그에도 남기지 않는다 — 앱이 기기에 저장한다 (ADR-024).
+func (s *server) handleSummary(w http.ResponseWriter, r *http.Request) {
+	body, ok := readBody(w, r)
+	if !ok {
+		return
+	}
+	req, verr := chat.ParseSummaryRequest(body)
+	if verr != nil {
+		writeError(w, http.StatusBadRequest, verr.Code, verr.Message)
+		return
+	}
+	ctx := r.Context()
+	var text strings.Builder
+	for c, err := range s.provider.Stream(ctx, chat.SummarySystemPrompt, req.Transcript()) {
+		if err != nil {
+			msg := provider.GenericMessage
+			var pe *provider.Error
+			if errors.As(err, &pe) {
+				msg = pe.UserMessage
+				s.log.Warn("provider error", "code", pe.Code, "status", pe.Status, "route", "summary")
+			}
+			writeError(w, http.StatusBadGateway, "PROVIDER_ERROR", msg)
+			return
+		}
+		text.WriteString(c.Text)
+	}
+	if ctx.Err() != nil {
+		return // 클라이언트가 끊음
+	}
+	sum, ok := chat.ParseSummary(text.String())
+	if !ok {
+		writeError(w, http.StatusBadGateway, "PROVIDER_ERROR", chat.SummaryUnavailable)
+		return
+	}
+	writeJSON(w, http.StatusOK, sum)
+}
+
+func (s *server) handleChat(w http.ResponseWriter, r *http.Request) {
+	body, ok := readBody(w, r)
+	if !ok {
 		return
 	}
 	req, verr := chat.ParseRequest(body)

@@ -149,6 +149,12 @@ type sseEvent struct {
 
 func postChat(t *testing.T, body any) *http.Response {
 	t.Helper()
+	return postJSON(t, "/api/chat", body)
+}
+
+// postJSON은 body(문자열이면 그대로, 아니면 JSON)를 path로 보낸다.
+func postJSON(t *testing.T, path string, body any) *http.Response {
+	t.Helper()
 	var raw []byte
 	switch b := body.(type) {
 	case string:
@@ -159,9 +165,9 @@ func postChat(t *testing.T, body any) *http.Response {
 			t.Fatal(err)
 		}
 	}
-	res, err := client.Post(*baseURL+"/api/chat", "application/json", bytes.NewReader(raw))
+	res, err := client.Post(*baseURL+path, "application/json", bytes.NewReader(raw))
 	if err != nil {
-		t.Fatalf("POST /api/chat: %v", err)
+		t.Fatalf("POST %s: %v", path, err)
 	}
 	t.Cleanup(func() { res.Body.Close() })
 	return res

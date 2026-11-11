@@ -17,9 +17,28 @@ abstract interface class ChatApi {
   /// 대화를 보내고 응답 사건을 차례로 내보낸다. 마지막은 [ChatDone] 또는 [ChatFailed].
   /// 구독을 취소하면 요청이 중단된다 (F-003). [mode]가 voice면 말하기용 답을 요청한다 (F-012).
   /// [persona]가 있으면 그 페르소나와 내 프로필로 답하게 한다 (F-005).
-  Stream<ChatEvent> stream(List<Message> messages, {ChatMode mode = ChatMode.text, PersonaRequest? persona});
+  /// [memory]는 지난 대화 요약, 오래된 것부터 (F-019, API-001 `memory`).
+  Stream<ChatEvent> stream(
+    List<Message> messages, {
+    ChatMode mode = ChatMode.text,
+    PersonaRequest? persona,
+    List<SessionSummary> memory = const [],
+  });
+
+  /// 끝난 대화 세션을 요약한다 (F-019, API-003). 실패하면 [SummaryFailed]를 던진다.
+  /// 돌려주는 값의 `summary`·`facts`·`followUps`만 쓴다 — 나머지는 부르는 쪽이 채운다.
+  Future<Map<String, Object?>> summarize(List<Message> messages, {PersonaRequest? persona});
 
   Future<ServerConfig> config();
+}
+
+/// 요약 실패. [message]는 화면에 보여도 되는 문장이다.
+class SummaryFailed implements Exception {
+  const SummaryFailed(this.message);
+  final String message;
+
+  @override
+  String toString() => 'SummaryFailed($message)';
 }
 
 /// 화면에 보여 줄 연결 오류 문장.
@@ -62,7 +81,46 @@ class HttpChatApi implements ChatApi {
   }
 
   @override
-  Stream<ChatEvent> stream(List<Message> messages, {ChatMode mode = ChatMode.text, PersonaRequest? persona}) {
+  Future<Map<String, Object?>> summarize(List<Message> messages, {PersonaRequest? persona}) async {
+    final client = _newClient();
+    try {
+      final http.Response res;
+      try {
+        res = await client.post(
+          _uri('/api/summary'),
+          headers: {'content-type': 'application/json'},
+          body: jsonEncode({
+            'messages': messages.map((m) => m.toJson()).toList(),
+            if (persona != null) 'persona': persona.toJson(),
+          }),
+        );
+      } catch (_) {
+        throw const SummaryFailed(ClientMessages.connect);
+      }
+      final Object? body;
+      try {
+        body = jsonDecode(utf8.decode(res.bodyBytes));
+      } catch (_) {
+        throw const SummaryFailed(ClientMessages.request);
+      }
+      if (res.statusCode != 200 || body is! Map<String, Object?>) {
+        final error = body is Map ? body['error'] : null;
+        final message = error is Map ? error['message'] : null;
+        throw SummaryFailed(message is String ? message : ClientMessages.request);
+      }
+      return body;
+    } finally {
+      client.close();
+    }
+  }
+
+  @override
+  Stream<ChatEvent> stream(
+    List<Message> messages, {
+    ChatMode mode = ChatMode.text,
+    PersonaRequest? persona,
+    List<SessionSummary> memory = const [],
+  }) {
     final client = _newClient();
     final abort = Completer<void>();
     late final StreamController<ChatEvent> out;
@@ -76,6 +134,7 @@ class HttpChatApi implements ChatApi {
             'messages': messages.map((m) => m.toJson()).toList(),
             if (mode == ChatMode.voice) 'mode': 'voice', // 기본(text)은 보내지 않는다 — 기존 요청과 같음
             if (persona != null) 'persona': persona.toJson(), // F-005
+            if (memory.isNotEmpty) 'memory': memory.map((m) => m.toRequestJson()).toList(), // F-019
           });
 
         final http.StreamedResponse res;

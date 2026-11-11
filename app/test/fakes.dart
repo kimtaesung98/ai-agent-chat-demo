@@ -8,19 +8,43 @@ class FakeApi implements ChatApi {
   final requests = <List<Message>>[];
   final modes = <ChatMode>[];
   final personas = <PersonaRequest?>[];
+  final memories = <List<SessionSummary>>[];
   final streams = <StreamController<ChatEvent>>[];
   var cancels = 0;
+
+  /// 요약 요청 (F-019). 테스트가 [summaryReplies]로 답을 정한다 — 비어 있으면 정해진 요약.
+  final summaryRequests = <List<Message>>[];
+  final summaryPersonas = <PersonaRequest?>[];
+  final summaryReplies = <Completer<Map<String, Object?>>>[];
 
   StreamController<ChatEvent> get current => streams.last;
 
   @override
-  Stream<ChatEvent> stream(List<Message> messages, {ChatMode mode = ChatMode.text, PersonaRequest? persona}) {
+  Stream<ChatEvent> stream(
+    List<Message> messages, {
+    ChatMode mode = ChatMode.text,
+    PersonaRequest? persona,
+    List<SessionSummary> memory = const [],
+  }) {
     requests.add(messages);
     personas.add(persona);
+    memories.add(memory);
     modes.add(mode);
     final c = StreamController<ChatEvent>(onCancel: () => cancels++);
     streams.add(c);
     return c.stream;
+  }
+
+  @override
+  Future<Map<String, Object?>> summarize(List<Message> messages, {PersonaRequest? persona}) {
+    summaryRequests.add(messages);
+    summaryPersonas.add(persona);
+    if (summaryReplies.isNotEmpty) return summaryReplies.removeAt(0).future;
+    return Future.value({
+      'summary': '요약 ${summaryRequests.length}: ${messages.first.content}',
+      'facts': ['사실'],
+      'followUps': <String>[],
+    });
   }
 
   @override

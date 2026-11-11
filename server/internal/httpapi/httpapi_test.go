@@ -314,3 +314,56 @@ func TestRoutes(t *testing.T) {
 		}
 	})
 }
+
+func TestSummary(t *testing.T) {
+	postSummary := func(t *testing.T, url, body string) (*http.Response, string) {
+		t.Helper()
+		res, err := http.Post(url+"/api/summary", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return res, string(b)
+	}
+	const conv = `{"messages":[{"role":"user","content":"비밀-본문-산책"},{"role":"assistant","content":"좋아요"}],"persona":{"name":"미소"}}`
+
+	t.Run("F-019 AC3 요약 시스템 프롬프트로 부르고 JSON으로 답하며 본문은 로그에 없다", func(t *testing.T) {
+		var log bytes.Buffer
+		f := &fakeProvider{stream: chunks([]provider.Chunk{{Text: `{"summary":"산책`}, {Text: ` 이야기","facts":["걷기 좋아함"]}`}, {Done: true}}, nil)}
+		res, b := postSummary(t, start(t, f, &log), conv)
+		if res.StatusCode != 200 || !strings.HasPrefix(res.Header.Get("Content-Type"), "application/json") ||
+			b != `{"summary":"산책 이야기","facts":["걷기 좋아함"],"followUps":[]}` {
+			t.Fatalf("%d %s", res.StatusCode, b)
+		}
+		if f.system != chat.SummarySystemPrompt {
+			t.Fatalf("system = %q", f.system)
+		}
+		if strings.Contains(log.String(), "비밀-본문") || strings.Contains(log.String(), "산책") {
+			t.Fatalf("로그에 본문: %s", log.String())
+		}
+	})
+
+	t.Run("F-019 AC3 제공자 오류는 502 오류 JSON, 형식 오류는 400, GET은 405", func(t *testing.T) {
+		f := &fakeProvider{stream: chunks(nil, &provider.Error{UserMessage: "잠시 후 다시", Code: "overloaded_error"})}
+		url := start(t, f, nil)
+		if res, b := postSummary(t, url, conv); res.StatusCode != 502 || b != `{"error":{"code":"PROVIDER_ERROR","message":"잠시 후 다시"}}` {
+			t.Fatalf("%d %s", res.StatusCode, b)
+		}
+		empty := start(t, &fakeProvider{stream: chunks([]provider.Chunk{{Text: "  "}, {Done: true}}, nil)}, nil)
+		if res, b := postSummary(t, empty, conv); res.StatusCode != 502 || !strings.Contains(b, chat.SummaryUnavailable) {
+			t.Fatalf("%d %s", res.StatusCode, b)
+		}
+		if res, _ := postSummary(t, url, `{"messages":[]}`); res.StatusCode != 400 {
+			t.Fatalf("%d", res.StatusCode)
+		}
+		res, err := http.Get(url + "/api/summary")
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if res.StatusCode != 405 {
+			t.Fatalf("%d", res.StatusCode)
+		}
+	})
+}

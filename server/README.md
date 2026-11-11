@@ -37,7 +37,11 @@ flowchart LR
     HTTP -->|"GET /, /*.js, /*.css"| Static[정적 파일<br>os.Root]
     HTTP -->|"POST /api/chat 본문<br>1MB 제한"| Chat[chat<br>ParseRequest · TrimToRecentTurns]
     Chat -->|"400 오류"| HTTP
-    Chat -->|"messages[] · system<br>(mode: voice면 말하기용 지시)"| Stream[[Provider.Stream<br>ctx]]
+    Chat -->|"messages[] · system<br>(페르소나 base·요구 사항 + 지난 대화 기억 memory + voice 말하기 지시)"| Stream[[Provider.Stream<br>ctx]]
+    HTTP -->|"POST /api/summary 본문 (F-019)"| Sum[chat<br>ParseSummaryRequest · Transcript]
+    Sum -->|"기록 한 덩어리 · SummarySystemPrompt"| Stream
+    Stream -->|"답 글자 모으기 → ParseSummary"| SumOut[요약 JSON<br>summary · facts · followUps]
+    SumOut -->|"200 JSON 또는 502"| Browser
     Stream --> Mock
     Stream --> Anthropic
     Anthropic -->|"SDK · stream"| Claude[[Claude API]]
@@ -53,7 +57,7 @@ flowchart LR
 |---|---|
 | `cmd/chatd` | 진입점: 설정 → 제공자 → HTTP 조립, 시작 로그(모드만), 종료 신호 처리 |
 | `internal/config` | 환경변수 읽기·검증 (잘못된 `PORT`면 기동 중단) |
-| `internal/chat` | 도메인: `Message`, 입력 검증(`mode`·`persona` 포함), 최근 20턴 정리, 음성 말투 프롬프트 `VoiceSystemPrompt`, 페르소나 프롬프트(`persona.go`) — `Request.SystemPrompt()` (순수 함수) |
+| `internal/chat` | 도메인: `Message`, 입력 검증(`mode`·`persona` 포함), 최근 20턴 정리, 음성 말투 프롬프트 `VoiceSystemPrompt`, 페르소나 프롬프트(`persona.go`, 기본 지시 `base` + 요구 사항), 지난 대화 기억 프롬프트·`memory` 검증(`memory.go`), 세션 요약 요청·기록·모델 답 해석(`summary.go`, API-003) — `Request.SystemPrompt()` (순수 함수) |
 | `internal/provider` | `Provider` 인터페이스, `Chunk`, 사용자용 오류(`Error`, `UserMessage`) |
 | `internal/provider/mock` | 모의 제공자 (계약 테스트가 답 문구로 턴 수를 확인) |
 | `internal/provider/anthropic` | Claude 어댑터 (공식 Go SDK — 이 폴더에서만 import) |

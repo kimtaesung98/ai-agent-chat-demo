@@ -1,5 +1,6 @@
 import 'package:ai_agent_chat/api/chat_api.dart';
 import 'package:ai_agent_chat/chat/chat_controller.dart';
+import 'package:ai_agent_chat/chat/memory_controller.dart';
 import 'package:ai_agent_chat/chat/persona_controller.dart';
 import 'package:ai_agent_chat/main.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ void main() {
   late FakeApi api;
   late ChatController chat;
   late PersonaController personas;
+  late MemoryController memory;
 
   Future<void> open(WidgetTester tester, {Size size = const Size(1280, 800)}) async {
     tester.view.physicalSize = size;
@@ -18,7 +20,8 @@ void main() {
     addTearDown(tester.view.reset);
     api = FakeApi();
     personas = PersonaController();
-    chat = ChatController(api, personas: personas);
+    memory = MemoryController();
+    chat = ChatController(api, personas: personas, memory: memory);
     await chat.loadConfig();
     await tester.pumpWidget(ChatApp(controller: chat));
     await tester.pump();
@@ -160,5 +163,93 @@ void main() {
     expect(find.text('32살 기획자예요'), findsOneWidget, reason: '사이드바에 요약이 보인다');
     await send(tester, '안녕');
     expect(api.personas.last!.about, '32살 기획자예요');
+  });
+
+  testWidgets('F-019 AC2 탑재 페르소나는 기본 지시를 읽기만 하고, 내 요구 사항만 덧붙인다', (tester) async {
+    await open(tester);
+    await tester.tap(find.byKey(const Key('edit-persona')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('persona-base-fixed')), findsOneWidget);
+    expect(find.byKey(const Key('persona-base')), findsNothing);
+    expect(find.text(defaultPersonas.first.base), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('persona-instructions')), '목록 없이 말로만');
+    await tester.tap(find.byKey(const Key('save-persona')));
+    await tester.pumpAndSettle();
+    await send(tester, '시작');
+    final json = api.personas.last!.toJson();
+    expect(json['base'], defaultPersonas.first.base);
+    expect(json['instructions'], '목록 없이 말로만');
+  });
+
+  testWidgets('F-019 AC2 내가 만든 페르소나는 기본 지시도 직접 쓴다', (tester) async {
+    await open(tester);
+    await tester.tap(find.byKey(const Key('create-persona')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('persona-base-fixed')), findsNothing);
+    expect(find.byKey(const Key('memory-empty')), findsNothing, reason: '새 페르소나는 기억 칸이 없다');
+    await tester.enterText(find.byKey(const Key('persona-name')), '면접관 민수');
+    await tester.enterText(find.byKey(const Key('persona-base')), '한 번에 하나씩 질문해');
+    await tester.enterText(find.byKey(const Key('persona-instructions')), '백엔드 위주로');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('save-persona')));
+    await tester.pumpAndSettle();
+    await send(tester, '시작');
+    final json = api.personas.last!.toJson();
+    expect(json['base'], '한 번에 하나씩 질문해');
+    expect(json['instructions'], '백엔드 위주로');
+  });
+
+  testWidgets('F-019 AC6 편집 화면에서 이 페르소나의 지난 대화 기억을 보고 지울 수 있다', (tester) async {
+    await open(tester);
+    memory.put(
+      SessionSummary(
+        id: 'a',
+        personaId: 'planner',
+        endedAt: DateTime(2026, 11, 9, 12),
+        summary: '출시 일정을 정리했어요',
+        followUps: const ['QA 일정'],
+      ),
+    );
+    memory.put(
+      SessionSummary(id: 'b', personaId: 'planner', endedAt: DateTime(2026, 11, 10, 12), summary: '회고 방식을 이야기했어요'),
+    );
+    memory.put(SessionSummary(id: 'c', personaId: 'coach', endedAt: DateTime(2026, 11, 10, 12), summary: '영어 이야기'));
+    await tester.tap(find.byKey(const Key('edit-persona')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('memory-clear')),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('출시 일정을 정리했어요'), findsOneWidget);
+    expect(find.text('다음에 이어 갈 것: QA 일정'), findsOneWidget);
+    expect(find.text('2026-11-10'), findsOneWidget);
+    expect(find.text('영어 이야기'), findsNothing);
+
+    await tester.ensureVisible(find.byKey(const Key('memory-delete-a')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('memory-delete-a')));
+    await tester.pump();
+    expect(find.text('출시 일정을 정리했어요'), findsNothing);
+    await tester.ensureVisible(find.byKey(const Key('memory-clear')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('memory-clear')));
+    await tester.pump();
+    expect(find.byKey(const Key('memory-empty')), findsOneWidget);
+    expect(memory.forPersona('coach'), hasLength(1));
+  });
+
+  testWidgets('F-019 AC3 새 대화 버튼을 누르면 지난 대화를 정리해 기억에 넣는다', (tester) async {
+    await open(tester);
+    await send(tester, '안녕');
+    api.current
+      ..add(const ChatDelta('반가워요'))
+      ..add(const ChatDone('end_turn'));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('new-chat')));
+    await tester.pumpAndSettle();
+    expect(api.summaryRequests, hasLength(1));
+    expect(memory.forPersona('planner'), hasLength(1));
   });
 }

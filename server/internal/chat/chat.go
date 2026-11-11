@@ -64,13 +64,15 @@ func (m Mode) SystemPrompt() string {
 type Request struct {
 	Messages []Message
 	Mode     Mode
-	Persona  *Persona // 없으면 nil (F-005)
+	Persona  *Persona      // 없으면 nil (F-005)
+	Memory   []MemoryEntry // 지난 대화 요약, 오래된 것부터. 없으면 nil (F-019)
 }
 
-// SystemPrompt는 제공자에 넘길 시스템 프롬프트다: 페르소나 다음에 말투 지시 (ADR-015·016). 둘 다 없으면 빈 문자열.
+// SystemPrompt는 제공자에 넘길 시스템 프롬프트다: 페르소나, 지난 대화 기억, 말투 지시 순 (ADR-015·016·024).
+// 모두 없으면 빈 문자열.
 func (r Request) SystemPrompt() string {
 	var parts []string
-	for _, s := range []string{r.Persona.SystemPrompt(), r.Mode.SystemPrompt()} {
+	for _, s := range []string{r.Persona.SystemPrompt(), MemoryPrompt(r.Memory), r.Mode.SystemPrompt()} {
 		if s != "" {
 			parts = append(parts, s)
 		}
@@ -105,10 +107,29 @@ func ParseRequest(body []byte) (Request, *ValidationError) {
 		}
 		persona = p
 	}
-	if len(list) == 0 {
-		return Request{}, invalid("EMPTY_MESSAGE", "메시지를 입력해 주세요.")
+	var memory []MemoryEntry
+	if raw, ok := root["memory"]; ok {
+		m, err := parseMemory(raw)
+		if err != nil {
+			return Request{}, err
+		}
+		memory = m
 	}
+	msgs, verr := parseMessages(list)
+	if verr != nil {
+		return Request{}, verr
+	}
+	if msgs[len(msgs)-1].Role != RoleUser {
+		return Request{}, invalid("INVALID_INPUT", "마지막 메시지는 사용자 메시지여야 해요.")
+	}
+	return Request{Messages: msgs, Mode: mode, Persona: persona, Memory: memory}, nil
+}
 
+// parseMessages는 messages 배열을 검증한다. 비었으면 EMPTY_MESSAGE.
+func parseMessages(list []json.RawMessage) ([]Message, *ValidationError) {
+	if len(list) == 0 {
+		return nil, invalid("EMPTY_MESSAGE", "메시지를 입력해 주세요.")
+	}
 	msgs := make([]Message, 0, len(list))
 	for _, raw := range list {
 		var m struct {
@@ -116,24 +137,21 @@ func ParseRequest(body []byte) (Request, *ValidationError) {
 			Content *string `json:"content"`
 		}
 		if json.Unmarshal(raw, &m) != nil || m.Role == nil || m.Content == nil {
-			return Request{}, invalid("INVALID_INPUT", "메시지 형식이 올바르지 않아요.")
+			return nil, invalid("INVALID_INPUT", "메시지 형식이 올바르지 않아요.")
 		}
 		role := Role(*m.Role)
 		if role != RoleUser && role != RoleAssistant {
-			return Request{}, invalid("INVALID_INPUT", "메시지 형식이 올바르지 않아요.")
+			return nil, invalid("INVALID_INPUT", "메시지 형식이 올바르지 않아요.")
 		}
 		if strings.TrimSpace(*m.Content) == "" {
-			return Request{}, invalid("EMPTY_MESSAGE", "메시지를 입력해 주세요.")
+			return nil, invalid("EMPTY_MESSAGE", "메시지를 입력해 주세요.")
 		}
 		if utf16Len(*m.Content) > MaxContentLength {
-			return Request{}, invalid("TOO_LONG", "메시지는 4,000자까지 보낼 수 있어요.")
+			return nil, invalid("TOO_LONG", "메시지는 4,000자까지 보낼 수 있어요.")
 		}
 		msgs = append(msgs, Message{Role: role, Content: *m.Content})
 	}
-	if msgs[len(msgs)-1].Role != RoleUser {
-		return Request{}, invalid("INVALID_INPUT", "마지막 메시지는 사용자 메시지여야 해요.")
-	}
-	return Request{Messages: msgs, Mode: mode, Persona: persona}, nil
+	return msgs, nil
 }
 
 // TrimToRecentTurns는 최근 maxTurns개 턴만 남긴다. 턴 = 사용자 메시지 + 그 뒤의 응답.
@@ -154,6 +172,18 @@ func TrimToRecentTurns(msgs []Message, maxTurns int) []Message {
 		}
 	}
 	return msgs
+}
+
+// cutUTF16은 s를 UTF-16 코드 단위 max개 안으로 자른다 (글자 중간에서 자르지 않는다).
+func cutUTF16(s string, max int) string {
+	n := 0
+	for i, r := range s {
+		n += utf16.RuneLen(r)
+		if n > max {
+			return s[:i]
+		}
+	}
+	return s
 }
 
 func utf16Len(s string) int {
