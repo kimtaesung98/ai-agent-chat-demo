@@ -240,4 +240,41 @@ void main() {
     expect(voice.state, VoiceState.listening);
     expect(voice.sentence, isEmpty);
   });
+
+  test('F-018 AC4 tap은 생각·읽는 중이면 끼어들고, 듣는 중이면 아무것도 하지 않는다', () async {
+    voice.tap();
+    await pump();
+    expect(voice.state, VoiceState.listening);
+    voice.tap();
+    expect(voice.state, VoiceState.listening, reason: '잘못 눌러 꺼지지 않는다');
+
+    await say('설명해 줘');
+    await delta('첫 문장이에요. 두');
+    expect(voice.state, VoiceState.speaking);
+    voice.tap();
+    expect(voice.state, VoiceState.listening);
+    expect(chat.entries.last.status, EntryStatus.stopped);
+  });
+
+  test('F-018 AC6 잠깐 끊기면 다시 듣고, 연달아 너무 많이 끊기면 멈추고 안내한다', () async {
+    voice.dispose();
+    voice = VoiceController(chat, engine, retryDelay: Duration.zero);
+    await voice.start();
+    for (var i = 0; i < VoiceController.maxRetries; i++) {
+      engine.hear(const ListenFailed(ListenFailure.other));
+      expect(voice.state, VoiceState.listening);
+      expect(voice.notice, VoiceMessages.reconnecting);
+      await pump();
+      expect(engine.listening, isTrue);
+    }
+    engine.hear(const ListenFailed(ListenFailure.network));
+    expect(voice.state, VoiceState.off);
+    expect(voice.notice, VoiceMessages.network);
+
+    await voice.start();
+    engine.hear(const ListenFailed(ListenFailure.other));
+    expect(voice.state, VoiceState.listening, reason: '다시 켜면 횟수를 새로 센다');
+    engine.hear(const HeardPartial('들려요'));
+    expect(voice.notice, isNull);
+  });
 }

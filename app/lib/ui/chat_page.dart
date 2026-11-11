@@ -158,7 +158,7 @@ class _ChatPageState extends State<ChatPage> {
                 if (_voice case final voice?)
                   IconButton(
                     key: const Key('open-voice-page'),
-                    tooltip: '음성 전용 화면',
+                    tooltip: '음성으로 대화하기',
                     onPressed: () => openVoicePage(context, chat: _chat, voice: voice),
                     icon: const Icon(Icons.record_voice_over_outlined),
                   ),
