@@ -82,6 +82,7 @@ flowchart LR
 | `lib/api/client_factory*.dart` | 웹은 `fetch_client`, 그 밖은 `package:http` (조건부 import, ADR-009) |
 | `lib/chat/chat_controller.dart` | 말풍선 목록·바쁨·중단·새 대화·대화 내역, 요청에 선택한 페르소나와 지난 대화 기억 싣기, 대화 세션 끝에 요약(`endSession`, F-019) (위젯 없음, 테스트 대상) |
 | `lib/chat/persona_controller.dart` | 페르소나 목록(기본 4개, 노인복지사 포함)·선택·저장·내 프로필, 저장용 `snapshot`·`restore` (F-005, Q-005). 탑재 페르소나의 기본 지시(`base`)는 고정 (F-019) |
+| `lib/chat/start_settings.dart` | 앱 시작 설정: 켜면 바로 음성 대화 (F-021) |
 | `lib/chat/memory_controller.dart` | 지난 대화 기억: 세션 요약을 페르소나별로 모으고(20개), 다음 요청용 최근 5개, 지우기, `snapshot`·`restore` (F-019) |
 | `lib/chat/server_settings.dart` | 모바일 앱 서버 주소: 빌드 주소 + 앱에서 넣은 주소, 주소 검사 (F-017 AC7) |
 | `lib/storage/app_storage.dart` | `KeyValueStore`·`MemoryStore`, 페르소나·서버 주소 불러오기와 바뀔 때 저장 (Q-005, ADR-023) |

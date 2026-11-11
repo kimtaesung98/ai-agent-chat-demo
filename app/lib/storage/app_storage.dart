@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart';
 import '../chat/memory_controller.dart';
 import '../chat/persona_controller.dart';
 import '../chat/server_settings.dart';
+import '../chat/start_settings.dart';
 
 /// 문자열 키-값 저장소. 읽기는 바로, 쓰기는 비동기. 테스트는 [MemoryStore].
 abstract interface class KeyValueStore {
@@ -40,7 +41,8 @@ abstract final class StoreKeys {
   static const personas = 'personas.v1';
   static const server = 'server.address';
   static const memory = 'memory.v1';
-  static const all = {personas, server, memory};
+  static const voiceOnStart = 'start.voice';
+  static const all = {personas, server, memory, voiceOnStart};
 }
 
 /// 저장된 페르소나로 컨트롤러를 만들고, 바뀔 때마다 저장한다.
@@ -69,6 +71,13 @@ MemoryController loadMemory(KeyValueStore store) {
   final memory = MemoryController.restore(saved);
   memory.addListener(() => _write(store, StoreKeys.memory, jsonEncode(memory.snapshot())));
   return memory;
+}
+
+/// 저장된 시작 설정을 읽고, 바뀔 때마다 저장한다 (F-021).
+StartSettings loadStart(KeyValueStore store) {
+  final settings = StartSettings(store.read(StoreKeys.voiceOnStart) == 'true');
+  settings.addListener(() => _write(store, StoreKeys.voiceOnStart, settings.voiceOnStart ? 'true' : null));
+  return settings;
 }
 
 /// 저장된 서버 주소로 설정을 만들고, 바뀔 때마다 저장한다.
