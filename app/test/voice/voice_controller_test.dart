@@ -256,25 +256,51 @@ void main() {
     expect(chat.entries.last.status, EntryStatus.stopped);
   });
 
-  test('F-018 AC6 잠깐 끊기면 다시 듣고, 연달아 너무 많이 끊기면 멈추고 안내한다', () async {
+  test('F-018 AC6 끊기면 포기하지 않고 점점 늦게 다시 듣고, 권한 거부만 멈춘다', () async {
     voice.dispose();
-    voice = VoiceController(chat, engine, retryDelay: Duration.zero);
+    voice = VoiceController(chat, engine, retryDelay: const Duration(milliseconds: 10));
     await voice.start();
-    for (var i = 0; i < VoiceController.maxRetries; i++) {
-      engine.hear(const ListenFailed(ListenFailure.other));
+    for (final reason in [
+      ListenFailure.other,
+      ListenFailure.network,
+      ListenFailure.noMicrophone,
+      ListenFailure.other,
+      ListenFailure.other,
+    ]) {
+      engine.hear(ListenFailed(reason));
       expect(voice.state, VoiceState.listening);
       expect(voice.notice, VoiceMessages.reconnecting);
-      await pump();
-      expect(engine.listening, isTrue);
+      expect(engine.listening, isFalse);
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(engine.listening, isTrue, reason: '$reason 뒤에도 다시 듣는다');
     }
-    engine.hear(const ListenFailed(ListenFailure.network));
-    expect(voice.state, VoiceState.off);
-    expect(voice.notice, VoiceMessages.network);
-
-    await voice.start();
-    engine.hear(const ListenFailed(ListenFailure.other));
-    expect(voice.state, VoiceState.listening, reason: '다시 켜면 횟수를 새로 센다');
     engine.hear(const HeardPartial('들려요'));
     expect(voice.notice, isNull);
+
+    engine.hear(const ListenFailed(ListenFailure.notAllowed));
+    expect(voice.state, VoiceState.off);
+    expect(voice.notice, VoiceMessages.notAllowed);
+  });
+
+  test('F-018 AC9 앱이 뒤로 가면 마이크를 놓고, 돌아오면 버튼 없이 다시 듣는다', () async {
+    await voice.start();
+    voice.pause();
+    expect(engine.listening, isFalse);
+    expect(voice.state, VoiceState.listening, reason: '음성 모드는 그대로');
+
+    await say('뒤에서 들은 말');
+    expect(api.requests, isEmpty, reason: '멈춘 동안 들은 것은 없다');
+
+    voice.resume();
+    expect(engine.listening, isTrue);
+    await say('돌아왔어요');
+    expect(api.requests.single.last.content, '돌아왔어요');
+  });
+
+  test('F-018 AC9 꺼진 상태에서는 돌아와도 듣지 않는다', () async {
+    voice.pause();
+    voice.resume();
+    expect(engine.listening, isFalse);
+    expect(voice.state, VoiceState.off);
   });
 }

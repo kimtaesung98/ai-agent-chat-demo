@@ -35,6 +35,9 @@ class _ChatPageState extends State<ChatPage> {
   final _scroll = ScrollController();
   bool _wasBusy = false;
 
+  /// 앱이 뒤로 가면 마이크를 놓고, 돌아오면 음성 모드였을 때 바로 다시 듣는다 (F-018 AC9).
+  late final _lifecycle = AppLifecycleListener(onHide: () => _voice?.pause(), onShow: () => _voice?.resume());
+
   ChatController get _chat => widget.controller;
   VoiceController? get _voice => widget.voice;
 
@@ -42,11 +45,13 @@ class _ChatPageState extends State<ChatPage> {
   void initState() {
     super.initState();
     _chat.addListener(_onChange);
+    _lifecycle; // 만들어 두기만 하면 듣는다
   }
 
   @override
   void dispose() {
     _chat.removeListener(_onChange);
+    _lifecycle.dispose();
     _input.dispose();
     _focus.dispose();
     _scroll.dispose();

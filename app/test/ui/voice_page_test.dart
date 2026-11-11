@@ -5,6 +5,7 @@ import 'package:ai_agent_chat/main.dart';
 import 'package:ai_agent_chat/voice/voice_controller.dart';
 import 'package:ai_agent_chat/voice/voice_engine.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes.dart';
@@ -177,5 +178,44 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
     expect(find.byKey(const Key('voice-end')), findsOneWidget);
+  });
+
+  testWidgets('F-018 AC8 음성 대화 화면에 있는 동안 화면이 꺼지지 않게 하고, 나가면 푼다', (tester) async {
+    final calls = <Object?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('ai_agent_chat/screen'), (
+      c,
+    ) async {
+      calls.add('${c.method}:${c.arguments}');
+      return null;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('ai_agent_chat/screen'),
+        null,
+      ),
+    );
+    await open(tester);
+    expect(calls, ['keepOn:true']);
+
+    await tester.tap(find.byKey(const Key('voice-end')));
+    await tester.pumpAndSettle();
+    expect(calls, ['keepOn:true', 'keepOn:false']);
+  });
+
+  testWidgets('F-018 AC9 앱이 뒤로 갔다 돌아오면 버튼 없이 다시 듣는다', (tester) async {
+    await open(tester);
+    expect(engine.listening, isTrue);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await tester.pump();
+    expect(engine.listening, isFalse, reason: '뒤에서는 마이크를 놓는다');
+    expect(voice.active, isTrue);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(engine.listening, isTrue);
+    expect(label(tester), '듣고 있어요');
   });
 }
