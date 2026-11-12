@@ -55,12 +55,12 @@ void main() {
 
   Future<void> flush() => pumpEventQueue();
 
-  Future<void> setUpWith({bool voiceAgent = true, bool withAgent = true}) async {
+  Future<void> setUpWith({bool voiceAgent = true, bool withAgent = true, bool loadConfig = true}) async {
     api = FakeApi()..serverConfig = ServerConfig(provider: 'mock', model: 'm', voiceAgent: voiceAgent);
     personas = PersonaController();
     memory = MemoryController();
     chat = ChatController(api, personas: personas, memory: memory);
-    await chat.loadConfig();
+    if (loadConfig) await chat.loadConfig();
     engine = FakeVoiceEngine();
     agent = FakeAgent();
     voice = AgentVoiceController(
@@ -89,6 +89,16 @@ void main() {
     expect(voice.notice, isNull);
     expect(voice.realtime, isTrue);
     expect(engine.listening, isFalse, reason: '기기 음성은 쓰지 않는다');
+  });
+
+  test('F-022 AC1 앱을 켜자마자 시작해 서버 설정이 아직 없으면 설정을 받아 본 뒤 실시간 음성으로 연결한다', () async {
+    await setUpWith(loadConfig: false);
+    expect(chat.config, isNull);
+    await voice.start();
+    expect(chat.config?.voiceAgent, isTrue);
+    expect(api.tokenRequests, 1);
+    expect(agent.starts, hasLength(1));
+    expect(engine.listening, isFalse, reason: '기기 음성으로 빠지지 않는다');
   });
 
   test('F-022 AC3 시작할 때 페르소나(기본 지시 포함)·지난 대화 기억·이전 대화를 넘기고, 이름을 동적 변수로 준다', () async {
