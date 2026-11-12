@@ -248,7 +248,7 @@ class _PersonaEditorPageState extends State<PersonaEditorPage> {
                 section(
                   '지난 대화 기억',
                   help: '대화를 끝낼 때마다 정리돼요',
-                  child: _MemoryList(memory: memory, personaId: widget.initial.id),
+                  child: MemoryList(memory: memory, personaId: widget.initial.id),
                 ),
             ],
           ),
@@ -300,8 +300,8 @@ class _FixedBase extends StatelessWidget {
 }
 
 /// 이 페르소나와 나눈 지난 대화 요약 목록. 하나씩 또는 모두 지울 수 있다 (F-019 AC6).
-class _MemoryList extends StatelessWidget {
-  const _MemoryList({required this.memory, required this.personaId});
+class MemoryList extends StatelessWidget {
+  const MemoryList({super.key, required this.memory, required this.personaId});
   final MemoryController memory;
   final String personaId;
 

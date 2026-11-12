@@ -65,7 +65,14 @@ void main() {
   });
 
   test('Q-005 F-019 대화 내용 자체는 저장하지 않고 끝난 대화의 요약만 남긴다 (F-007 전)', () {
-    expect(StoreKeys.all, {StoreKeys.personas, StoreKeys.server, StoreKeys.memory, StoreKeys.voiceOnStart});
+    expect(StoreKeys.all, {
+      StoreKeys.personas,
+      StoreKeys.server,
+      StoreKeys.memory,
+      StoreKeys.voiceOnStart,
+      StoreKeys.auth,
+      StoreKeys.textSize,
+    });
   });
 
   test('F-021 AC3 켜면 바로 음성 대화 설정이 앱을 다시 열어도 남는다', () async {

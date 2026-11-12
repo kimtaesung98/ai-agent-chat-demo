@@ -4,7 +4,6 @@ library;
 import 'package:flutter/material.dart';
 
 import '../chat/persona_controller.dart';
-import '../chat/start_settings.dart';
 import 'theme.dart';
 
 /// 이 폭부터 사이드바를 고정하고, 좁으면 서랍으로 연다 (F-005 AC7).
@@ -43,13 +42,8 @@ class PersonaSidebar extends StatelessWidget {
     required this.onSelect,
     required this.onCreate,
     required this.onEditProfile,
-    this.start,
-    this.serverAddress,
-    this.onEditServer,
+    this.onOpenSettings,
   });
-
-  /// 앱 시작 설정 (F-021). 음성이 없거나 null이면 그리지 않는다.
-  final StartSettings? start;
 
   final PersonaController personas;
 
@@ -59,9 +53,8 @@ class PersonaSidebar extends StatelessWidget {
   final VoidCallback onCreate;
   final VoidCallback onEditProfile;
 
-  /// 모바일 앱의 서버 주소 (F-017 AC7). 웹은 null이라 그리지 않는다.
-  final String? serverAddress;
-  final VoidCallback? onEditServer;
+  /// 설정 화면 (F-023 S-006) — 시작 방식·서버 주소·글자 크기·로그아웃은 거기에 있다. null이면 그리지 않는다.
+  final VoidCallback? onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -130,33 +123,17 @@ class PersonaSidebar extends StatelessWidget {
                 onTap: onEditProfile,
               ),
             ),
-            if (start case final start?)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                child: ListenableBuilder(
-                  listenable: start,
-                  builder: (context, _) => SwitchListTile(
-                    key: const Key('start-voice'),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                    secondary: const SizedBox(width: 36, child: Icon(Icons.record_voice_over_outlined, size: 20)),
-                    title: const Text('켜면 바로 음성 대화'),
-                    subtitle: const Text('앱을 열면 지금 페르소나와 말로 시작해요', maxLines: 2),
-                    value: start.voiceOnStart,
-                    onChanged: (v) => start.voiceOnStart = v,
-                  ),
-                ),
-              ),
-            if (onEditServer case final onEditServer?)
+            if (onOpenSettings case final onOpenSettings?)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 child: ListTile(
-                  key: const Key('server'),
+                  key: const Key('open-settings'),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                  leading: const SizedBox(width: 36, child: Icon(Icons.dns_outlined, size: 20)),
-                  title: const Text('서버 주소'),
-                  subtitle: Text(serverAddress ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
-                  trailing: const Icon(Icons.edit_outlined, size: 20),
-                  onTap: onEditServer,
+                  leading: const SizedBox(width: 36, child: Icon(Icons.settings_outlined, size: 22)),
+                  title: const Text('설정'),
+                  subtitle: const Text('글자 크기 · 시작 방식 · 계정', maxLines: 1, overflow: TextOverflow.ellipsis),
+                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  onTap: onOpenSettings,
                 ),
               ),
           ],

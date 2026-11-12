@@ -4,19 +4,21 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../chat/auth_controller.dart';
 import '../chat/chat_controller.dart';
+import '../chat/display_settings.dart';
 import '../chat/persona_controller.dart';
 import '../chat/server_settings.dart';
 import '../chat/start_settings.dart';
 import '../voice/voice_controller.dart';
 import 'persona_editor.dart';
 import 'persona_widgets.dart';
-import 'server_dialog.dart';
+import 'settings_page.dart';
 import 'theme.dart';
 import 'voice_page.dart';
 
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key, required this.controller, this.voice, this.server, this.start});
+  const ChatPage({super.key, required this.controller, this.voice, this.server, this.start, this.auth, this.display});
 
   final ChatController controller;
 
@@ -28,6 +30,12 @@ class ChatPage extends StatefulWidget {
 
   /// 앱 시작 설정 (F-021). 켜 있으면 첫 화면에서 바로 음성 대화 화면을 연다.
   final StartSettings? start;
+
+  /// 로그인 상태 (F-023). 있으면 설정 화면에 내 계정·로그아웃이 보인다.
+  final AuthController? auth;
+
+  /// 글자 크기 (F-023).
+  final DisplaySettings? display;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -140,15 +148,22 @@ class _ChatPageState extends State<ChatPage> {
         close();
         _editProfile();
       },
-      start: _voice == null ? null : widget.start,
-      serverAddress: widget.server?.address,
-      onEditServer: switch (widget.server) {
-        final server? => () {
-          close();
-          showServerDialog(context, server);
-        },
-        null => null,
+      onOpenSettings: () {
+        close();
+        _openSettings();
       },
+    );
+  }
+
+  void _openSettings() {
+    openSettingsPage(
+      context,
+      chat: _chat,
+      voice: _voice,
+      auth: widget.auth,
+      start: widget.start,
+      display: widget.display,
+      server: widget.server,
     );
   }
 
@@ -185,6 +200,13 @@ class _ChatPageState extends State<ChatPage> {
                     tooltip: '음성으로 대화하기',
                     onPressed: () => openVoicePage(context, chat: _chat, voice: voice),
                     icon: const Icon(Icons.record_voice_over_outlined),
+                  ),
+                if (personas == null)
+                  IconButton(
+                    key: const Key('open-settings'),
+                    tooltip: '설정',
+                    onPressed: _openSettings,
+                    icon: const Icon(Icons.settings_outlined),
                   ),
                 if (personas != null)
                   IconButton(

@@ -16,10 +16,13 @@ void main() {
     final server = mobile ? ServerSettings(fallback: 'http://10.0.2.2:3000') : null;
     await tester.pumpWidget(ChatApp(controller: chat, server: server));
     await tester.pump();
+    // 서버 주소는 설정 화면에 있다 (F-023 S-006)
+    await tester.tap(find.byKey(const Key('open-settings')));
+    await tester.pumpAndSettle();
     return server;
   }
 
-  testWidgets('F-017 AC7 앱에서 서버 주소를 바꾸면 사이드바에 새 주소가 보인다', (tester) async {
+  testWidgets('F-017 AC7 앱에서 서버 주소를 바꾸면 설정 화면에 새 주소가 보인다', (tester) async {
     final server = (await open(tester))!;
     expect(find.text('http://10.0.2.2:3000'), findsOneWidget);
 

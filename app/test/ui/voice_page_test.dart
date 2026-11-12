@@ -275,9 +275,11 @@ void main() {
       expect(engine.listening, isFalse);
     });
 
-    testWidgets('AC2 서랍에서 켤 수 있다', (tester) async {
+    testWidgets('AC2 서랍 → 설정에서 켤 수 있다 (F-023 S-006)', (tester) async {
       final start = await launch(tester, on: false);
       await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('open-settings')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('start-voice')));
       await tester.pump();
@@ -289,6 +291,9 @@ void main() {
       expect(find.byKey(const Key('voice-page')), findsNothing);
       await tester.tap(find.byTooltip('Open navigation menu'));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('open-settings')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('settings-page')), findsOneWidget);
       expect(find.byKey(const Key('start-voice')), findsNothing);
     });
   });
