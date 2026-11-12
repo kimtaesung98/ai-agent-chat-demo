@@ -100,6 +100,11 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
   Future<void> start() async {
     if (active) return;
     _notice = null;
+    // 앱을 켜자마자 음성 대화를 시작하면 서버 설정(voiceAgent)이 아직 안 왔을 수 있다 — 기다렸다가 고른다
+    if (agent != null && _chat.config == null) {
+      await _chat.loadConfig();
+      if (_disposed || active) return;
+    }
     if (!_canRealtime) {
       _useFallback = true;
       return _fallback.start();
