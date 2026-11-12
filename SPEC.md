@@ -5,10 +5,10 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v1.14 |
+| 문서 버전 | v1.18 |
 | 상태 | 승인됨 (MVP 범위) |
 | 작성자 | kimtaesung98 |
-| 최종 수정일 | 2026-11-11 |
+| 최종 수정일 | 2026-11-12 |
 
 ---
 
@@ -121,6 +121,7 @@
 | F-018 | 음성 전용 화면 | 버튼 없이 계속 이어지는 음성 대화 화면(어르신용): 큰 상태 원·큰 자막, 화면 누르기·말로 끊기, 대화 끝내기 (S-003) | P1 | 모바일 |
 | F-021 | 켜면 바로 음성 대화 | 설정을 켜 두면 앱을 열자마자 지금 페르소나와 음성 대화 화면(S-003)으로 시작한다 (어르신용) | P1 | 모바일 |
 | F-020 | 장기 기억 (기억 압축) | 최근 요약 5개 밖으로 밀린 오래된 요약을 페르소나마다 장기 기억 하나로 묶어 다음 대화에 함께 싣는다 | P1 | 모바일 |
+| F-022 | 실시간 음성 대화 (ElevenLabs Agents) | 앱 음성 대화를 ElevenLabs Agents(WebRTC 실시간 음성)로 하고, 답은 ElevenLabs가 우리 서버를 Custom LLM으로 불러 Claude가 만든다. 안 되면 기기 음성(F-012)으로 (ADR-025) | P0 | 모바일 |
 | F-019 | 페르소나 지시 두 층 · 대화 요약 기억 | 추가 지시를 탑재 페르소나의 고정 **기본 지시**와 사용자의 **요구 사항**으로 나누고, 대화 세션이 끝나면 요약을 기기에 남겨 다음 대화의 맥락으로 쓴다 | P1 | 모바일 |
 
 ### 4.2 기능 상세
@@ -387,6 +388,30 @@
 - **관련 항목**: F-005 · F-018 · F-020 · API-001 · API-003 · S-002 · ARCHITECTURE.md ADR-016·023·024
 - **Owner Folder**: `/app` (지시 두 층 화면, 세션·기억·저장), `/server` (`base`·`memory` 프롬프트, 요약 API)
 
+#### F-022. 실시간 음성 대화 (ElevenLabs Agents)
+> 상태: 승인 (사용자 "ElevenLabs Agents를 이용", 2026-11-12. Claude 연결 방식은 사용자가 "우리 서버 Custom LLM" 선택). 구조는 ADR-025
+
+- **사용자 스토리**: 어르신 사용자로서, 나는 사람과 통화하듯 끊김 없이 말하고 듣고 싶다. 기기 음성 인식·합성은 말이 끝났는지 늦게 알아채고 목소리가 기계 같아서 대화가 자연스럽지 않다.
+- **상세 동작**:
+  1. 앱 음성 대화(S-003 음성 화면, 채팅 화면 마이크)는 서버 API-002가 `voiceAgent: "elevenlabs"`이고 이 기기가 Android·iOS면 ElevenLabs Agents 실시간 음성(WebRTC)으로 한다. 듣기·말이 끝났는지 판단·말하기·말로 끼어들기는 ElevenLabs가 한다.
+  2. 앱은 서버에서 짧게 쓰는 대화 토큰만 받는다(API-005). ElevenLabs API 키·Anthropic 키는 서버 환경변수에만 있다.
+  3. 연결할 때 앱은 API-001과 같은 `persona`(기본 지시 + 내 요구 사항)·`memory`·`longTerm`과 지금까지의 대화 `history`(최대 40개)를 ElevenLabs에 넘긴다(`custom_llm_extra_body`). 페르소나 이름은 동적 변수 `persona_name`으로 준다.
+  4. ElevenLabs는 사용자 말이 끝날 때마다 우리 서버 `POST /v1/chat/completions`(API-006, OpenAI 형식, `Authorization: Bearer <ELEVENLABS_LLM_SECRET>`)를 부른다. 서버는 넘어온 값으로 시스템 프롬프트(페르소나 → 기억 → 음성 말투, ADR-015·016·024)를 만들고 Claude 답을 스트리밍한다. ElevenLabs 에이전트 설정의 시스템 프롬프트는 쓰지 않는다.
+  5. 확정된 사용자 말과 에이전트 답은 채팅 내역에 남는다. 대화를 끝내면(대화 끝내기·새 대화·앱 뒤로) 지금처럼 요약해 기억에 넣는다(F-019·F-020).
+  6. 웹, 서버 설정 없음, 토큰 실패, 연달아 3번 연결 실패면 기기 음성(F-012)으로 대화하고 한 번 알려 준다. 화면은 같다.
+  7. 늘 듣기(F-018): 대화 중 끊기면 버튼 없이 다시 연결한다(1·2·4·8·16초). 앱이 뒤로 가면 마이크만 끄고 돌아오면 다시 켠다. 화면 누르기로 대화가 꺼지지 않는다.
+- **수용 기준**:
+  - [x] AC1. 서버는 `ELEVENLABS_API_KEY`·`ELEVENLABS_AGENT_ID`(함께)와 `ELEVENLABS_LLM_SECRET`(16자 이상)을 읽고, 잘못되면 기동을 멈추되 값은 오류·로그에 없다. Android 매니페스트에 WebRTC 권한이 있다 (Go 단위, Flutter 설정 테스트)
+  - [x] AC2. API-005는 설정이 없으면 503 `VOICE_AGENT_OFF`, 있으면 토큰만(키 없이) 200, 업스트림 실패는 502. API-002가 `voiceAgent`를 알린다. 토큰은 로그에 없다 (Go 단위·httpapi·계약 테스트 — 가짜 ElevenLabs 서버)
+  - [x] AC3. API-006은 system 메시지를 버리고 `elevenlabs_extra_body`로 서버 프롬프트를 만들어 OpenAI 형식 SSE 조각과 `data: [DONE]`으로 답한다. `stream: false`면 한 번에. 형식 오류는 API-001과 같은 400 (Go 단위·httpapi·계약 테스트)
+  - [x] AC4. API-006은 Bearer 비밀값이 틀리면 401, 비밀값을 설정하지 않으면 404. 대화 본문·페르소나·비밀값은 로그에 없다. 앱 코드에 ElevenLabs 키·주소가 없다 (httpapi·계약·의존 규칙 테스트)
+  - [x] AC5. 앱은 토큰으로 연결하며 페르소나·기억·대화 내역을 넘기고, 사용자 말·답을 내역에 남기며, 끝내면 끊고 요약한다. 제공자 오류는 사용자용 문장을 읽어 준다 (단위 테스트 — 가짜 에이전트, httpapi 테스트)
+  - [x] AC6. 웹·서버 설정 없음·토큰 실패·연결 3번 실패면 기기 음성으로 대화한다 (단위 테스트)
+  - [x] AC7. 대화 중 끊기면 다시 연결하고 대화 내역을 이어 넘긴다. 앱이 뒤로 가면 마이크만 끈다 (단위 테스트)
+  - [ ] AC8. 수동 확인: ElevenLabs 에이전트를 만들고(Custom LLM = 공개 HTTPS chatd 주소) Android 폰에서 미소와 실시간으로 대화된다. 끼어들기·재연결·다음 대화 기억 확인 (사용자 — `docs/ELEVENLABS_SETUP.md`)
+- **관련 항목**: F-012 · F-018 · F-019 · F-020 · API-002 · API-005 · API-006 · ADR-025
+- **Owner Folder**: `/app`, `/server`
+
 #### F-021. 켜면 바로 음성 대화
 > 상태: 승인 (사용자 "추천대로 진행", 2026-11-11 — 다음 계획 2번, F-018 때 결정 대기였던 항목)
 
@@ -551,9 +576,11 @@ flowchart LR
 | ID | 메서드 | 경로 | 설명 | 인증 | 관련 기능 ID |
 |---|---|---|---|---|---|
 | API-001 | POST | `/api/chat` | 대화를 보내고 응답을 SSE로 스트리밍 | 없음 | F-001, F-002, F-005, F-012, F-019 |
-| API-002 | GET | `/api/config` | 현재 모드(mock/anthropic)와 모델 이름 | 없음 | F-001 |
+| API-002 | GET | `/api/config` | 현재 모드(mock/anthropic)·모델 이름·실시간 음성 여부 | 없음 | F-001, F-022 |
 | API-003 | POST | `/api/summary` | 끝난 대화 세션을 요약해 JSON으로 | 없음 | F-019 |
 | API-004 | POST | `/api/consolidate` | 오래된 요약들을 장기 기억 하나로 묶어 JSON으로 | 없음 | F-020 |
+| API-005 | POST | `/api/voice/token` | ElevenLabs 실시간 음성 대화 토큰 (키는 주지 않음) | 없음 | F-022 |
+| API-006 | POST | `/v1/chat/completions` | ElevenLabs가 부르는 OpenAI 호환 Custom LLM (SSE) | Bearer `ELEVENLABS_LLM_SECRET` | F-022 |
 
 ### 9.3 엔드포인트 상세
 #### API-001. 채팅 스트리밍
@@ -617,10 +644,27 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 - **응답 (200, `application/json`)**: `{ "summary": "…", "facts": ["…"] }` — `longTerm` 제한으로 자른다. 저장하지 않는다
 - **오류 코드**: 400, 405, 413, 502 `PROVIDER_ERROR`
 
-#### API-002. 설정 조회
-- **응답 (200)**
+#### API-005. 실시간 음성 대화 토큰 (F-022)
+- **요청**: 본문 없음(`{}`)
+- **응답 (200)**: `{ "conversationToken": "…" }` — `Cache-Control: no-store`. 서버가 `GET https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=…`(`xi-api-key`)로 받아 그대로 준다. 저장·로그 없음
+- **오류 코드**: 405, 502 `VOICE_AGENT_ERROR`(업스트림 실패), 503 `VOICE_AGENT_OFF`(설정 없음) — `message`는 화면용 문장
+
+#### API-006. Custom LLM (F-022)
+- ElevenLabs Agents가 사용자 말이 끝날 때마다 부른다. `ELEVENLABS_LLM_SECRET`이 없으면 404
+- **요청**: OpenAI Chat Completions 형식. `Authorization: Bearer <ELEVENLABS_LLM_SECRET>`
 ```json
-{ "provider": "mock", "model": "mock-echo" }
+{ "model": "…", "stream": true,
+  "messages": [ { "role": "system", "content": "(무시)" }, { "role": "assistant", "content": "안녕하세요" }, { "role": "user", "content": "오늘 날씨 어때요" } ],
+  "elevenlabs_extra_body": { "persona": { "name": "노인복지사 미소", "base": "…" }, "memory": [ … ], "longTerm": { … }, "history": [ { "role": "user", "content": "…" } ] } }
+```
+- `system`·도구 메시지와 빈 메시지는 버리고, `history` 뒤에 `messages`를 붙여 최근 20턴을 쓴다(첫 사용자 말 앞의 인사는 뗀다). `persona`·`memory`·`longTerm`은 API-001과 같이 검증하고, 말투는 늘 `voice`
+- **응답 (200, `text/event-stream`)**: `data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"맑아요"},"finish_reason":null}],…}` 조각들, 마지막 `finish_reason: "stop"` 조각 뒤 `data: [DONE]`. 제공자 오류는 사용자용 문장을 `content`로 보내고 끝낸다. `stream: false`면 `chat.completion` JSON 하나
+- **오류 코드**: 400 (API-001과 같은 코드), 401 `UNAUTHORIZED`, 404, 405, 413
+
+#### API-002. 설정 조회
+- **응답 (200)**: `voiceAgent`는 `"elevenlabs"`(API-005 사용 가능) 또는 `"none"` (F-022)
+```json
+{ "provider": "mock", "model": "mock-echo", "voiceAgent": "none" }
 ```
 
 ---
@@ -630,6 +674,7 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | 서비스 | 용도 | 연동 방식 | 비용 | 장애 시 대응 |
 |---|---|---|---|---|
 | Claude API (Anthropic) | 에이전트 응답 생성 | REST `POST /v1/messages`, `stream: true` | 토큰 사용량 기준 과금 | `error` 이벤트로 사용자 안내 (F-004), 모의 모드로 시연 지속 가능 |
+| ElevenLabs Agents (F-022) | 실시간 음성 대화(인식·말 끝 판단·합성·끼어들기, WebRTC) | 서버: `GET /v1/convai/conversation/token`(`xi-api-key`). 앱: `elevenlabs_agents` 패키지(토큰으로 연결). ElevenLabs → 우리 서버 API-006(Custom LLM) | ElevenLabs 요금(대화 분당) + Claude 토큰 | 토큰·연결 실패 시 기기 음성(F-012)으로 계속 (F-022 AC6) |
 | 기기 음성 엔진 (F-012) | 음성 인식(STT) · 음성 합성(TTS) | `speech_to_text` · `flutter_tts` 패키지 — 웹은 브라우저 Web Speech API, 모바일은 OS 엔진 (ADR-014) | 무료 | 미지원·권한 거부 시 텍스트 채팅으로 계속 (F-012 AC7) |
 
 ---
@@ -637,7 +682,7 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 ## 11. 보안 및 개인정보
 
 - **인증/인가**: MVP 없음 — 내부 네트워크 시연용. 공개 배포 전 F-008 필요
-- **수집하는 개인정보와 목적**: 서버는 수집·저장하지 않음. 앱은 페르소나·내 프로필과 끝난 대화의 **요약**(F-019)을 그 기기에만 저장한다 — 사용자가 편집 화면에서 지울 수 있다. 요약을 만들 때 대화 내용이 AI 제공자로 한 번 더 간다
+- **수집하는 개인정보와 목적**: 서버는 수집·저장하지 않음. 앱은 페르소나·내 프로필과 끝난 대화의 **요약**(F-019)을 그 기기에만 저장한다 — 사용자가 편집 화면에서 지울 수 있다. 요약을 만들 때 대화 내용이 AI 제공자로 한 번 더 간다. 실시간 음성(F-022)을 쓰면 목소리와 대화 내용, 페르소나·기억이 ElevenLabs를 거친다(ElevenLabs 대화 기록 보존은 에이전트 설정에서 끈다 — `docs/ELEVENLABS_SETUP.md`)
 - **음성 (F-012)**: 앱과 서버는 음성을 녹음·전송·저장하지 않는다. 단, 브라우저 음성 인식은 브라우저 회사 서버에서 처리될 수 있다 (예: Chrome은 Google 서버). 공개 배포 전 안내 문구 필요 (ARCHITECTURE R-A10)
 - **암호화**: 운영 배포 시 HTTPS 리버스 프록시 뒤에서 실행
 - **비밀값 관리**: `ANTHROPIC_API_KEY`는 환경변수로만. 코드·저장소·로그·클라이언트 응답에 절대 포함 금지
@@ -731,6 +776,7 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | v1.12 | 2026-11-11 | kimtaesung98 | F-018 음성 전용 화면·S-003 등록(사용자 요청 "음성 전용 화면 만들자") |
 | v1.13 | 2026-11-11 | kimtaesung98 | F-018 개정: 어르신용 상시 대화 — 모드 버튼 제거, 화면 누르기 끼어들기, 끊김 자동 복구, 쉼 2초 (사용자 피드백) |
 | v1.14 | 2026-11-11 | kimtaesung98 | F-018 개정: 늘 듣기 — 끊김 무한 재시도, 화면 꺼짐 막기(AC8), 앱 복귀 시 다시 듣기(AC9), 수동 확인 AC10 (사용자 피드백) |
+| v1.18 | 2026-11-12 | kimtaesung98 | F-022 실시간 음성 대화(ElevenLabs Agents, 우리 서버 Custom LLM) 등록(사용자 요청). API-002 `voiceAgent`, API-005 `/api/voice/token`, API-006 `/v1/chat/completions`, §10·§11 |
 | v1.17 | 2026-11-11 | kimtaesung98 | F-021 켜면 바로 음성 대화 등록(사용자 "추천대로 진행") |
 | v1.16 | 2026-11-11 | kimtaesung98 | F-020 장기 기억 등록(사용자 "추천대로 진행"). API-001 `longTerm`, API-004 `/api/consolidate` |
 | v1.15 | 2026-11-11 | kimtaesung98 | F-019 페르소나 지시 두 층(기본 지시 고정 + 내 요구 사항) · 대화 요약 기억 등록(사용자 요청). API-001 `persona.base`·`memory`, API-003 `/api/summary`, S-002·§11 갱신 |

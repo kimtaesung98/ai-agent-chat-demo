@@ -10,7 +10,9 @@ import 'storage/app_storage.dart';
 import 'storage/prefs_store.dart';
 import 'ui/chat_page.dart';
 import 'ui/theme.dart';
+import 'voice/agent_voice_controller.dart';
 import 'voice/plugin_voice_engine.dart';
+import 'voice/realtime_agent_factory.dart';
 import 'voice/voice_controller.dart';
 
 /// 서버 주소. 웹은 비워 두면 같은 출처 (ADR-011). 모바일은 빌드할 때 주입 — 키는 절대 넣지 않는다.
@@ -43,7 +45,13 @@ Future<void> main() async {
     api.baseUrl = server.address;
     controller.loadConfig(); // 새 서버의 모드(모의·Claude)를 다시 읽는다
   });
-  final voice = VoiceController(controller, PluginVoiceEngine());
+  // 실시간 음성(ElevenLabs Agents, F-022)이 되면 그것으로, 아니면 기기 음성(F-012)으로 대화한다
+  final voice = AgentVoiceController(
+    controller,
+    api.voiceToken,
+    VoiceController(controller, PluginVoiceEngine()),
+    agent: createRealtimeAgent(),
+  );
   runApp(ChatApp(controller: controller, voice: voice, server: server, start: loadStart(store)));
 }
 
@@ -51,7 +59,7 @@ class ChatApp extends StatelessWidget {
   const ChatApp({super.key, required this.controller, this.voice, this.server, this.start});
 
   final ChatController controller;
-  final VoiceController? voice;
+  final VoiceSession? voice;
 
   /// 모바일 앱의 서버 주소 설정. 웹은 null.
   final ServerSettings? server;

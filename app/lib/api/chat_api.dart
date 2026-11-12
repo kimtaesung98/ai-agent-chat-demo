@@ -39,6 +39,10 @@ abstract interface class ChatApi {
   Future<Map<String, Object?>> summarize(List<Message> messages, {PersonaRequest? persona});
 
   Future<ServerConfig> config();
+
+  /// 실시간 음성 대화(ElevenLabs Agents) 토큰을 받는다 (F-022, API-005). 실패하면 [VoiceTokenFailed].
+  /// 토큰은 짧게 쓰고 버린다 — 저장하거나 로그에 남기지 않는다. ElevenLabs API 키는 서버에만 있다.
+  Future<String> voiceToken();
 }
 
 /// 요약 실패. [message]는 화면에 보여도 되는 문장이다.
@@ -83,7 +87,33 @@ class HttpChatApi implements ChatApi {
     try {
       final res = await client.get(_uri('/api/config'));
       final json = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      return ServerConfig(provider: json['provider'] as String, model: json['model'] as String);
+      return ServerConfig(
+        provider: json['provider'] as String,
+        model: json['model'] as String,
+        voiceAgent: json['voiceAgent'] == 'elevenlabs',
+      );
+    } finally {
+      client.close();
+    }
+  }
+
+  @override
+  Future<String> voiceToken() async {
+    final client = _newClient();
+    try {
+      final res = await client.post(
+        _uri('/api/voice/token'),
+        headers: {'content-type': 'application/json'},
+        body: '{}',
+      );
+      final json = jsonDecode(utf8.decode(res.bodyBytes));
+      final token = json is Map ? json['conversationToken'] : null;
+      if (res.statusCode != 200 || token is! String || token.isEmpty) throw const VoiceTokenFailed();
+      return token;
+    } on VoiceTokenFailed {
+      rethrow;
+    } catch (_) {
+      throw const VoiceTokenFailed();
     } finally {
       client.close();
     }

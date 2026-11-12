@@ -42,6 +42,12 @@ flowchart LR
     Sum -->|"기록 한 덩어리 · SummarySystemPrompt"| Stream
     Stream -->|"답 글자 모으기 → ParseSummary"| SumOut[요약 JSON<br>summary · facts · followUps]
     SumOut -->|"200 JSON 또는 502"| Browser
+    HTTP -->|"POST /api/voice/token (F-022)"| Tok[elevenlabs<br>ConversationToken]
+    Tok -->|"xi-api-key"| Eleven[[ElevenLabs API]]
+    Tok -->|"토큰만 200 · 502 · 503"| Browser
+    ElevenAgent([ElevenLabs Agents]) -->|"POST /v1/chat/completions<br>Bearer 비밀값 (F-022)"| HTTP
+    HTTP -->|"OpenAI 본문 + elevenlabs_extra_body"| Comp[chat<br>ParseCompletionRequest]
+    Comp -->|"messages[] · system (voice)"| Stream
     HTTP -->|"POST /api/consolidate (F-020)"| Cons[chat<br>ParseConsolidateRequest · ParseLongTerm]
     Cons -->|"ConsolidateSystemPrompt"| Stream
     Stream --> Mock
@@ -50,6 +56,7 @@ flowchart LR
     Claude -->|"스트리밍 이벤트"| Anthropic
     Mock -->|"Chunk"| SSE[SSE 쓰기<br>이벤트마다 flush]
     Anthropic -->|"Chunk 또는 *provider.Error"| SSE
+    SSE -->|"/v1/chat/completions는 OpenAI 조각 · data: [DONE]"| ElevenAgent
     SSE -->|"event: delta / done / error"| Browser
     Browser -.->|"연결 종료"| Cancel[r.Context 취소]
     Cancel -.-> Stream

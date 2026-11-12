@@ -268,4 +268,34 @@ void main() {
       },
     });
   });
+
+  http.StreamedResponse json(String body, int status) => http.StreamedResponse(Stream.value(utf8.encode(body)), status);
+
+  test('F-022 AC2 API-002 voiceAgent가 elevenlabs면 실시간 음성을 쓸 수 있다', () async {
+    for (final (body, want) in [
+      ('{"provider":"mock","model":"m","voiceAgent":"elevenlabs"}', true),
+      ('{"provider":"mock","model":"m","voiceAgent":"none"}', false),
+      ('{"provider":"mock","model":"m"}', false),
+    ]) {
+      final api = HttpChatApi(baseUrl: 'http://srv', clientFactory: () => FakeClient((_) async => json(body, 200)));
+      expect((await api.config()).voiceAgent, want, reason: body);
+    }
+  });
+
+  test('F-022 AC5 voiceToken은 POST /api/voice/token에서 토큰만 꺼내고, 실패는 VoiceTokenFailed', () async {
+    final client = FakeClient((_) async => json('{"conversationToken":"tok"}', 200));
+    final api = HttpChatApi(baseUrl: 'http://srv', clientFactory: () => client);
+    expect(await api.voiceToken(), 'tok');
+    expect(client.last!.method, 'POST');
+    expect(client.last!.url.toString(), 'http://srv/api/voice/token');
+    expect(client.closed, isTrue);
+    for (final res in [
+      () async => json('{"error":{"code":"VOICE_AGENT_OFF","message":"x"}}', 503),
+      () async => json('nope', 200),
+      () async => throw http.ClientException('down'),
+    ]) {
+      final failing = HttpChatApi(baseUrl: 'http://srv', clientFactory: () => FakeClient((_) => res()));
+      await expectLater(failing.voiceToken(), throwsA(isA<VoiceTokenFailed>()));
+    }
+  });
 }

@@ -40,7 +40,28 @@ abstract final class VoiceMessages {
   static const reconnecting = '잠깐 잘 안 들렸어요. 다시 듣고 있어요.';
 }
 
-class VoiceController extends ChangeNotifier {
+/// 음성 대화 화면(S-003)·채팅 화면 마이크가 쓰는 음성 대화 (F-012·F-018·F-022).
+/// 기기 음성([VoiceController])과 실시간 음성(`AgentVoiceController`, ElevenLabs Agents)이 같은 모양을 갖는다.
+abstract interface class VoiceSession implements Listenable {
+  VoiceState get state;
+  bool get active;
+
+  /// 인식 중인 사용자 말 (미리 보기).
+  String get partial;
+
+  /// 지금 말하는 답 (자막). 말하는 중이 아니면 빈 문자열.
+  String get sentence;
+  String? get notice;
+  bool get supported;
+  void toggle();
+  void tap();
+  Future<void> start();
+  void stop();
+  void pause();
+  void resume();
+}
+
+class VoiceController extends ChangeNotifier implements VoiceSession {
   VoiceController(this._chat, this._engine, {this.retryDelay = const Duration(seconds: 1)}) {
     _heardSub = _engine.heard.listen(_onHeard);
     _chat.addListener(_onChat);
@@ -71,21 +92,28 @@ class VoiceController extends ChangeNotifier {
   var _retries = 0;
   var _suspended = false; // 앱이 뒤로 갔다 — 돌아오면 다시 듣는다 (F-018 AC9)
 
+  @override
   VoiceState get state => _state;
+  @override
   bool get active => _state != VoiceState.off;
 
   /// 인식 중인 문장 (미리 보기).
+  @override
   String get partial => _partial;
 
   /// 지금 읽고 있는 문장 (음성 전용 화면 자막, F-018). 읽는 중이 아니면 빈 문자열.
+  @override
   String get sentence => _sentence;
 
   /// 미지원·권한 거부 등 안내 (F-012 AC7). 없으면 null.
+  @override
   String? get notice => _notice;
 
+  @override
   bool get supported => _engine.canListen && _engine.canSpeak;
 
   /// 마이크 버튼: 꺼짐 → 켜기, 듣는 중 → 끄기, 생각·읽는 중 → 끼어들기 (F-012 AC5).
+  @override
   void toggle() {
     switch (_state) {
       case VoiceState.off:
@@ -99,6 +127,7 @@ class VoiceController extends ChangeNotifier {
 
   /// 음성 전용 화면을 누름 (F-018): 꺼짐 → 켜기, 생각·읽는 중 → 끼어들기.
   /// 듣는 중에는 아무것도 하지 않는다 — 잘못 눌러 대화가 꺼지는 일이 없게 (끄기는 "대화 끝내기"만).
+  @override
   void tap() {
     switch (_state) {
       case VoiceState.off:
@@ -113,6 +142,7 @@ class VoiceController extends ChangeNotifier {
   var _starting = false;
 
   /// 음성 모드를 켜고 듣기 시작한다.
+  @override
   Future<void> start() async {
     if (_state != VoiceState.off || _starting) return;
     _starting = true;
@@ -132,6 +162,7 @@ class VoiceController extends ChangeNotifier {
   }
 
   /// 음성 모드를 끈다: 듣기·읽기·진행 중인 요청을 모두 멈춘다 (F-012 AC4).
+  @override
   void stop() {
     if (_state == VoiceState.off) return;
     _silence();
@@ -198,6 +229,7 @@ class VoiceController extends ChangeNotifier {
   }
 
   /// 앱이 뒤로 감 (화면 잠금·다른 앱): 마이크를 놓는다. 음성 모드 상태는 그대로 (F-018 AC9).
+  @override
   void pause() {
     if (_state == VoiceState.off || _suspended) return;
     _suspended = true;
@@ -205,6 +237,7 @@ class VoiceController extends ChangeNotifier {
   }
 
   /// 앱이 돌아옴: 음성 모드였으면 바로 다시 듣는다 — 버튼을 누를 필요 없다 (F-018 AC9).
+  @override
   void resume() {
     final was = _suspended;
     _suspended = false;

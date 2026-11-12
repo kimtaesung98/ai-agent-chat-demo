@@ -30,6 +30,8 @@ cd ../app && flutter analyze && flutter test   # Flutter 분석·테스트
 | `ANTHROPIC_API_KEY` | (없음) | 있으면 Claude 모드, 없으면 모의 모드 |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Claude 모드에서 쓸 모델 |
 | `STATIC_DIR` | `./web` | 화면 파일 폴더 (보통 `../app/build/web`) |
+| `ELEVENLABS_API_KEY` · `ELEVENLABS_AGENT_ID` | (없음) | 있으면 앱 음성 대화가 ElevenLabs Agents 실시간 음성 (F-022). 설정 방법: [`docs/ELEVENLABS_SETUP.md`](./docs/ELEVENLABS_SETUP.md) |
+| `ELEVENLABS_LLM_SECRET` | (없음) | ElevenLabs가 Custom LLM(`/v1/chat/completions`)을 부를 때의 Bearer 비밀값 (16자 이상) |
 
 ---
 
@@ -45,6 +47,9 @@ flowchart LR
     Operator([운영자]) -->|"환경변수<br>API 키 · 모델"| System
     System -->|"Messages API 요청<br>stream: true"| Claude[[Claude API]]
     Claude -->|"스트리밍 이벤트"| System
+    User <-->|"실시간 음성 (WebRTC)"| Eleven[[ElevenLabs Agents]]
+    System -->|"대화 토큰 요청"| Eleven
+    Eleven -->|"Custom LLM 요청<br>/v1/chat/completions"| System
 ```
 
 ---
@@ -56,8 +61,8 @@ flowchart LR
 - 서버: Go (`chatd`, 표준 라이브러리 + 공식 Anthropic Go SDK)
 - 클라이언트: Flutter (웹 우선, 같은 코드로 모바일은 ARCHITECTURE.md §10 단계 5)
 - 처음 Node.js MVP는 F-013에서 제거 (ADR-001 대체됨)
-- 음성: `speech_to_text` · `flutter_tts` (기기 음성 엔진, 키 없음)
-- 외부 서비스: Claude API (Messages API, 스트리밍)
+- 음성: ElevenLabs Agents 실시간 음성 (`elevenlabs_agents`, 앱 — F-022). 안 되면 `speech_to_text` · `flutter_tts` (기기 음성 엔진, 키 없음)
+- 외부 서비스: Claude API (Messages API, 스트리밍), ElevenLabs Agents (WebRTC 음성 · 우리 서버를 Custom LLM으로 부름)
 
 ---
 
@@ -94,8 +99,8 @@ flowchart LR
 
 | 폴더 | DFD 레벨 | 담당 기능 ID | 설명 |
 |------|----------|--------------|------|
-| `/server` | Level 1 | F-001 ~ F-004 서버, F-009, F-010, F-013 · F-005 · F-012 · F-019 서버 | Go 서버 `chatd` (API-001·002, Flutter 웹 빌드 제공, 페르소나·음성 프롬프트) · HTTP 계약 테스트(`contract/`) |
-| `/app` | Level 1 | F-011, F-001 ~ F-005 화면, F-012, F-017, F-018, F-019 | Flutter 클라이언트 (S-001·S-002·S-003) — 웹 · Android·iOS 앱 (`android/`·`ios/`) · 음성 대화 · 음성 전용 화면 |
+| `/server` | Level 1 | F-001 ~ F-004 서버, F-009, F-010, F-013 · F-005 · F-012 · F-019 · F-022 서버 | Go 서버 `chatd` (API-001·002, Flutter 웹 빌드 제공, 페르소나·음성 프롬프트) · HTTP 계약 테스트(`contract/`) |
+| `/app` | Level 1 | F-011, F-001 ~ F-005 화면, F-012, F-017, F-018, F-019, F-022 | Flutter 클라이언트 (S-001·S-002·S-003) — 웹 · Android·iOS 앱 (`android/`·`ios/`) · 음성 대화 · 음성 전용 화면 |
 | `/deploy` | Level 1 | F-014 | AWS·Cloudflare 배포: EC2 설정 스크립트(`provision.sh`), 컨테이너 실행(`run-chatd.sh`), IAM 정책. 이미지는 루트 `Dockerfile`, 실행은 `deploy.yml` |
 
 ---
@@ -126,6 +131,7 @@ flowchart LR
 | F-021 | 켜면 바로 음성 대화 | 🔄 In Progress | `/app` | 2026-11-11 | 사용자 "추천대로 진행"(다음 계획 2). 서랍 스위치 → 앱을 열면 음성 대화 화면으로 시작, 기기 저장 `start.voice`. AC1~AC3 위젯·저장 테스트(`flutter test` 164개). **AC4 실제 폰 확인(사용자) 남음** |
 | F-020 | 장기 기억 (기억 압축) | 🔄 In Progress | `/app`, `/server` | 2026-11-11 | 사용자 "추천대로 진행"(다음 계획 1). 최근 5개 밖으로 밀린 요약을 API-004 `/api/consolidate`로 페르소나별 장기 기억에 묶어 `longTerm`으로 싣기, 편집 화면 표시·지우기. AC1~AC4 Go·계약·Flutter 테스트(`flutter test` 159개). **AC5 실제 Claude 확인(사용자) 남음** |
 | F-019 | 페르소나 지시 두 층 · 대화 요약 기억 | 🔄 In Progress | `/app`, `/server` | 2026-11-11 | 사용자 "추가 지시를 탑재 기본 + 사용자 요구로 나누고, 대화 세션이 끝나면 요약해 다음 세션의 기반으로". `persona.base`(탑재 페르소나 고정)·`instructions`(내 요구 사항), API-003 `/api/summary`, API-001 `memory`(최근 5개), 기기 저장 `memory.v1`, 편집 화면 기억 보기·지우기. AC1~AC7 Go 단위·계약 테스트, `flutter test` 152개, 모의 모드 웹 빌드로 요약 → 다음 요청 `memory` 확인. **AC8 실제 Claude 모드 확인(사용자) 남음** |
+| F-022 | 실시간 음성 대화 (ElevenLabs Agents) | 🔄 In Progress | `/app`, `/server` | 2026-11-12 | 사용자 "ElevenLabs Agents를 이용", Claude 연결은 "우리 서버 Custom LLM" 선택(ADR-025). 서버 API-005 토큰 발급(`internal/elevenlabs`)·API-006 OpenAI 호환 `/v1/chat/completions`(Bearer), 앱 `elevenlabs_agents`(`RealtimeAgent`)·`AgentVoiceController`(안 되면 기기 음성, 끊기면 다시 연결). AC1~AC7 Go 단위·httpapi·계약(가짜 ElevenLabs)·Flutter 테스트. **AC8 ElevenLabs 에이전트 만들기·실제 폰 확인(사용자, `docs/ELEVENLABS_SETUP.md`) 남음** |
 | F-017 | 모바일 네이티브 앱 (Android·iOS) | 🔄 In Progress | `/app` | 2026-11-11 | 사용자 "모바일 진행"(SPEC §1.4 비목표 해제). AC2~AC5·AC7 자동 테스트 통과(`flutter test` 108개: 서버 주소·앱 안 주소 설정·저장, dart:io 스트리밍·중단, 매니페스트·Info.plist), AC1 Android APK 클라우드 빌드·CI `android` 작업. **iOS 빌드(Mac)·AC6 실제 폰 확인(사용자) 남음** |
 
 ---
@@ -134,7 +140,8 @@ flowchart LR
 
 <!-- SPEC §16 Q-004 결정 (2026-11-04): 남은 MVP 기능과 음성 대화는 Go + Flutter 전환 뒤에 만든다 -->
 
-0. F-019 마무리 — 실제 Claude 모드에서 미소와 대화 → 대화 끝내기 → 다음 대화가 이어지는지(AC8, 사용자). 다음 후보: 오래된 요약을 묶어 장기 기억으로 압축, 앱 시작을 음성 대화로(어르신용) → `/app`, `/server`
+0. F-022 실시간 음성 — ElevenLabs 에이전트 만들고(`docs/ELEVENLABS_SETUP.md`) chatd를 터널로 열어 Android 폰에서 확인(AC8, 사용자). 그 뒤 F-015·F-016(AWS 음성)을 계속할지 결정 → `/app`, `/server`
+0-1. F-019 마무리 — 실제 Claude 모드에서 미소와 대화 → 대화 끝내기 → 다음 대화가 이어지는지(AC8, 사용자). 다음 후보: 오래된 요약을 묶어 장기 기억으로 압축, 앱 시작을 음성 대화로(어르신용) → `/app`, `/server`
 1. F-017 모바일 앱 — iOS는 Mac Xcode에서 빌드·서명, Android·iPhone 실제 기기에서 AC6 확인(사용자) → `/app`
 2. F-005 페르소나 마무리 — 실제 Claude 모드에서 말투 확인(AC8, 사용자). 저장 유지(Q-005)는 결정·구현됨 → `/app`
 3. MVP HTML 디자인을 Flutter 화면에 반영 — 음성 전용 화면은 F-018로 구현(실제 폰 확인 AC8 남음). 다음은 첫 실행(페르소나 고르기) 등 디자인에 있고 앱에 없는 것부터 SPEC 제안 → `/app`

@@ -14,6 +14,11 @@ void main() {
     expect(main, contains('android.permission.RECORD_AUDIO'));
   });
 
+  test('F-022 AC1 Android는 실시간 음성(WebRTC)용 오디오 설정·네트워크 상태 권한이 있다', () {
+    expect(main, contains('android.permission.MODIFY_AUDIO_SETTINGS'));
+    expect(main, contains('android.permission.ACCESS_NETWORK_STATE'));
+  });
+
   test('F-017 AC4 Android 11+에서 음성 인식·합성 엔진을 찾을 수 있다 (queries)', () {
     expect(main, contains('android.speech.RecognitionService'));
     expect(main, contains('android.intent.action.TTS_SERVICE'));

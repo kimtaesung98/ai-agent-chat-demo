@@ -86,6 +86,7 @@
 | HTTP·스트리밍 (목표) | `package:http` (`AbortableRequest`로 중단) + 웹 전용 `fetch_client` (`RequestMode.cors`) | http 1.6 · fetch_client 1.2 (`pubspec.lock`) | 구현됨 (F-011) | ADR-009 |
 | 상태 관리 (목표) | Flutter 내장 `ChangeNotifier` | Flutter 번들 | 구현됨 (F-011) | ADR-010 |
 | 음성 인식·합성 (STT·TTS) | `speech_to_text` · `flutter_tts` 패키지 — 웹은 브라우저 Web Speech API, 모바일은 OS 음성 엔진 | speech_to_text 7.5.0 · flutter_tts 4.2.5 (`pubspec.lock`) | 구현됨 (F-012) | ADR-014 |
+| 실시간 음성 대화 (F-022) | ElevenLabs Agents (WebRTC) — 앱 `elevenlabs_agents` 패키지, 서버는 토큰 발급(표준 라이브러리 `internal/elevenlabs`)과 OpenAI 호환 Custom LLM 엔드포인트 | elevenlabs_agents 0.6.1 (`pubspec.lock`, livekit_client 2.x) | 구현됨 (F-022) — 웹·실패 시 위 기기 음성 | ADR-025 |
 | 음성 답 말투 | API-001 `mode: "voice"` → 서버가 말하기용 시스템 프롬프트를 붙임 | — | 구현됨 (F-012) | ADR-015 |
 | 페르소나 (F-005) | API-001 `persona`(이름·역할·말투·지시·사용자 정보) → 서버가 정해진 틀로 시스템 프롬프트를 만듦. 화면은 Material 3 위젯 (새 패키지 없음) | — | 구현 중 (F-005) | ADR-016 |
 | 외부 서비스 | Claude Messages API (`stream: true`) | `anthropic-version: 2023-06-01` | 사용 중 | ADR-003 |
@@ -111,12 +112,14 @@
 | Go (F-016, 승인) | WebSocket 라이브러리 1개 (착수 때 선정, 순수 Go) | `/api/stt` 중계 | `httpapi`의 `/api/stt` 처리에서만 — ADR-021 |
 | Flutter (F-016, 승인) | `record`, WebSocket 패키지 | 마이크 PCM 스트림, `/api/stt` 연결 | `voice/` 안에서만 — ADR-021 |
 | Flutter (Q-005·F-017) | `shared_preferences` | 페르소나·내 프로필·앱 서버 주소 기기 저장 | `app/lib/storage/prefs_store.dart`에서만 import (의존 규칙 테스트) — ADR-023. 간접 의존: `shared_preferences_*` 플랫폼 구현, `jni`·`jni_util`(Android), `path_provider_*`·`xdg_directories`(데스크톱) |
+| Flutter (F-022) | `elevenlabs_agents` | ElevenLabs Agents 실시간 음성(WebRTC) | `app/lib/voice/elevenlabs_agent.dart`에서만 import (의존 규칙 테스트), 웹 빌드에는 조건부 import로 쓰지 않음 — ADR-025. 간접 의존: `livekit_client`·`flutter_webrtc`(네이티브 WebRTC 라이브러리, 우리 코드의 C/C++ 금지 ADR-007과 별개)·`connectivity_plus`·`device_info_plus`·`path_provider`·`protobuf`·`dart_jsonwebtoken` 등 |
 | Flutter 개발 (목표) | `flutter_test`, `flutter_lints` | 테스트, 린트 | dev_dependencies |
 
 **금지:**
 - Go 웹 프레임워크(gin, echo, fiber 등) — ADR-013
 - Flutter 상태 관리 패키지(Riverpod, Bloc, Provider 등) — ADR-010
-- 채팅 응답용 WebSocket — ADR-002 (단방향 SSE로 충분). 음성 인식 중계(`/api/stt`)만 예외 — ADR-021
+- 채팅 응답용 WebSocket — ADR-002 (단방향 SSE로 충분). 음성 인식 중계(`/api/stt`)만 예외 — ADR-021. 실시간 음성(F-022)은 앱 ↔ ElevenLabs WebRTC라 우리 서버의 채팅 스트림과는 별개
+- 앱에 ElevenLabs API 키를 넣거나 앱이 ElevenLabs API를 직접 부르는 것 — 앱은 API-005 토큰만 쓴다 (원칙 2, ADR-025)
 - C/C++ 코드, cgo (`CGO_ENABLED=0`으로 빌드) — ADR-007
 - 클라이언트에서 Claude API를 직접 호출하는 모든 패키지 — 원칙 2
 
@@ -162,12 +165,13 @@ flowchart LR
 | provider | `/server/internal/provider` | `Provider` 인터페이스, `Chunk`, 사용자용 오류 | chat |
 | provider/anthropic | `/server/internal/provider/anthropic` | Claude 어댑터 (SDK 사용) | provider, chat |
 | provider/mock | `/server/internal/provider/mock` | 모의 제공자 | provider, chat |
-| httpapi | `/server/internal/httpapi` | 라우팅, 요청 파싱, SSE 쓰기, 정적 파일 | chat, provider |
+| httpapi | `/server/internal/httpapi` | 라우팅, 요청 파싱, SSE 쓰기, 정적 파일. 실시간 음성 토큰(API-005)·Custom LLM(API-006)은 `TokenSource` 인터페이스로 (F-022) | chat, provider |
+| elevenlabs | `/server/internal/elevenlabs` | ElevenLabs 대화 토큰 발급 어댑터 (표준 라이브러리만, 키는 밖으로 안 나감) — F-022 | (없음) |
 | contract | `/server/contract` | HTTP 수준 계약 테스트 (어느 서버에나 실행) | (표준 라이브러리만) |
 | archtest | `/server/internal/archtest` | §3.3 의존 규칙 검사 테스트 (모듈 맵에 없는 패키지도 실패) | (표준 라이브러리만) |
 | app/api | `/app/lib/api` | `/api/chat` 호출, SSE 파싱 (웹·모바일 클라이언트 분기), 플랫폼별 서버 주소 정하기 (F-017) | (없음) |
 | app/chat | `/app/lib/chat` | `ChatController` (`ChangeNotifier`): 내역·바쁨 상태. `PersonaController`: 페르소나 목록·선택·내 프로필 (F-005). `ServerSettings`: 앱 서버 주소 (F-017) | api |
-| app/voice | `/app/lib/voice` | `VoiceEngine` 인터페이스(듣기·읽기)와 패키지 구현(`PluginVoiceEngine`), 문장 분리기, `VoiceController` (듣기 → 자동 전송 → 문장별 읽기 → 끼어들기) | chat |
+| app/voice | `/app/lib/voice` | `VoiceEngine` 인터페이스(듣기·읽기)와 패키지 구현(`PluginVoiceEngine`), 문장 분리기, `VoiceController` (듣기 → 자동 전송 → 문장별 읽기 → 끼어들기). F-022: `VoiceSession`(화면이 쓰는 모양), `RealtimeAgent` 인터페이스와 ElevenLabs 구현, `AgentVoiceController`(실시간 음성 → 안 되면 기기 음성) | chat, api 모델 |
 | app/storage | `/app/lib/storage` | 기기 저장: `KeyValueStore` 인터페이스, `PrefsStore`(`shared_preferences`), 페르소나·서버 주소 불러오기·저장 (Q-005, ADR-023) | chat |
 | app/ui | `/app/lib/ui` | 위젯: 대화 목록, 입력창, 모드 배지, 마이크 버튼, 페르소나 사이드바·편집 화면(F-005) | chat, voice |
 
@@ -186,6 +190,7 @@ flowchart TD
         MOCK --> PROV
         PROV --> CHAT
         ANT --> SDK[["anthropic-sdk-go"]]
+        CMD --> EL[elevenlabs]
     end
     subgraph App ["app/ (Flutter)"]
         UI[ui] --> CTRL[chat]
@@ -200,9 +205,10 @@ flowchart TD
 - `chat`(서버)은 어떤 모듈도 import하지 않는다 — 순수 도메인
 - `httpapi`는 `provider` **인터페이스**만 안다. `anthropic`·`mock` 구현을 import하지 않는다 (조립은 `cmd/chatd`)
 - `anthropic-sdk-go`는 `provider/anthropic`에서만 import한다
+- `elevenlabs`(서버)는 표준 라이브러리만 쓰고 `cmd/chatd`만 import한다. `httpapi`는 `TokenSource` 인터페이스만 안다 (F-022)
 - Flutter `chat`은 `package:flutter/foundation.dart`까지만 import한다 — `material`·`widgets` 금지 (위젯 없이 단위 테스트)
 - Flutter `api`는 `chat`·`ui`를 import하지 않는다
-- Flutter `voice`는 `chat`을 쓰고 `ui`를 import하지 않는다. `chat`·`api`는 `voice`를 모른다. `voice`도 `foundation.dart`까지만 (위젯 없이 단위 테스트). `speech_to_text`·`flutter_tts`는 `voice/plugin_voice_engine.dart`에서만 import한다. 조립은 `main.dart`
+- Flutter `voice`는 `chat`을 쓰고 `ui`를 import하지 않는다. `chat`·`api`는 `voice`를 모른다. `voice`도 `foundation.dart`까지만 (위젯 없이 단위 테스트). `speech_to_text`·`flutter_tts`는 `voice/plugin_voice_engine.dart`에서만, `elevenlabs_agents`는 `voice/elevenlabs_agent.dart`에서만 import한다(F-022). `voice`는 `api`에서 `models.dart`만 쓴다 — 토큰은 `main.dart`가 함수로 넘긴다. 조립은 `main.dart`
 - Flutter `storage`는 `chat`만 쓰고, 다른 모듈은 `storage`를 모른다. `shared_preferences`는 `storage/prefs_store.dart`에서만 import한다. 조립은 `main.dart` (ADR-023)
 - 앱과 서버는 코드를 공유하지 않는다 — HTTP 계약으로만 연결
 - 검사 방법: Go는 `go vet` + import 검사 테스트(`internal/archtest`, F-010), Flutter는 `flutter analyze` + import 검사 테스트(`app/test/architecture_test.dart`)
@@ -374,6 +380,10 @@ flowchart LR
 | `ANTHROPIC_API_KEY` | N | (없음 → 모의 모드) | **Y** | Claude API 키 | 둘 다 |
 | `ANTHROPIC_MODEL` | N | `claude-sonnet-5-5` | N | 사용할 모델 | 둘 다 |
 | `STATIC_DIR` | N | `./web` | N | 정적 파일 위치 — Flutter 웹 빌드(`../app/build/web`) | Go |
+| `ELEVENLABS_API_KEY` | N | (없음 → 실시간 음성 꺼짐) | **Y** | ElevenLabs API 키 — 대화 토큰 발급(API-005)에만. `ELEVENLABS_AGENT_ID`와 함께 | Go (F-022) |
+| `ELEVENLABS_AGENT_ID` | N | (없음) | N | ElevenLabs 에이전트 ID | Go (F-022) |
+| `ELEVENLABS_LLM_SECRET` | N | (없음 → API-006 404) | **Y** | ElevenLabs가 Custom LLM(API-006)을 부를 때 보내는 Bearer 값, 16자 이상. ElevenLabs 에이전트 설정의 비밀값과 같게 | Go (F-022) |
+| `ELEVENLABS_API_BASE` | N | `https://api.elevenlabs.io` | N | ElevenLabs API 주소 (계약 테스트의 가짜 서버용) | Go (F-022) |
 | `API_BASE_URL` | N | 웹: 같은 출처 · Android 에뮬레이터: `http://10.0.2.2:3000` · iOS 시뮬레이터: `http://localhost:3000` | N | 모바일 앱이 호출할 서버 주소 — **빌드 시** `--dart-define`으로 주입, 키는 절대 주입 금지. 실제 폰은 개발 컴퓨터 LAN 주소 (ADR-022, `app/lib/api/server_address.dart`) | Flutter (F-017) |
 
 ---
@@ -437,6 +447,7 @@ flowchart LR
 | ADR-023 | 페르소나·내 프로필·(앱) 서버 주소는 **`shared_preferences`** 로 기기에 저장한다 (Android SharedPreferences · iOS NSUserDefaults · 웹 localStorage). 패키지는 `app/lib/storage/prefs_store.dart`에서만 import, `KeyValueStore` 인터페이스 뒤에 둔다. 대화 내용은 저장하지 않는다 (F-007) | ① 앱 메모리만 (지금까지) ② 서버 저장 ③ 파일·SQLite 패키지 | ①은 앱을 다시 열 때마다 페르소나를 다시 만들어야 함. ②는 로그인(F-008)이 먼저. ③은 키 몇 개에 비해 무거움. 단점: Android 구현이 `jni`(네이티브 C 코드를 빌드하는 간접 의존)를 끌고 옴 — 우리 코드의 C/C++ 금지(ADR-007)와는 별개, NDK는 Flutter Android 빌드에 원래 필요 | 승인 (사용자 선택, 2026-11-11, Q-005) | 2026-11-11 |
 | ADR-024 | **대화 요약 기억은 앱 기기에, 요약은 서버가 만든다**: 세션이 끝나면 앱이 `POST /api/summary`(API-003)로 요약 JSON(`summary`·`facts`·`followUps`)을 받아 `shared_preferences`(`memory.v1`, ADR-023)에 페르소나별로 저장하고, 다음 대화 요청에 최근 5개를 `memory`로 싣는다. 서버는 요약도 기억도 저장하지 않는다(ADR-004 무상태). 페르소나 지시는 `persona.base`(기본, 탑재 페르소나는 앱 고정) + `persona.instructions`(사용자 요구 사항) 두 필드로 보내고 틀은 서버가 만든다(ADR-016 유지). 모의 제공자는 요약 시스템 프롬프트를 알아보고 정해진 요약 JSON을 답한다. F-020: 최근 5개 밖으로 밀린 요약은 `POST /api/consolidate`(API-004)로 페르소나별 장기 기억 하나에 묶어 `longTerm`으로 싣는다 (같은 원칙: 앱 저장, 서버 무상태) | ① 대화 전체를 저장해 다음에 다시 보냄(F-007) ② 서버 DB에 기억 저장 ③ 앱이 기기 안에서 요약(규칙 기반) ④ 탑재 페르소나 기본 지시를 서버가 id로 가짐 | ①은 요청이 커지고(20턴 제한) 대화 원문을 남김 — 요약이 짧고 지울 수 있어 개인정보에 덜 무겁다. ②는 로그인(F-008)이 먼저. ③은 품질이 낮음. ④는 앱·서버 배포가 묶여 페르소나를 바꿀 때마다 서버를 바꿔야 함 — 대신 앱이 저장된 탑재 페르소나의 기본 지시를 늘 앱 것으로 맞춘다. 단점: 요약 때 대화가 제공자로 한 번 더 감(비용), 기억은 그 기기에만 있음 | 적용 (F-019 구현, 사용자 요청 2026-11-11 — PR 검토로 확인) | 2026-11-11 |
 
+| ADR-025 | **실시간 음성 대화는 ElevenLabs Agents, 답은 우리 서버가 Custom LLM으로 Claude에서 만든다**: ① 앱이 `POST /api/voice/token`(API-005)으로 짧게 쓰는 WebRTC 토큰을 받고(서버가 `xi-api-key`로 발급, 키는 서버에만) `elevenlabs_agents`로 연결한다. ② 연결할 때 앱은 API-001과 같은 `persona`·`memory`·`longTerm`과 대화 `history`를 `custom_llm_extra_body`로 넘긴다. ③ ElevenLabs는 사용자 말이 끝날 때마다 우리 chatd `POST /v1/chat/completions`(API-006, OpenAI 형식, Bearer 비밀값)를 부르고, chatd는 `chat` 도메인으로 시스템 프롬프트를 만들어(ADR-016·024, 에이전트 설정 프롬프트는 무시) Claude 답을 OpenAI 조각으로 스트리밍한다. ④ 웹·설정 없음·토큰 실패·연결 3번 실패면 기기 음성(ADR-014)으로. 앱은 `RealtimeAgent` 인터페이스 뒤에 두고 패키지는 `voice/elevenlabs_agent.dart`에서만 import | ① ElevenLabs 내장 Claude(서버가 만든 프롬프트를 앱이 override로 넘김) ② ADR-020·021 AWS Polly·Transcribe ③ 기기 음성 유지 ④ 앱이 WebSocket 서명 URL로 직접 연결 | 사용자 요청("ElevenLabs Agents를 이용")과 선택("우리 서버 Custom LLM", 2026-11-12). 말 끝 판단·끼어들기·자연스러운 목소리를 한 서비스가 맡아 어르신 대화가 자연스러워짐. Custom LLM이라 Anthropic 키·프롬프트 틀·모의 모드·요약 기억이 그대로 서버에 있음(원칙 2). ①은 공개 주소가 필요 없고 지연이 조금 짧지만 프롬프트를 클라이언트가 보냄(ADR-016과 충돌), Claude 요금이 ElevenLabs로. ④는 공식 Flutter SDK가 WebRTC 토큰 방식. 단점: chatd가 **공개 HTTPS 주소**여야 함(로컬은 터널), 목소리·대화가 ElevenLabs를 거침(개인정보 §11), 분당 요금, 새 의존 `elevenlabs_agents`(livekit·WebRTC 네이티브) | 적용 (F-022 구현, 사용자 요청 2026-11-12 — PR 검토로 확인). ADR-020·021(F-015·016)은 이 결정으로 다시 볼 것 — 기기 음성 폴백은 남김 | 2026-11-12 |
 ---
 
 ## 10. 진화 계획
@@ -484,6 +495,7 @@ flowchart LR
 | R-A10 | 브라우저 음성 인식은 브라우저 회사 서버로 음성을 보낼 수 있음 (Chrome → Google), Firefox 미지원 | 개인정보 안내 필요, 일부 브라우저에서 음성 불가 | 미지원 시 텍스트로 계속 (F-012 AC7), 공개 배포(Q-001) 전 안내 문구. 필요하면 ADR-014 대안 ②로 |
 | R-A11 | `speech_to_text` 웹 구현의 특이점: ① 결과를 항상 '중간'으로 주고 멈춘 뒤 `finalTimeout`(기본 2초)이 지나야 확정 ② 상태 알림 안에서 바로 다시 `listen`하면 새 세션의 끝 알림이 오지 않음 ③ 플러그인 생성자가 Flutter 바인딩을 씀 | 말을 마치고 2초 늦게 전송, 조용한 뒤 듣기가 멈춤, 앱 시작 실패 | `PluginVoiceEngine`에서 웹은 `finalTimeout` 150ms, 다시 듣기는 다음 이벤트 차례에, 플러그인은 처음 쓸 때 생성. 패키지를 올릴 때 브라우저 확인(가짜 음성 API로 실제 웹 빌드 구동)을 다시 함 |
 | R-A12 | 모바일 앱은 Cloudflare Access(ADR-019)의 브라우저 쿠키 로그인을 통과하지 못함 | F-014 배포 주소를 앱에서 부를 수 없음 | 지금은 같은 Wi-Fi의 개발용 `chatd`로만 씀. 배포 주소를 앱에서 쓰려면 F-008 로그인 또는 Access 서비스 토큰 — 배포 재개 때 결정 |
+| R-A14 | 실시간 음성(F-022)은 ElevenLabs가 chatd API-006을 부르므로 chatd가 공개 HTTPS로 열려 있어야 함. 비밀값이 새면 남이 우리 Claude 키로 답을 받음 | 비용 남용, 로컬 개발에 터널 필요 | API-006은 Bearer 비밀값(16자 이상, 상수 시간 비교)이 없으면 404·틀리면 401. 로컬은 `cloudflared tunnel --url`(일회용 주소), 배포 때는 Cloudflare Tunnel에서 `/v1/chat/completions`만 Access 예외. 비밀값은 SSM에 |
 | R-A13 | 모바일 OS 음성 엔진은 기기마다 다름 (Android 인식기가 읽는 소리를 다시 듣거나, 읽는 중 듣기가 멈출 수 있음, iOS 오디오 세션 전환) | 끼어들기·자동 재듣기가 웹과 다르게 동작 | iOS는 `playAndRecord`+스피커 공유 세션, F-017 AC6 실제 기기 확인에서 판단 |
 
 ---
@@ -502,5 +514,6 @@ flowchart LR
 | v1.7 | 2026-11-10 | kimtaesung98 | §10 단계 4(F-013) — Node MVP 제거: ADR-001 대체됨, ADR-012 Go만, ADR-017 보류(사용자 결정), 스택·모듈 맵·개발 도구·인터페이스에서 Node 제거, TD-001~003 해소 |
 | v1.8 | 2026-11-10 | kimtaesung98 | ADR-018~021 승인 (사용자 "추천안 전체") — AWS EC2 + Cloudflare 배포, Cloudflare Access, Polly TTS, Transcribe STT. 허용 목록·§6 환경 갱신, F-014 등록 |
 | v1.9 | 2026-11-11 | kimtaesung98 | §10 단계 5 착수(F-017 모바일 앱): ADR-022 서버 주소·평문 HTTP 범위, §6.3 `API_BASE_URL` 기본값, R-A12·R-A13. ADR-023 `shared_preferences` 승인(Q-005), `app/storage` 모듈 |
+| v1.12 | 2026-11-12 | kimtaesung98 | F-022: ADR-025(ElevenLabs Agents 실시간 음성, 우리 서버 Custom LLM), `internal/elevenlabs` 모듈, `elevenlabs_agents` 허용, §6.3 환경변수, R-A14 |
 | v1.11 | 2026-11-11 | kimtaesung98 | F-020: ADR-024에 장기 기억(API-004 `/api/consolidate`, API-001 `longTerm`) 추가 |
 | v1.10 | 2026-11-11 | kimtaesung98 | F-019: ADR-024(대화 요약 기억 — 앱 기기 저장, 서버 요약 API-003, 페르소나 지시 `base`·`instructions` 두 층), §4.1·§4.2 인터페이스 갱신 |

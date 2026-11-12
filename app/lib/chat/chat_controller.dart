@@ -90,7 +90,7 @@ class ChatController extends ChangeNotifier {
     if (busy || text.trim().isEmpty) return false;
     final messages = [...history, Message(Role.user, text)];
     final persona = personas?.request;
-    final session = _session ??= _Session('session-${_clock().microsecondsSinceEpoch}-${_sessionSeq++}', persona);
+    final session = _ensureSession();
     final question = ChatEntry._(Role.user, text, EntryStatus.done);
     final answer = ChatEntry._(Role.assistant, '', EntryStatus.streaming);
     _entries.addAll([question, answer]);
@@ -142,6 +142,42 @@ class ChatController extends ChangeNotifier {
     _notify();
     return true;
   }
+
+  _Session _ensureSession() =>
+      _session ??= _Session('session-${_clock().microsecondsSinceEpoch}-${_sessionSeq++}', personas?.request);
+
+  /// 실시간 음성 대화(F-022)에서 확정된 말 한마디를 대화 내역에 넣는다. 서버에 보내지 않는다 —
+  /// 답은 ElevenLabs가 우리 서버(Custom LLM)를 불러 만들고, 여기서는 화면·요약(F-019)·다시 연결용으로 남긴다.
+  void addVoiceTurn(Role role, String text) {
+    if (text.trim().isEmpty) return;
+    _ensureSession();
+    _entries.add(ChatEntry._(role, text.trim(), EntryStatus.done));
+    _notify();
+  }
+
+  /// 실시간 음성 대화를 시작할 때 ElevenLabs에 넘길 맥락 (F-022, API-006 `elevenlabs_extra_body`).
+  /// API-001과 같은 `persona`·`memory`·`longTerm`에, 다시 연결해도 맥락이 이어지게 지금까지의 `history`를 싣는다.
+  /// 시스템 프롬프트 틀은 서버가 만든다 (ADR-016).
+  Map<String, Object?> voiceContext() {
+    final session = _ensureSession();
+    final p = session.persona;
+    final recent = history;
+    final cut = recent.length > maxVoiceHistory ? recent.sublist(recent.length - maxVoiceHistory) : recent;
+    final lt = p == null ? null : memory?.longTermFor(p.persona.id);
+    return {
+      if (p != null) 'persona': p.toJson(),
+      if (p != null)
+        'memory': [
+          for (final m in memory?.recentFor(p.persona.id, exceptSession: session.id) ?? const <SessionSummary>[])
+            m.toRequestJson(),
+        ],
+      if (lt != null) 'longTerm': lt.toRequestJson(),
+      'history': [for (final m in cut) m.toJson()],
+    };
+  }
+
+  /// [voiceContext] `history` 최대 메시지 수 (서버 MaxAgentHistory와 같음).
+  static const maxVoiceHistory = 40;
 
   /// 마지막 답이 오류면 다시 시도할 수 있다 (F-004 AC2).
   bool get canRetry => !busy && _entries.length >= 2 && _entries.last.status == EntryStatus.error;

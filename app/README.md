@@ -54,6 +54,13 @@ flowchart LR
     VoicePage -->|"start · tap(화면 누르기) · stop"| Voice
     Voice -->|"상태 · 미리 보기 · 읽는 문장 · 안내"| VoicePage
     VoicePage -->|"큰 상태 원 · 자막"| User
+    VoicePage -->|"start · stop (F-022)"| Agent[voice/agent_voice_controller.dart<br>실시간 음성 → 안 되면 기기 음성]
+    Agent -->|"POST /api/voice/token (main.dart가 넘긴 함수)"| Server
+    Agent -->|"토큰 · persona·memory·longTerm·history"| El[voice/elevenlabs_agent.dart<br>elevenlabs_agents · WebRTC]
+    User <-->|"실시간 음성"| El
+    El -->|"상태 · 들은 말 · 답"| Agent
+    Agent -->|"addVoiceTurn"| Ctrl
+    Agent -.->|"폴백"| Voice
     VoicePage -->|"화면 꺼짐 막기 켜기·끄기"| Awake[ui/keep_awake.dart<br>Wake Lock · 네이티브 채널]
     UI -->|"앱 뒤로 · 돌아옴 (pause · resume)"| Voice
     User -->|"페르소나 선택 · 편집 · 내 프로필"| UI
