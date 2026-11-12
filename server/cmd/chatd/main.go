@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/config"
+	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/elevenlabs"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/httpapi"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/provider"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/provider/anthropic"
@@ -41,7 +42,7 @@ func run(log *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.New(p, cfg.StaticDir, log),
+		Handler:           httpapi.New(p, cfg.StaticDir, log, voiceOptions(cfg)...),
 		ReadHeaderTimeout: 10 * time.Second,
 		// WriteTimeout은 두지 않는다: SSE 응답이 길어질 수 있음
 	}
@@ -52,6 +53,7 @@ func run(log *slog.Logger) error {
 	go func() { errc <- srv.ListenAndServe() }()
 
 	log.Info(describeMode(p), "provider", p.Name(), "model", p.Model()) // 키는 기록하지 않음
+	log.Info(describeVoice(cfg))                                        // 키·비밀값은 기록하지 않음
 	log.Info(fmt.Sprintf("AI Agent Chat → http://localhost:%d", cfg.Port), "static_dir", cfg.StaticDir)
 
 	select {
@@ -80,4 +82,28 @@ func describeMode(p provider.Provider) string {
 		return "모드: 모의(mock) — ANTHROPIC_API_KEY가 없어 모의 응답을 사용합니다"
 	}
 	return "모드: Claude — 모델 " + p.Model()
+}
+
+// voiceOptions는 ElevenLabs 실시간 음성 대화를 켠다 (F-022, ADR-025).
+func voiceOptions(cfg config.Config) []httpapi.Option {
+	var opts []httpapi.Option
+	if cfg.VoiceAgent() {
+		opts = append(opts, httpapi.WithVoiceAgent(elevenlabs.New(cfg.ElevenLabsAPIKey, cfg.ElevenLabsAgentID, cfg.ElevenLabsBaseURL)))
+	}
+	if cfg.LLMSecret != "" {
+		opts = append(opts, httpapi.WithLLMSecret(cfg.LLMSecret))
+	}
+	return opts
+}
+
+func describeVoice(cfg config.Config) string {
+	switch {
+	case cfg.VoiceAgent() && cfg.LLMSecret != "":
+		return "실시간 음성: ElevenLabs Agents 켜짐 (토큰 발급 + Custom LLM /v1/chat/completions)"
+	case cfg.VoiceAgent():
+		return "실시간 음성: ElevenLabs 토큰 발급만 켜짐 — ELEVENLABS_LLM_SECRET이 없어 Custom LLM 엔드포인트는 꺼져 있어요"
+	case cfg.LLMSecret != "":
+		return "실시간 음성: Custom LLM 엔드포인트만 켜짐 — ELEVENLABS_API_KEY·ELEVENLABS_AGENT_ID가 없어 앱은 기기 음성을 써요"
+	}
+	return "실시간 음성: 꺼짐 — 앱은 기기 음성(STT·TTS)을 써요"
 }

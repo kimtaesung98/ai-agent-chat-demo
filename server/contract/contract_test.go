@@ -2,6 +2,7 @@ package contract
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -276,6 +277,87 @@ func TestF020(t *testing.T) {
 }
 
 // API-001·API-002 공통 계약: 메서드·경로 오류, 정적 화면
+func TestF022(t *testing.T) {
+	var cfg struct {
+		VoiceAgent string `json:"voiceAgent"`
+	}
+	res, err := client.Get(*baseURL + "/api/config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	json.NewDecoder(res.Body).Decode(&cfg)
+	res.Body.Close()
+	if cfg.VoiceAgent != "elevenlabs" {
+		t.Skip("이 서버는 실시간 음성(ElevenLabs)이 꺼져 있어요")
+	}
+
+	t.Run("F-022 AC2 POST /api/voice/token은 대화 토큰만 주고 API 키는 주지 않는다", func(t *testing.T) {
+		res := postJSON(t, "/api/voice/token", "{}")
+		b, _ := io.ReadAll(res.Body)
+		if res.StatusCode != http.StatusOK || !strings.Contains(string(b), `"conversationToken"`) || strings.Contains(string(b), fakeXIKey) {
+			t.Fatalf("%d %s", res.StatusCode, b)
+		}
+	})
+
+	completions := func(t *testing.T, auth, body string) *http.Response {
+		t.Helper()
+		req, _ := http.NewRequest(http.MethodPost, *baseURL+"/v1/chat/completions", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		if auth != "" {
+			req.Header.Set("Authorization", auth)
+		}
+		res, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { res.Body.Close() })
+		return res
+	}
+	body := `{"model":"m","stream":true,"messages":[{"role":"system","content":"s"},{"role":"assistant","content":"안녕하세요"},{"role":"user","content":"안녕"}],
+		"elevenlabs_extra_body":{"persona":{"name":"미소","role":"노인복지사","base":"천천히"},"memory":[{"summary":"지난번 이야기","facts":[],"followUps":[]}]}}`
+
+	t.Run("F-022 AC4 Bearer 비밀값이 틀리면 401", func(t *testing.T) {
+		if res := completions(t, "Bearer nope", body); res.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("%d", res.StatusCode)
+		}
+	})
+
+	t.Run("F-022 AC3 Custom LLM은 OpenAI 형식 SSE 조각을 보내고 [DONE]으로 끝낸다", func(t *testing.T) {
+		res := completions(t, "Bearer "+llmSecret, body)
+		if res.StatusCode != http.StatusOK || !strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream") {
+			t.Fatalf("%d %v", res.StatusCode, res.Header)
+		}
+		b, _ := io.ReadAll(res.Body)
+		chunks := strings.Split(strings.TrimSpace(string(b)), "\n\n")
+		if len(chunks) < 3 || chunks[len(chunks)-1] != "data: [DONE]" {
+			t.Fatalf("body = %q", b)
+		}
+		var text strings.Builder
+		for _, c := range chunks[:len(chunks)-1] {
+			var v struct {
+				Choices []struct {
+					Delta struct {
+						Content string `json:"content"`
+					} `json:"delta"`
+				} `json:"choices"`
+			}
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(c, "data: ")), &v); err != nil || len(v.Choices) != 1 {
+				t.Fatalf("조각 %q: %v", c, err)
+			}
+			text.WriteString(v.Choices[0].Delta.Content)
+		}
+		if strings.TrimSpace(text.String()) == "" {
+			t.Fatal("답이 비었어요")
+		}
+	})
+
+	t.Run("F-022 AC3 형식이 틀리면 400", func(t *testing.T) {
+		if res := completions(t, "Bearer "+llmSecret, `{"messages":[{"role":"system","content":"x"}]}`); res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("%d", res.StatusCode)
+		}
+	})
+}
+
 func TestAPI(t *testing.T) {
 	do := func(t *testing.T, method, path string) *http.Response {
 		t.Helper()

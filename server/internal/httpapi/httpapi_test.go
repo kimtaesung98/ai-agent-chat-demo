@@ -265,9 +265,9 @@ func TestRoutes(t *testing.T) {
 		return res, string(b)
 	}
 
-	t.Run("F-001 AC4 /api/config는 제공자 이름과 모델을 준다", func(t *testing.T) {
+	t.Run("F-001 AC4 · F-022 AC2 /api/config는 제공자 이름·모델·실시간 음성 여부를 준다", func(t *testing.T) {
 		res, b := get("GET", "/api/config")
-		if res.StatusCode != 200 || b != `{"model":"fake","provider":"mock"}` {
+		if res.StatusCode != 200 || b != `{"model":"fake","provider":"mock","voiceAgent":"none"}` {
 			t.Fatalf("%d %s", res.StatusCode, b)
 		}
 	})
