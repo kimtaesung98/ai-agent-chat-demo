@@ -18,6 +18,7 @@ abstract final class AgentMessages {
   static const connecting = '연결하고 있어요. 잠깐만요.';
   static const reconnecting = '잠깐 연결이 끊겼어요. 다시 연결하고 있어요.';
   static const fellBack = '실시간 음성에 연결하지 못해 기기 음성으로 대화할게요.';
+  static const serverOff = '서버에 실시간 음성이 꺼져 있어 기기 음성으로 대화할게요.';
 }
 
 class AgentVoiceController extends ChangeNotifier implements VoiceSession {
@@ -28,6 +29,7 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
     this.agent,
     this.retryDelay = const Duration(seconds: 1),
     this.maxConnectFailures = 3,
+    this.connectTimeout = const Duration(seconds: 15),
   }) {
     _fallback.addListener(_onFallback);
     _sub = agent?.events.listen(_onEvent);
@@ -48,6 +50,9 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
 
   /// 한 번도 연결되지 못하고 이만큼 연달아 실패하면 기기 음성으로 바꾼다 (F-022 AC6).
   final int maxConnectFailures;
+
+  /// 이만큼 기다려도 연결되지 않으면 실패로 본다 — SDK가 실패도 끊김도 알리지 않고 멈출 수 있다.
+  final Duration connectTimeout;
 
   var _useFallback = false;
   VoiceState _state = VoiceState.off;
@@ -107,6 +112,11 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
     }
     if (!_canRealtime) {
       _useFallback = true;
+      if (agent != null) {
+        // 이 기기는 실시간 음성을 쓸 수 있는데 서버가 꺼 두었다 (환경변수 없음·설정을 못 받음) — 화면과 로그에 알린다
+        debugPrint('실시간 음성 꺼짐: 서버 voiceAgent=${_chat.config?.voiceAgent}, 설정 실패=${_chat.configFailed}');
+        _notice = AgentMessages.serverOff;
+      }
       return _fallback.start();
     }
     _useFallback = false;
@@ -121,6 +131,13 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
   Future<void> _connect() async {
     final gen = ++_gen;
     _connected = false;
+    Timer(connectTimeout, () {
+      if (gen != _gen || _disposed || _connected || _state == VoiceState.off || _useFallback) return;
+      debugPrint('실시간 음성: 연결 시간 초과');
+      _gen++; // 늦게 오는 이 연결의 사건은 무시한다
+      unawaited(agent?.end());
+      _connectFailed();
+    });
     try {
       final token = await _fetchToken();
       if (gen != _gen || _disposed) return;
@@ -130,8 +147,10 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
         variables: {'persona_name': _chat.personas?.selected.name ?? ''},
       );
     } on VoiceTokenFailed {
+      debugPrint('실시간 음성: 서버가 대화 토큰을 주지 못함');
       if (gen == _gen && !_disposed) _toFallback(); // 서버가 토큰을 못 줌 → 바로 기기 음성
-    } catch (_) {
+    } catch (e) {
+      debugPrint('실시간 음성: 연결 실패 (${e.runtimeType})');
       if (gen == _gen && !_disposed) _connectFailed();
     }
   }

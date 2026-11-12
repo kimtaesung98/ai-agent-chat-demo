@@ -18,6 +18,7 @@ class FakeAgent implements RealtimeAgent {
   final muted = <bool>[];
   var ends = 0;
   var failStart = false;
+  var hang = false; // 실패도 끊김도 알리지 않고 멈춘다
 
   void emit(AgentEvent e) => _events.add(e);
 
@@ -32,6 +33,7 @@ class FakeAgent implements RealtimeAgent {
   }) async {
     starts.add((token: token, context: context, variables: variables));
     if (failStart) throw StateError('연결 실패');
+    if (hang) await Completer<void>().future;
   }
 
   @override
@@ -55,7 +57,7 @@ void main() {
 
   Future<void> flush() => pumpEventQueue();
 
-  Future<void> setUpWith({bool voiceAgent = true, bool withAgent = true, bool loadConfig = true}) async {
+  Future<void> setUpWith({bool voiceAgent = true, bool withAgent = true, bool loadConfig = true, Duration connectTimeout = const Duration(seconds: 5)}) async {
     api = FakeApi()..serverConfig = ServerConfig(provider: 'mock', model: 'm', voiceAgent: voiceAgent);
     personas = PersonaController();
     memory = MemoryController();
@@ -69,6 +71,7 @@ void main() {
       VoiceController(chat, engine),
       agent: withAgent ? agent : null,
       retryDelay: const Duration(milliseconds: 1),
+      connectTimeout: connectTimeout,
     );
   }
 
@@ -175,6 +178,7 @@ void main() {
     expect(engine.listening, isTrue);
     expect(voice.state, VoiceState.listening);
     expect(voice.realtime, isFalse);
+    expect(voice.notice, AgentMessages.serverOff, reason: '왜 기기 음성인지 알린다');
     voice.stop();
     expect(engine.listening, isFalse);
     voice.dispose();
@@ -183,6 +187,18 @@ void main() {
     await setUpWith(withAgent: false); // 웹
     await voice.start();
     expect(api.tokenRequests, 0);
+    expect(engine.listening, isTrue);
+    expect(voice.notice, isNull, reason: '웹은 원래 기기 음성');
+  });
+
+  test('F-022 AC6 연결이 알림 없이 멈추면 시간 초과로 다시 시도하고, 계속 안 되면 기기 음성으로 바꾼다', () async {
+    await setUpWith(connectTimeout: const Duration(milliseconds: 20));
+    agent.hang = true;
+    unawaited(voice.start());
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    expect(agent.starts.length, 3);
+    expect(voice.realtime, isFalse);
+    expect(voice.notice, AgentMessages.fellBack);
     expect(engine.listening, isTrue);
   });
 
