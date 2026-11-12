@@ -64,6 +64,7 @@ void main() {
             p.startsWith('../api/models.dart') ||
             p.startsWith('package:speech_to_text/') ||
             p.startsWith('package:flutter_tts/') ||
+            p.startsWith('package:elevenlabs_agents/') ||
             !p.contains('/');
         expect(ok, isTrue, reason: '$key → $p');
       }
@@ -111,6 +112,18 @@ void main() {
         (p) => p.startsWith('package:speech_to_text/') || p.startsWith('package:flutter_tts/'),
       );
       if (usesPackage) expect(f.path, endsWith('voice/plugin_voice_engine.dart'));
+    }
+  });
+
+  test('F-022 elevenlabs_agents는 voice/elevenlabs_agent.dart에서만 import하고, 앱에 ElevenLabs 키를 두지 않는다 (ADR-025)', () {
+    for (final f in Directory(
+      'lib',
+    ).listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
+      final text = f.readAsStringSync();
+      final uses = importRe.allMatches(text).any((m) => m.group(1)!.startsWith('package:elevenlabs_agents/'));
+      if (uses) expect(f.path, endsWith('voice/elevenlabs_agent.dart'));
+      expect(text.contains('xi-api-key'), isFalse, reason: f.path);
+      expect(text.contains('api.elevenlabs.io'), isFalse, reason: f.path);
     }
   });
 

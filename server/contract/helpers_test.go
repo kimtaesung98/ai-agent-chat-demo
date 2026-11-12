@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -85,19 +86,24 @@ func startChatd() (string, func(), error) {
 
 	var env []string
 	for _, kv := range os.Environ() {
-		if k, _, _ := strings.Cut(kv, "="); k == "ANTHROPIC_API_KEY" || k == "PORT" || k == "STATIC_DIR" {
+		if k, _, _ := strings.Cut(kv, "="); k == "ANTHROPIC_API_KEY" || k == "PORT" || k == "STATIC_DIR" || strings.HasPrefix(k, "ELEVENLABS_") {
 			continue
 		}
 		env = append(env, kv)
 	}
 	cmd := exec.Command(bin)
-	cmd.Env = append(env, fmt.Sprintf("PORT=%d", port), "STATIC_DIR="+static)
+	// F-022: 가짜 ElevenLabs 서버로 토큰을 받고, Custom LLM 엔드포인트를 켠다 (실제 ElevenLabs 호출 없음)
+	fake := startFakeElevenLabs()
+	cmd.Env = append(env, fmt.Sprintf("PORT=%d", port), "STATIC_DIR="+static,
+		"ELEVENLABS_API_KEY="+fakeXIKey, "ELEVENLABS_AGENT_ID=agent_contract", "ELEVENLABS_API_BASE="+fake.URL,
+		"ELEVENLABS_LLM_SECRET="+llmSecret)
 	cmd.Stderr = os.Stderr // 요청 로그(stdout)는 버린다
 	if err := cmd.Start(); err != nil {
 		cleanup()
 		return "", nil, err
 	}
 	stop := func() {
+		fake.Close()
 		cmd.Process.Kill()
 		cmd.Wait()
 		cleanup()
@@ -115,6 +121,31 @@ func startChatd() (string, func(), error) {
 	}
 	stop()
 	return "", nil, fmt.Errorf("chatd가 10초 안에 뜨지 않았어요")
+}
+
+// F-022 계약 테스트용 값 (가짜). -base-url로 띄운 서버는 CONTRACT_LLM_SECRET으로 같은 값을 맞춘다.
+const (
+	fakeXIKey  = "contract-fake-xi-key"
+	fakeToken  = "contract-fake-conversation-token"
+	defaultLLM = "contract-llm-secret-0123456789"
+)
+
+var llmSecret = func() string {
+	if s := os.Getenv("CONTRACT_LLM_SECRET"); s != "" {
+		return s
+	}
+	return defaultLLM
+}()
+
+// startFakeElevenLabs는 토큰 발급 API만 흉내 낸다. 키가 맞아야 토큰을 준다.
+func startFakeElevenLabs() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/convai/conversation/token" || r.Header.Get("xi-api-key") != fakeXIKey || r.URL.Query().Get("agent_id") != "agent_contract" {
+			http.Error(w, `{"detail":"bad"}`, http.StatusUnauthorized)
+			return
+		}
+		fmt.Fprintf(w, `{"token":%q,"conversation_id":"conv_1"}`, fakeToken)
+	}))
 }
 
 func requireMockMode() error {

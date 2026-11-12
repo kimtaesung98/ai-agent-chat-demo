@@ -3,6 +3,9 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- F-012·F-017: 음성 대화 마이크. 실행 중에 speech_to_text가 권한을 묻는다 -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- F-022: 실시간 음성(ElevenLabs Agents, WebRTC) — 스피커·이어폰 전환, 네트워크 바뀜 감지 -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <!-- 블루투스 이어폰으로 듣기 (speech_to_text 안내). Android 12+는 BLUETOOTH_CONNECT -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>

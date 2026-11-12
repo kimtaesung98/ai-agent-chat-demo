@@ -70,8 +70,22 @@ class FakeApi implements ChatApi {
     });
   }
 
+  /// 서버 설정 (F-022: [voiceAgent]면 실시간 음성 대화를 쓴다).
+  ServerConfig serverConfig = const ServerConfig(provider: 'mock', model: 'mock-echo');
+
   @override
-  Future<ServerConfig> config() async => const ServerConfig(provider: 'mock', model: 'mock-echo');
+  Future<ServerConfig> config() async => serverConfig;
+
+  /// 실시간 음성 토큰 요청 수. [tokenFails]면 [VoiceTokenFailed].
+  var tokenRequests = 0;
+  var tokenFails = false;
+
+  @override
+  Future<String> voiceToken() async {
+    tokenRequests++;
+    if (tokenFails) throw const VoiceTokenFailed();
+    return 'token-$tokenRequests';
+  }
 }
 
 /// 테스트가 들은 것을 직접 흘리고, 읽기 완료를 직접 정하는 가짜 엔진.

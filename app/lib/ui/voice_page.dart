@@ -1,6 +1,6 @@
 /// S-003 음성 대화 화면 (SPEC.md F-018). 어르신도 쓰기 쉽게, 버튼 없이 계속 이어지는 대화.
 /// 화면 아무 데나 누르면 말을 끊고(끼어들기) 듣는다. 끄는 것은 아래 "대화 끝내기" 하나뿐이다.
-/// 상태는 [VoiceController]·[ChatController]가 갖고, 이 위젯은 그리기와 누르기 연결만 한다.
+/// 상태는 [VoiceSession]·[ChatController]가 갖고, 이 위젯은 그리기와 누르기 연결만 한다.
 library;
 
 import 'package:flutter/material.dart';
@@ -12,7 +12,7 @@ import 'persona_widgets.dart';
 import 'theme.dart';
 
 /// 음성 대화 화면을 열고, 음성 모드가 꺼져 있으면 바로 듣기 시작한다 (F-018 AC1).
-Future<void> openVoicePage(BuildContext context, {required ChatController chat, required VoiceController voice}) {
+Future<void> openVoicePage(BuildContext context, {required ChatController chat, required VoiceSession voice}) {
   if (!voice.active) voice.start();
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
@@ -25,7 +25,7 @@ class VoicePage extends StatefulWidget {
   const VoicePage({super.key, required this.chat, required this.voice});
 
   final ChatController chat;
-  final VoiceController voice;
+  final VoiceSession voice;
 
   @override
   State<VoicePage> createState() => _VoicePageState();
@@ -34,7 +34,7 @@ class VoicePage extends StatefulWidget {
 class _VoicePageState extends State<VoicePage> with SingleTickerProviderStateMixin {
   late final _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
 
-  VoiceController get _voice => widget.voice;
+  VoiceSession get _voice => widget.voice;
   ChatController get _chat => widget.chat;
 
   /// 탭·앱이 다시 보이면 화면 꺼짐 막기를 다시 켠다 (브라우저는 가려질 때 스스로 푼다).
@@ -256,7 +256,7 @@ class _VoiceView {
   /// 누르면 하는 일 (스크린 리더용). 듣는 중에는 누를 일이 없어 null.
   final String? tapLabel;
 
-  static _VoiceView of(VoiceController voice, ChatController chat, ChatColors c) {
+  static _VoiceView of(VoiceSession voice, ChatController chat, ChatColors c) {
     final userTint = Color.alphaBlend(c.user.withValues(alpha: 0.12), c.panel);
     final userDeep = Color.alphaBlend(Colors.black.withValues(alpha: 0.25), c.user);
     final notice = voice.notice;

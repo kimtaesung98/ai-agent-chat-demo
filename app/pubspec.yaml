@@ -7,6 +7,7 @@ environment:
   sdk: ^3.13.7
 
 dependencies:
+  elevenlabs_agents: ^0.6.1
   fetch_client: ^1.2.1
   flutter:
     sdk: flutter

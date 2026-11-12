@@ -40,4 +40,25 @@ func TestLoad(t *testing.T) {
 			}
 		}
 	})
+	t.Run("F-022 AC1 ElevenLabs 설정을 읽고, 키와 에이전트 ID가 둘 다 있어야 음성 에이전트를 켠다", func(t *testing.T) {
+		c, err := Load(env(map[string]string{"ELEVENLABS_API_KEY": " xi ", "ELEVENLABS_AGENT_ID": "agent_1", "ELEVENLABS_LLM_SECRET": "0123456789abcdef"}))
+		if err != nil || !c.VoiceAgent() || c.ElevenLabsAPIKey != "xi" || c.LLMSecret != "0123456789abcdef" {
+			t.Fatalf("c=%+v err=%v", c, err)
+		}
+		if c, _ := Load(env(nil)); c.VoiceAgent() {
+			t.Fatal("설정이 없으면 꺼져 있어야 해요")
+		}
+	})
+	t.Run("F-022 AC1 키·에이전트 ID 한쪽만 있거나 짧은 비밀값은 기동을 멈추고 값을 오류에 넣지 않는다", func(t *testing.T) {
+		for _, m := range []map[string]string{
+			{"ELEVENLABS_API_KEY": "xi-secret"},
+			{"ELEVENLABS_AGENT_ID": "agent_1"},
+			{"ELEVENLABS_LLM_SECRET": "short-secret"},
+		} {
+			_, err := Load(env(m))
+			if err == nil || strings.Contains(err.Error(), "xi-secret") || strings.Contains(err.Error(), "short-secret") {
+				t.Fatalf("%v err=%v", m, err)
+			}
+		}
+	})
 }

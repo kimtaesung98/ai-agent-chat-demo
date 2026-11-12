@@ -21,7 +21,7 @@ class ChatPage extends StatefulWidget {
   final ChatController controller;
 
   /// 음성 대화 (F-012). 없으면 마이크 버튼을 그리지 않는다.
-  final VoiceController? voice;
+  final VoiceSession? voice;
 
   /// 모바일 앱의 서버 주소 설정 (F-017 AC7). 웹은 null.
   final ServerSettings? server;
@@ -50,7 +50,7 @@ class _ChatPageState extends State<ChatPage> {
   );
 
   ChatController get _chat => widget.controller;
-  VoiceController? get _voice => widget.voice;
+  VoiceSession? get _voice => widget.voice;
 
   @override
   void initState() {
@@ -345,7 +345,7 @@ class _ChatPageState extends State<ChatPage> {
 /// 마이크 버튼: 켜기 · 끄기 · 읽는 중 끼어들기 (F-012 AC5).
 class _MicButton extends StatelessWidget {
   const _MicButton({required this.voice});
-  final VoiceController voice;
+  final VoiceSession voice;
 
   @override
   Widget build(BuildContext context) {
@@ -377,7 +377,7 @@ class _MicButton extends StatelessWidget {
 /// 음성 상태와 인식 중인 문장, 안내 (F-012 상세 동작 1·2·7).
 class _VoiceBar extends StatelessWidget {
   const _VoiceBar({required this.voice});
-  final VoiceController voice;
+  final VoiceSession voice;
 
   @override
   Widget build(BuildContext context) {
