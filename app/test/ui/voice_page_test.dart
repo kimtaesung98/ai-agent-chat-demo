@@ -4,6 +4,7 @@ import 'package:ai_agent_chat/chat/memory_controller.dart';
 import 'package:ai_agent_chat/chat/persona_controller.dart';
 import 'package:ai_agent_chat/chat/start_settings.dart';
 import 'package:ai_agent_chat/main.dart';
+import 'package:ai_agent_chat/ui/voice_wave.dart';
 import 'package:ai_agent_chat/voice/voice_controller.dart';
 import 'package:ai_agent_chat/voice/voice_engine.dart';
 import 'package:flutter/material.dart';
@@ -90,6 +91,38 @@ void main() {
     expect(engine.spoken, ['좋아요.', '먼저 매일 쓰는 기능부터 볼게요.']);
     expect(label(tester), '듣고 있어요');
     expect(engine.listening, isTrue);
+  });
+
+  double waveAmp(WidgetTester t) =>
+      (t.widget<CustomPaint>(find.byKey(const Key('voice-wave-paint'))).painter! as VoiceWavePainter).amp;
+
+  testWidgets('F-018 AC11 듣는 중 마이크 소리가 크면 파형이 높아지고, 조용해지면 가라앉는다', (tester) async {
+    await open(tester);
+    expect(find.byKey(const Key('voice-wave')), findsOneWidget);
+    final quiet = waveAmp(tester);
+    engine.level.value = 1;
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    final loud = waveAmp(tester);
+    expect(loud, greaterThan(quiet + 0.5));
+    engine.level.value = 0;
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(waveAmp(tester), lessThan(loud / 2));
+  });
+
+  testWidgets('F-018 AC11 대화가 멈추면 파형도 멈춘다', (tester) async {
+    await open(tester);
+    engine.level.value = 1;
+    await tester.pump(const Duration(milliseconds: 16));
+    voice.stop();
+    for (var i = 0; i < 60; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(waveAmp(tester), lessThan(0.01));
+    await tester.pumpAndSettle(); // 멈춘 뒤엔 그리기가 끝난다 (반복 애니메이션 없음)
   });
 
   testWidgets('F-018 AC4 말하는 중 화면 아무 데나 누르면 말을 끊고 듣는다', (tester) async {

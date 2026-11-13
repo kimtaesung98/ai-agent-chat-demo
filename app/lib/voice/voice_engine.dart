@@ -2,6 +2,8 @@
 /// 컨트롤러는 이것만 알고, 테스트는 가짜 엔진을 쓴다. 웹 구현은 `web_speech_engine.dart`.
 library;
 
+import 'package:flutter/foundation.dart';
+
 /// 엔진이 들은 것.
 sealed class Heard {
   const Heard();
@@ -57,6 +59,9 @@ abstract interface class VoiceEngine {
   /// 들은 것 (broadcast).
   Stream<Heard> get heard;
 
+  /// 마이크에 들어오는 소리 크기 0~1 (듣는 중에만 움직임, 음성 화면 파형 F-018 AC11). 모르면 늘 0.
+  ValueListenable<double> get level;
+
   /// 한 번 듣기 시작한다. 말을 멈추면 [HeardFinal] 하나를 내고 끝난다. 이미 듣는 중이면 아무것도 하지 않는다.
   void startListening();
 
@@ -82,6 +87,8 @@ class UnsupportedVoiceEngine implements VoiceEngine {
   @override
   Stream<Heard> get heard => const Stream.empty();
   @override
+  ValueListenable<double> get level => silentLevel;
+  @override
   void startListening() {}
   @override
   void stopListening() {}
@@ -92,3 +99,6 @@ class UnsupportedVoiceEngine implements VoiceEngine {
   @override
   void dispose() {}
 }
+
+/// 소리 크기를 모를 때 쓰는 늘 0인 값.
+final ValueListenable<double> silentLevel = ValueNotifier(0);

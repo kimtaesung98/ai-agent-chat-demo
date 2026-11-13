@@ -10,6 +10,7 @@ import '../voice/voice_controller.dart';
 import 'keep_awake.dart';
 import 'persona_widgets.dart';
 import 'theme.dart';
+import 'voice_wave.dart';
 
 /// 음성 대화 화면을 열고, 음성 모드가 꺼져 있으면 바로 듣기 시작한다 (F-018 AC1).
 Future<void> openVoicePage(BuildContext context, {required ChatController chat, required VoiceSession voice}) {
@@ -172,7 +173,16 @@ class _VoicePageState extends State<VoicePage> with SingleTickerProviderStateMix
                         ),
                       ),
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 20),
+                    VoiceWave(
+                      key: const Key('voice-wave'),
+                      level: _voice.level,
+                      color: c.user,
+                      moving: view.pulse,
+                      speaking: _voice.state == VoiceState.speaking,
+                      height: (orb * 0.25).clamp(32.0, 56.0),
+                    ),
+                    const SizedBox(height: 20),
                     Semantics(
                       liveRegion: true,
                       child: Text(
