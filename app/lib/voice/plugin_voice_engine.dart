@@ -10,6 +10,7 @@ import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
+import 'level_meter.dart';
 import 'voice_engine.dart';
 
 class PluginVoiceEngine implements VoiceEngine {
@@ -25,6 +26,8 @@ class PluginVoiceEngine implements VoiceEngine {
   late final _stt = SpeechToText();
   late final _tts = FlutterTts();
   final _heard = StreamController<Heard>.broadcast();
+  final _level = ValueNotifier<double>(0);
+  final _meter = LevelMeter();
 
   Future<bool>? _preparing;
   var _sttReady = false;
@@ -34,6 +37,7 @@ class PluginVoiceEngine implements VoiceEngine {
   var _want = false; // 음성 모드가 듣기를 원함
   var _session = false; // 듣기 세션이 열려 있음 (끝남 알림 전까지)
   var _finalSent = false; // 이번 세션에서 확정 문장을 보냈는지
+  var _restarting = false; // 다 읽은 뒤 듣기 세션을 새로 여는 중 — 그사이 오는 끝남 알림으로 또 열지 않는다
 
   Completer<void>? _speaking;
 
@@ -43,6 +47,8 @@ class PluginVoiceEngine implements VoiceEngine {
   bool get canSpeak => _ttsReady;
   @override
   Stream<Heard> get heard => _heard.stream;
+  @override
+  ValueListenable<double> get level => _level;
 
   @override
   Future<bool> prepare() => _preparing ??= _prepare();
@@ -132,8 +138,10 @@ class PluginVoiceEngine implements VoiceEngine {
           pauseFor: pauseFor,
           listenFor: const Duration(minutes: 1),
         ),
+        onSoundLevelChange: (db) => _level.value = _meter.add(db),
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('음성 인식: 듣기 시작 실패 (${e.runtimeType})');
       _session = false;
       _want = false;
       _heard.add(const ListenFailed(ListenFailure.other));
@@ -153,7 +161,10 @@ class PluginVoiceEngine implements VoiceEngine {
   }
 
   void _onStatus(String status) {
+    debugPrint('음성 인식 상태: $status');
     if (status != SpeechToText.doneStatus && status != 'doneNoResult') return;
+    _level.value = 0;
+    if (_restarting) return; // 다 읽은 뒤 우리가 닫은 세션 — 새 세션은 _speechCompleted가 연다
     _session = false;
     if (!_want) return;
     if (!_finalSent) _heard.add(const ListenEnded());
@@ -165,6 +176,7 @@ class PluginVoiceEngine implements VoiceEngine {
   }
 
   void _onError(SpeechRecognitionError e) {
+    debugPrint('음성 인식 오류: ${e.errorMsg} (permanent: ${e.permanent})');
     final reason = switch (e.errorMsg) {
       'not-allowed' || 'service-not-allowed' || 'error_permission' => ListenFailure.notAllowed,
       'audio-capture' || 'error_audio' || 'error_audio_error' => ListenFailure.noMicrophone,
@@ -183,6 +195,7 @@ class PluginVoiceEngine implements VoiceEngine {
     _want = false;
     if (_session) unawaited(_stt.cancel());
     _session = false;
+    _level.value = 0;
   }
 
   @override
@@ -206,15 +219,20 @@ class PluginVoiceEngine implements VoiceEngine {
     // iOS는 읽는 동안 오디오 세션이 읽기 쪽으로 바뀌어, 그 사이 열려 있던 듣기 세션이 읽기가 끝난 뒤
     // 마이크 소리를 못 받고 "듣고 있어요"만 반복하는 일이 있다 → 다 읽고 잠깐 뒤 듣기를 새로 연다.
     Timer(const Duration(milliseconds: 300), () {
-      if (_speaking != null || !_want) return; // 다음 문장을 읽는 중이거나 듣기를 원하지 않음
-      if (_session) {
-        _session = false;
-        unawaited(_stt.cancel().whenComplete(() {
-          if (_want && !_session) unawaited(_listen());
-        }));
-      } else {
-        unawaited(_listen());
-      }
+      if (_speaking != null || !_want || _restarting) return; // 다음 문장을 읽는 중이거나 듣기를 원하지 않음
+      if (!_session) return unawaited(_listen());
+      // 닫은 세션의 끝남 알림이 새 세션을 연 뒤 늦게 오면 새 세션까지 닫힌 것으로 보고 또 열어
+      // 두 세션이 엉킨다 → 닫는 동안과 그 뒤 잠깐은 끝남 알림을 무시하고, 여기서 한 번만 연다.
+      _restarting = true;
+      unawaited(
+        _stt.cancel().catchError((_) {}).whenComplete(() {
+          Timer(const Duration(milliseconds: 200), () {
+            _restarting = false;
+            _session = false;
+            if (_want && _speaking == null) unawaited(_listen());
+          });
+        }),
+      );
     });
   }
 
@@ -235,5 +253,6 @@ class PluginVoiceEngine implements VoiceEngine {
     stopListening();
     cancelSpeech();
     unawaited(_heard.close());
+    _level.dispose();
   }
 }

@@ -57,7 +57,12 @@ void main() {
 
   Future<void> flush() => pumpEventQueue();
 
-  Future<void> setUpWith({bool voiceAgent = true, bool withAgent = true, bool loadConfig = true, Duration connectTimeout = const Duration(seconds: 5)}) async {
+  Future<void> setUpWith({
+    bool voiceAgent = true,
+    bool withAgent = true,
+    bool loadConfig = true,
+    Duration connectTimeout = const Duration(seconds: 5),
+  }) async {
     api = FakeApi()..serverConfig = ServerConfig(provider: 'mock', model: 'm', voiceAgent: voiceAgent);
     personas = PersonaController();
     memory = MemoryController();

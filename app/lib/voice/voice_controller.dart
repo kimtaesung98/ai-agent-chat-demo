@@ -52,6 +52,9 @@ abstract interface class VoiceSession implements Listenable {
   /// 지금 말하는 답 (자막). 말하는 중이 아니면 빈 문자열.
   String get sentence;
   String? get notice;
+
+  /// 마이크 소리 크기 0~1 — 음성 화면 파형 (F-018 AC11). 모르면 늘 0.
+  ValueListenable<double> get level;
   bool get supported;
   void toggle();
   void tap();
@@ -108,6 +111,9 @@ class VoiceController extends ChangeNotifier implements VoiceSession {
   /// 미지원·권한 거부 등 안내 (F-012 AC7). 없으면 null.
   @override
   String? get notice => _notice;
+
+  @override
+  ValueListenable<double> get level => _engine.level;
 
   @override
   bool get supported => _engine.canListen && _engine.canSpeak;

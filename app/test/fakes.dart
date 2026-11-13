@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:ai_agent_chat/api/chat_api.dart';
 import 'package:ai_agent_chat/voice/voice_engine.dart';
 
@@ -117,6 +119,8 @@ class FakeVoiceEngine implements VoiceEngine {
   bool get canSpeak => true;
   @override
   Stream<Heard> get heard => _heard.stream;
+  @override
+  final ValueNotifier<double> level = ValueNotifier(0);
 
   void hear(Heard h) {
     if (h is HeardFinal || h is ListenEnded || h is ListenFailed) listening = false;

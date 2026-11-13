@@ -12,6 +12,7 @@ import '../api/models.dart';
 import '../chat/chat_controller.dart';
 import 'realtime_agent.dart';
 import 'voice_controller.dart';
+import 'voice_engine.dart';
 
 /// 화면에 보여 줄 실시간 음성 안내.
 abstract final class AgentMessages {
@@ -80,6 +81,10 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
   String get sentence => _useFallback ? _fallback.sentence : _sentence;
   @override
   String? get notice => _useFallback ? (_fallback.notice ?? _notice) : _notice;
+
+  /// 실시간 음성은 SDK가 소리 크기를 주지 않아 0 — 파형은 상태에 따라 저절로 움직인다.
+  @override
+  ValueListenable<double> get level => _useFallback ? _fallback.level : silentLevel;
   @override
   bool get supported => agent != null || _fallback.supported;
 
