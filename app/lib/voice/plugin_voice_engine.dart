@@ -73,7 +73,7 @@ class PluginVoiceEngine implements VoiceEngine {
       }
       await _tts.awaitSpeakCompletion(false); // 완료는 아래 핸들러로 직접 받는다 (웹에서 취소 시 future가 끝나지 않음)
       _tts
-        ..setCompletionHandler(_speechEnded)
+        ..setCompletionHandler(_speechCompleted)
         ..setCancelHandler(_speechEnded)
         ..setErrorHandler((_) => _speechEnded());
       await _tts.setLanguage(locale);
@@ -197,6 +197,25 @@ class PluginVoiceEngine implements VoiceEngine {
       _speechEnded();
     }
     return done.future;
+  }
+
+  /// 문장을 끝까지 읽음. 이어 읽을 문장이 없으면 듣기 세션을 새로 연다.
+  void _speechCompleted() {
+    _speechEnded();
+    if (kIsWeb) return;
+    // iOS는 읽는 동안 오디오 세션이 읽기 쪽으로 바뀌어, 그 사이 열려 있던 듣기 세션이 읽기가 끝난 뒤
+    // 마이크 소리를 못 받고 "듣고 있어요"만 반복하는 일이 있다 → 다 읽고 잠깐 뒤 듣기를 새로 연다.
+    Timer(const Duration(milliseconds: 300), () {
+      if (_speaking != null || !_want) return; // 다음 문장을 읽는 중이거나 듣기를 원하지 않음
+      if (_session) {
+        _session = false;
+        unawaited(_stt.cancel().whenComplete(() {
+          if (_want && !_session) unawaited(_listen());
+        }));
+      } else {
+        unawaited(_listen());
+      }
+    });
   }
 
   void _speechEnded() {
