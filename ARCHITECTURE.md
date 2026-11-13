@@ -14,10 +14,10 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v1.7 |
+| 문서 버전 | v1.14 |
 | 상태 | 검토 중 — 현재 MVP 기록은 확정, 목표 아키텍처 ADR-005~015 승인 |
 | 작성자 | kimtaesung98 |
-| 최종 수정일 | 2026-11-10 |
+| 최종 수정일 | 2026-11-13 |
 | 관련 문서 | [`SPEC.md`](./SPEC.md) · [`README.md`](./README.md) |
 
 ---
@@ -115,6 +115,7 @@
 | Flutter (F-016, 승인) | `record`, WebSocket 패키지 | 마이크 PCM 스트림, `/api/stt` 연결 | `voice/` 안에서만 — ADR-021 |
 | Flutter (Q-005·F-017) | `shared_preferences` | 페르소나·내 프로필·앱 서버 주소 기기 저장 | `app/lib/storage/prefs_store.dart`에서만 import (의존 규칙 테스트) — ADR-023. 간접 의존: `shared_preferences_*` 플랫폼 구현, `jni`·`jni_util`(Android), `path_provider_*`·`xdg_directories`(데스크톱) |
 | Flutter (F-022) | `elevenlabs_agents` | ElevenLabs Agents 실시간 음성(WebRTC) | `app/lib/voice/elevenlabs_agent.dart`에서만 import (의존 규칙 테스트), 웹 빌드에는 조건부 import로 쓰지 않음 — ADR-025. 간접 의존: `livekit_client`·`flutter_webrtc`(네이티브 WebRTC 라이브러리, 우리 코드의 C/C++ 금지 ADR-007과 별개)·`connectivity_plus`·`device_info_plus`·`path_provider`·`protobuf`·`dart_jsonwebtoken` 등 |
+| Go (F-026, **제안**) | `modernc.org/sqlite` (`database/sql` 드라이버, 순수 Go) | 서버 DB | ADR-028 승인 전에는 추가하지 않음. `internal/store/sqlite`에서만 import (의존 규칙 테스트). 간접 의존 `modernc.org/libc`·`mathutil`·`memory` 등 순수 Go |
 | Flutter 개발 (목표) | `flutter_test`, `flutter_lints` | 테스트, 린트 | dev_dependencies |
 
 > F-024·F-025(ADR-026·027)는 새 패키지를 넣지 않는다. WebRTC는 브라우저 API를 `dart:js_interop`(SDK 내장)과 `app/web/realtime.js`로 부르고, Go 서버는 표준 라이브러리로 OpenAI를 부른다. 정리 단계에서 `elevenlabs_agents`·`speech_to_text`·`flutter_tts`를 이 표에서 지운다.
@@ -173,6 +174,9 @@ flowchart LR
 | httpapi | `/server/internal/httpapi` | 라우팅, 요청 파싱, SSE 쓰기, 정적 파일. 실시간 음성 토큰(API-005)·Custom LLM(API-006)은 `TokenSource` 인터페이스로 (F-022) | chat, provider |
 | elevenlabs | `/server/internal/elevenlabs` | ElevenLabs 대화 토큰 발급 어댑터 (표준 라이브러리만, 키는 밖으로 안 나감) — F-022 | (없음) |
 | openai (목표) | `/server/internal/openai` | OpenAI Realtime 임시 키 발급 어댑터 (표준 라이브러리만, 키는 밖으로 안 나감) — F-024, ADR-026. `elevenlabs`를 대체 | (없음) |
+| store (목표, F-026) | `/server/internal/store` | `Store` 인터페이스와 도메인 행 타입(User·Session·Profile·Persona·Conversation·Summary·LongTermMemory). 모든 메서드가 `userID`를 받는다 | chat |
+| store/sqlite (목표, F-026) | `/server/internal/store/sqlite` | SQLite 구현, 마이그레이션(`embed`) — ADR-028 | store, chat |
+| account (목표, F-026) | `/server/internal/account` | 게스트 계정, 세션 토큰 만들기·확인·만료 — ADR-029 | store |
 | contract | `/server/contract` | HTTP 수준 계약 테스트 (어느 서버에나 실행) | (표준 라이브러리만) |
 | archtest | `/server/internal/archtest` | §3.3 의존 규칙 검사 테스트 (모듈 맵에 없는 패키지도 실패) | (표준 라이브러리만) |
 | app/api | `/app/lib/api` | `/api/chat` 호출, SSE 파싱 (웹·모바일 클라이언트 분기), 플랫폼별 서버 주소 정하기 (F-017) | (없음) |
@@ -393,6 +397,7 @@ flowchart LR
 | `OPENAI_REALTIME_MODEL` · `OPENAI_REALTIME_VOICE` | N | `gpt-realtime` · `marin` | N | 실시간 모델·목소리 | Go (F-024) |
 | `OPENAI_TRANSCRIBE_MODEL` | N | `gpt-4o-transcribe` | N | 자막용 입력 전사 모델 | Go (F-024) |
 | `OPENAI_API_BASE` | N | `https://api.openai.com` | N | 테스트용 가짜 서버 주소 | Go (F-024) |
+| `DATA_DIR` | N | (없음 → 메모리 DB, 재시작하면 사라짐) | N | 서버 DB 폴더 — `chatd.db`를 둔다 (ADR-028) | Go (F-026, 목표) |
 | `ELEVENLABS_API_BASE` | N | `https://api.elevenlabs.io` | N | ElevenLabs API 주소 (계약 테스트의 가짜 서버용) | Go (F-022) |
 | `API_BASE_URL` | N | 웹: 같은 출처 · Android 에뮬레이터: `http://10.0.2.2:3000` · iOS 시뮬레이터: `http://localhost:3000` | N | 모바일 앱이 호출할 서버 주소 — **빌드 시** `--dart-define`으로 주입, 키는 절대 주입 금지. 실제 폰은 개발 컴퓨터 LAN 주소 (ADR-022, `app/lib/api/server_address.dart`) | Flutter (F-017) |
 
@@ -405,7 +410,7 @@ flowchart LR
 | 오류 처리 | 제공자 어댑터 → httpapi | 업스트림 오류는 어댑터에서 사용자용 문장(`UserMessage`)으로 바꾼다. 스트림 시작 전 오류는 JSON + 상태 코드, 시작 후 오류는 SSE `error` 이벤트. 원문·키는 노출하지 않는다 |
 | 로깅·관측성 | httpapi (요청 단위 1줄) | 현재: `METHOD 경로 상태 소요ms`. 목표: `log/slog` JSON 핸들러, 같은 필드 + 요청 ID. **메시지 본문·키는 기록 금지** |
 | 설정·비밀값 | config (시작 시 1회) | 환경변수를 시작 시 읽어 검증, 잘못되면 기동 중단. 키 유무로 제공자 선택. 시작 로그에는 모드만 (키 금지) |
-| 인증·인가 | — | MVP 없음 (내부 시연). F-008에서 결정 — 공개 배포 전 필수 |
+| 인증·인가 | httpapi 미들웨어 → account | MVP 없음 (내부 시연). 목표(F-026, ADR-029): `sid` 쿠키 → `account`가 사용자 id를 `context`에 넣고, 개인 데이터 핸들러는 그 id로만 `store`를 부른다. 상태 변경은 JSON 전용 + `Origin` 검사. Google은 F-008 |
 | 동시성·취소 | httpapi → provider | 요청마다 하나의 취소 범위: 현재 `AbortController`, 목표 `r.Context()`를 SDK 호출까지 전달. 클라이언트 연결 종료 = 취소 |
 | 스트림 전송 | httpapi | 이벤트마다 즉시 flush (현재 `res.write`, 목표 `http.Flusher`). 응답 압축 미사용 |
 | 접근성 | 클라이언트 | 현재 `aria-live="polite"`. 목표 Flutter: 응답 말풍선에 `Semantics(liveRegion: true)` |
@@ -455,11 +460,15 @@ flowchart LR
 | ADR-021 | STT는 **Amazon Transcribe 스트리밍**, 서버 중계: 앱 마이크 PCM → WebSocket `/api/stt` → chatd → Transcribe(HTTP/2) → 중간·최종 결과를 같은 WebSocket으로. ADR-002(WebSocket 불필요)는 **채팅 응답 스트림**에 한정한다 | ② 서버가 서명 URL을 주고 앱이 Transcribe에 직접 연결 ③ 발화가 끝나면 녹음 파일을 POST | AWS 호출이 서버 한 곳, 웹·모바일 동일, 미리 보기 유지, 사용량 제한을 서버에서. ②는 앱이 AWS 이벤트 스트림을 다루고 임시 자격 증명이 클라이언트로 나감, ③은 미리 보기 없음·지연. 새 의존: Go WebSocket 라이브러리 1개, Flutter `record`·WebSocket 패키지 | 승인 (사용자 "추천안 전체", 2026-11-10) | 2026-11-10 |
 | ADR-022 | 모바일 앱(F-017)의 서버 주소는 **빌드 때 `API_BASE_URL`**(앱 안 설정이 있으면 그것 — ADR-023), 비우면 에뮬레이터·시뮬레이터에서 개발 컴퓨터(`10.0.2.2`·`localhost`의 3000번). 평문 HTTP는 **Android debug·profile 빌드와 iOS 로컬 네트워크(`NSAllowsLocalNetworking`)** 에만 허용하고, Android release는 HTTPS만 | ① 빌드 주소만 ② release에도 평문 허용 ③ 모든 빌드 HTTPS만 | ①은 ADR-023(Q-005)으로 함께 넣음 — 빌드 주소가 기본, 앱 설정 > 서버 주소로 덮어쓴다. ②는 배포 뒤 키 없는 트래픽이 평문으로 나갈 수 있음. ③은 같은 Wi-Fi의 개발용 `chatd`(http)로 실제 폰 확인이 안 됨 | **대체됨 → ADR-027** (2026-11-13). 이전: 적용 (F-017 구현, 사용자 "모바일 진행" 2026-11-11 — PR 검토로 확인) | 2026-11-11 |
 | ADR-023 | 페르소나·내 프로필·(앱) 서버 주소는 **`shared_preferences`** 로 기기에 저장한다 (Android SharedPreferences · iOS NSUserDefaults · 웹 localStorage). 패키지는 `app/lib/storage/prefs_store.dart`에서만 import, `KeyValueStore` 인터페이스 뒤에 둔다. 대화 내용은 저장하지 않는다 (F-007) | ① 앱 메모리만 (지금까지) ② 서버 저장 ③ 파일·SQLite 패키지 | ①은 앱을 다시 열 때마다 페르소나를 다시 만들어야 함. ②는 로그인(F-008)이 먼저. ③은 키 몇 개에 비해 무거움. 단점: Android 구현이 `jni`(네이티브 C 코드를 빌드하는 간접 의존)를 끌고 옴 — 우리 코드의 C/C++ 금지(ADR-007)와는 별개, NDK는 Flutter Android 빌드에 원래 필요 | 승인 (사용자 선택, 2026-11-11, Q-005) | 2026-11-11 |
-| ADR-024 | **대화 요약 기억은 앱 기기에, 요약은 서버가 만든다**: 세션이 끝나면 앱이 `POST /api/summary`(API-003)로 요약 JSON(`summary`·`facts`·`followUps`)을 받아 `shared_preferences`(`memory.v1`, ADR-023)에 페르소나별로 저장하고, 다음 대화 요청에 최근 5개를 `memory`로 싣는다. 서버는 요약도 기억도 저장하지 않는다(ADR-004 무상태). 페르소나 지시는 `persona.base`(기본, 탑재 페르소나는 앱 고정) + `persona.instructions`(사용자 요구 사항) 두 필드로 보내고 틀은 서버가 만든다(ADR-016 유지). 모의 제공자는 요약 시스템 프롬프트를 알아보고 정해진 요약 JSON을 답한다. F-020: 최근 5개 밖으로 밀린 요약은 `POST /api/consolidate`(API-004)로 페르소나별 장기 기억 하나에 묶어 `longTerm`으로 싣는다 (같은 원칙: 앱 저장, 서버 무상태) | ① 대화 전체를 저장해 다음에 다시 보냄(F-007) ② 서버 DB에 기억 저장 ③ 앱이 기기 안에서 요약(규칙 기반) ④ 탑재 페르소나 기본 지시를 서버가 id로 가짐 | ①은 요청이 커지고(20턴 제한) 대화 원문을 남김 — 요약이 짧고 지울 수 있어 개인정보에 덜 무겁다. ②는 로그인(F-008)이 먼저. ③은 품질이 낮음. ④는 앱·서버 배포가 묶여 페르소나를 바꿀 때마다 서버를 바꿔야 함 — 대신 앱이 저장된 탑재 페르소나의 기본 지시를 늘 앱 것으로 맞춘다. 단점: 요약 때 대화가 제공자로 한 번 더 감(비용), 기억은 그 기기에만 있음 | 적용 (F-019 구현, 사용자 요청 2026-11-11 — PR 검토로 확인) | 2026-11-11 |
+| ADR-024 | **대화 요약 기억은 앱 기기에, 요약은 서버가 만든다**: 세션이 끝나면 앱이 `POST /api/summary`(API-003)로 요약 JSON(`summary`·`facts`·`followUps`)을 받아 `shared_preferences`(`memory.v1`, ADR-023)에 페르소나별로 저장하고, 다음 대화 요청에 최근 5개를 `memory`로 싣는다. 서버는 요약도 기억도 저장하지 않는다(ADR-004 무상태). 페르소나 지시는 `persona.base`(기본, 탑재 페르소나는 앱 고정) + `persona.instructions`(사용자 요구 사항) 두 필드로 보내고 틀은 서버가 만든다(ADR-016 유지). 모의 제공자는 요약 시스템 프롬프트를 알아보고 정해진 요약 JSON을 답한다. F-020: 최근 5개 밖으로 밀린 요약은 `POST /api/consolidate`(API-004)로 페르소나별 장기 기억 하나에 묶어 `longTerm`으로 싣는다 (같은 원칙: 앱 저장, 서버 무상태) | ① 대화 전체를 저장해 다음에 다시 보냄(F-007) ② 서버 DB에 기억 저장 ③ 앱이 기기 안에서 요약(규칙 기반) ④ 탑재 페르소나 기본 지시를 서버가 id로 가짐 | ①은 요청이 커지고(20턴 제한) 대화 원문을 남김 — 요약이 짧고 지울 수 있어 개인정보에 덜 무겁다. ②는 로그인(F-008)이 먼저. ③은 품질이 낮음. ④는 앱·서버 배포가 묶여 페르소나를 바꿀 때마다 서버를 바꿔야 함 — 대신 앱이 저장된 탑재 페르소나의 기본 지시를 늘 앱 것으로 맞춘다. 단점: 요약 때 대화가 제공자로 한 번 더 감(비용), 기억은 그 기기에만 있음 | 적용 (F-019 구현, 사용자 요청 2026-11-11 — PR 검토로 확인). ADR-030·031이 승인되면 **대체됨**(프리셋 `base`·기억 저장을 서버로) | 2026-11-11 |
 
 | ADR-025 | **실시간 음성 대화는 ElevenLabs Agents, 답은 우리 서버가 Custom LLM으로 Claude에서 만든다**: ① 앱이 `POST /api/voice/token`(API-005)으로 짧게 쓰는 WebRTC 토큰을 받고(서버가 `xi-api-key`로 발급, 키는 서버에만) `elevenlabs_agents`로 연결한다. ② 연결할 때 앱은 API-001과 같은 `persona`·`memory`·`longTerm`과 대화 `history`를 `custom_llm_extra_body`로 넘긴다. ③ ElevenLabs는 사용자 말이 끝날 때마다 우리 chatd `POST /v1/chat/completions`(API-006, OpenAI 형식, Bearer 비밀값)를 부르고, chatd는 `chat` 도메인으로 시스템 프롬프트를 만들어(ADR-016·024, 에이전트 설정 프롬프트는 무시) Claude 답을 OpenAI 조각으로 스트리밍한다. ④ 웹·설정 없음·토큰 실패·연결 3번 실패면 기기 음성(ADR-014)으로. 앱은 `RealtimeAgent` 인터페이스 뒤에 두고 패키지는 `voice/elevenlabs_agent.dart`에서만 import | ① ElevenLabs 내장 Claude(서버가 만든 프롬프트를 앱이 override로 넘김) ② ADR-020·021 AWS Polly·Transcribe ③ 기기 음성 유지 ④ 앱이 WebSocket 서명 URL로 직접 연결 | 사용자 요청("ElevenLabs Agents를 이용")과 선택("우리 서버 Custom LLM", 2026-11-12). 말 끝 판단·끼어들기·자연스러운 목소리를 한 서비스가 맡아 어르신 대화가 자연스러워짐. Custom LLM이라 Anthropic 키·프롬프트 틀·모의 모드·요약 기억이 그대로 서버에 있음(원칙 2). ①은 공개 주소가 필요 없고 지연이 조금 짧지만 프롬프트를 클라이언트가 보냄(ADR-016과 충돌), Claude 요금이 ElevenLabs로. ④는 공식 Flutter SDK가 WebRTC 토큰 방식. 단점: chatd가 **공개 HTTPS 주소**여야 함(로컬은 터널), 목소리·대화가 ElevenLabs를 거침(개인정보 §11), 분당 요금, 새 의존 `elevenlabs_agents`(livekit·WebRTC 네이티브) | **대체됨 → ADR-026** (2026-11-13). 이전: 적용 (F-022 구현, 사용자 요청 2026-11-12 — PR 검토로 확인). ADR-020·021(F-015·016)은 이 결정으로 다시 볼 것 — 기기 음성 폴백은 남김 | 2026-11-12 |
 | ADR-026 | **실시간 음성 대화는 OpenAI GPT Realtime, 브라우저가 WebRTC로 직접 연결하고 서버는 지시문을 담은 임시 키만 준다** (F-024): ① 앱이 `POST /api/voice/session`(API-007)에 페르소나·기억·대화 내역을 보낸다 ② 서버(`internal/openai`, 표준 라이브러리)가 `chat` 패키지의 지금 프롬프트 틀로 지시문을 만들고 OpenAI 임시 키 발급 요청의 세션 설정에 넣는다 ③ 브라우저는 임시 키로 SDP를 교환해 WebRTC를 열고(마이크 에코 제거 켬), 데이터 채널의 전사 이벤트로 자막·내역을 채운다 ④ 끝내면 전사를 API-003으로 요약. WebRTC는 `app/web/realtime.js` 작은 JS 파일 + `dart:js_interop`(새 패키지 없음), Dart 쪽은 `RealtimeAgent` 인터페이스 뒤 `voice/openai_realtime_agent.dart`에서만 | ① ADR-025 ElevenLabs 유지 ② 서버가 WebSocket으로 중계(오디오가 서버를 지남) ③ 브라우저가 지시문을 직접 넣음(`session.update`) ④ 공식 JS SDK(Agents SDK) 사용 | 사용자 요청("openai gpt realtime을 사용할거야", 2026-11-13). 말 → 말 모델 하나라 지연이 짧고 끼어들기·말 끝 판단이 자연스럽다. WebRTC라 브라우저 에코 제거가 소리에서 자기 답을 지운다(PR #26 글자 거르기 불필요). 임시 키에 지시문을 담으면 키·프롬프트 틀이 서버에만 있다(원칙 2, ADR-016). ②는 서버 부하·지연, ③은 ADR-016과 충돌, ④는 npm 빌드 도구가 생김. 단점: Claude가 음성 답에서 빠짐(Q-008), 목소리·대화가 OpenAI를 거침(§11), 오디오 분당 과금, iPhone PWA 마이크 제약(R-A15) | 제안 (방향은 사용자 승인 2026-11-13 — 세부는 이 PR 검토로) | 2026-11-13 |
 | ADR-027 | **앱은 Flutter 웹 그대로 PWA로 낸다** (F-025): 매니페스트·서비스 워커(화면 파일만 캐시), 홈 화면 추가 안내, 웹 Wake Lock. `android/`·`ios/`, 기기 음성 엔진(`speech_to_text`·`flutter_tts`), `elevenlabs_agents`, 앱 서버 주소 설정(ADR-022)을 뺀다. 화면·컨트롤러·기기 저장(ADR-023)은 그대로 | ① TypeScript 등 가벼운 웹으로 새로 ② 네이티브 앱 유지 + 웹 추가 | 사용자 요청("웹, 즉 pwa")과 결정 카드 선택("Flutter 웹 그대로", 2026-11-13). 화면·테스트를 살리고 선호 스택(ADR-006)과 맞다. 단점: 첫 로딩이 무겁고(R-A02) 한글 입력이 약할 수 있음(R-A16) — 1단계 iPhone 실측에서 나쁘면 다시 본다 | 제안 (방향은 사용자 승인 2026-11-13) | 2026-11-13 |
+| ADR-028 | **서버 저장소는 SQLite 파일 하나, 순수 Go 드라이버 `modernc.org/sqlite`** (`database/sql`, WAL, `CGO_ENABLED=0` 그대로). 위치는 `DATA_DIR/chatd.db`, 없으면 메모리 DB. DB 형식은 `internal/store/sqlite/migrations/NNN_*.sql`을 `embed`로 넣고 시작할 때 차례로 적용(`schema_migrations`). 도메인은 `store.Store` 인터페이스만 알고, 구현은 `internal/store/sqlite`에만 둔다. 백업은 `VACUUM INTO` 파일 복사 | ① PostgreSQL(`pgx`) ② JSON 파일 ③ `mattn/go-sqlite3` ④ 클라우드 DB(DynamoDB·Firestore) | 로컬 우선(F-014 정지)·서버 1대(ADR-018)에 가장 맞다: 설치할 DB 서버가 없고, 테스트가 네트워크 없이 임시 파일·메모리로 돈다(CLAUDE.md 테스트 규칙). ③은 cgo라 ADR-007 위반. ①은 서버가 여러 대가 될 때 — `store` 인터페이스 뒤라 구현만 바꾸면 된다. ②는 동시 쓰기·조회가 약함. ④는 로컬 시연이 안 됨. 단점: 쓰기가 한 번에 하나(이 규모에선 충분), 새 의존(간접 의존 `modernc.org/libc` 등 순수 Go, 바이너리 약 +6MB) | 제안 (2026-11-13) | 2026-11-13 |
+| ADR-029 | **계정·세션은 서버가 직접**: 게스트 계정(이름만) + 서버가 만든 무작위 세션 토큰(32바이트)을 `HttpOnly`·`SameSite=Lax` 쿠키 `sid`로, DB에는 SHA-256만. 90일 미사용 만료·사용 때 연장, 로그아웃은 행 삭제. Google(F-008)은 나중에 `Identity`로 같은 계정에 붙인다. 같은 출처(ADR-011)라 CORS 없음, CSRF는 SameSite + JSON 전용 + `Origin` 검사. 새 모듈 `internal/account`(토큰 만들기·확인, `store` 인터페이스만) | ① ADR-017 HMAC 서명 쿠키(무상태) ② Google 로그인 먼저(ADR-017 승인) ③ JWT ④ 외부 인증(Firebase·Cognito) | 데이터를 서버에 두려면 사용자 id가 필요하고, 그것만으로 충분한 가장 작은 단계. ①·③은 로그아웃·강제 만료가 어렵다 — DB가 생겼으니 불투명 토큰이 더 단순하고 안전. ②는 Q-006에서 사용자가 미룸, Google 콘솔 설정이 필요. ④는 외부 서비스·SDK. 단점: 게스트는 브라우저 저장소를 지우면 계정을 잃고 기기 사이에 이어지지 않음(R-A17) → Google 연결로 푼다. ADR-017은 "보류" 그대로, 착수 때 세션 부분을 이 결정으로 바꾼다 | 제안 (2026-11-13, Q-010) | 2026-11-13 |
+| ADR-030 | **페르소나 형식 v1을 앱·서버·DB 공통 계약으로** (SPEC §7.2): `schema`·`kind`(`preset`·`custom`)·`presetId`·`name`·`role`·`tones`·`instructions`·`revision`. 탑재 프리셋 카탈로그(`base` 포함)는 **서버 `chat` 패키지**가 갖고 `GET /api/presets`로 준다 — 프롬프트를 만들 때 `base`는 카탈로그에서 찾고 앱 값은 쓰지 않는다. 동시 수정은 `revision` 낙관적 잠금(409). 같은 예시 JSON을 Go·Flutter 테스트가 함께 읽어 형식이 어긋나지 않게 한다 | ① 지금처럼 앱이 `base`까지 보냄(ADR-024 ④를 그대로) ② JSON Schema 파일 + 코드 생성 ③ 자유 형식 JSON 칸 하나 | ADR-024 ④에서 프리셋을 서버에 두지 않은 이유(앱·서버 배포가 묶임)는 PWA를 같은 서버가 내는 지금(ADR-011·027) 사라졌다. 서버가 `base`를 쥐면 원칙 2(틀은 서버)가 완전해지고 프리셋 문구를 고치면 모든 사람에게 바로 간다. ②는 생성 도구가 늘고 필드가 열 개 남짓이라 손으로 맞추고 테스트로 묶는 편이 싸다. ③은 검증·프롬프트 틀을 잃음. ADR-016(필드 → 서버 틀)은 그대로 | 제안 (2026-11-13) | 2026-11-13 |
+| ADR-031 | **대화·요약·기억은 서버가 처리하고 저장한다**: 앱은 대화를 열고(`/api/conversations`) 끝낸다(`/end`). 채팅·음성 세션은 `conversationId`로 서버가 DB에서 페르소나·프로필·기억을 붙인다. 끝내면 서버가 API-003·004 로직으로 요약·장기 기억을 만들어 저장한다(실패하면 다음 끝내기·서버 시작 때 다시). 대화 내역(`messages`)은 지금처럼 앱이 보낸다(ADR-004 유지). 원문 저장은 Q-009를 따른다(추천: 30일). ADR-024의 "기기 저장·앱이 요약 순서를 정함"을 대체한다 | ① ADR-024 그대로(앱이 요약을 부르고 서버에 저장만) ② 원문을 DB에서 다시 읽어 `messages`도 안 보냄 | ①은 앱이 닫히면 요약이 빠지고 같은 순서를 앱·서버 두 곳이 알아야 함. ②는 ADR-004를 깨고 API-001 계약이 크게 바뀜 — 지금 단계에선 필요 없다. 단점: 요약 실패 재시도를 서버가 맡아야 함 | 제안 (2026-11-13, Q-009) | 2026-11-13 |
 ---
 
 ## 10. 진화 계획
@@ -474,6 +483,7 @@ Node MVP → Go + Flutter. 단계 1~4 완료 (2026-11-10). **각 단계는 따�
 | 3 | **Flutter 웹 클라이언트** — `app/` 구현 (S-001 화면 동등 기능) | F-001·F-002 화면 수용 기준을 위젯·단위 테스트로 통과, 웹에서 실시간 스트리밍 확인, Go 서버가 웹 빌드 제공 | ADR-006, 009, 010, 011 |
 | 4 | **Node MVP 제거** — `src/`, `public/`, `package.json`, Node 테스트 삭제 | 단계 1~3 완료 기준 유지, 루트 README·폴더 README·DFD를 새 구조로 갱신, ADR-001 "대체됨" | ADR-001 |
 | 6 | **전향: OpenAI Realtime + PWA** = F-024·F-025 (2026-11-13 등록, 사용자 요청). ① 서버 API-007 + 가짜 OpenAI 계약 테스트 + 최소 음성 화면 → iPhone 실측 ② 음성 화면 연결(자막·파형·끼어들기·끝내기 → 요약) ③ PWA 마무리(매니페스트·서비스 워커·설치 안내·Wake Lock) ④ ElevenLabs·기기 음성·네이티브 제거, 문서·DFD | F-024·F-025 수용 기준, 실제 iPhone 홈 화면 앱에서 음성 대화 | ADR-026, 027 |
+| 7 | **서비스화: 사용자별 서버 데이터** = F-026·F-027·F-028 (2026-11-13 제안). ① 문서(SPEC §7·API-010~018, ADR-028~031) ② 서버 `store`·`account` + 게스트 계정·세션·`/api/me` + 사용자 격리 계약 테스트 ③ 페르소나 형식 v1·프리셋 카탈로그·`/api/personas` ④ 대화·요약·기억 서버 처리(`/api/conversations`, `conversationId`) ⑤ 앱: 서버 저장소로 전환 + 기기 데이터 옮기기(`/api/import`) + 기억·설정 화면 ⑥ 옛 경로 정리(앱의 API-003·004 호출, `personas.v1`·`memory.v1`) | 단계마다 `go test ./...`·`flutter test` 통과, 계약 테스트는 메모리 DB로 네트워크 없이. ⑤ 뒤 iPhone PWA에서 F-026 AC8 | ADR-028~031 |
 | 5 | **모바일 빌드** — iOS·Android = F-017 (2026-11-11 등록, 사용자가 SPEC §1.4 비목표 해제) | 같은 코드로 빌드, `API_BASE_URL` 주입, 실제 기기에서 스트리밍 확인 | ADR-006, 022 |
 
 **남은 MVP 기능(F-003·F-004)과 음성 대화는 전환 뒤에 만듭니다** (SPEC §16 Q-004 결정). F-003은 단계 3에서 구현합니다.
@@ -511,6 +521,7 @@ flowchart LR
 | R-A14 | 실시간 음성(F-022)은 ElevenLabs가 chatd API-006을 부르므로 chatd가 공개 HTTPS로 열려 있어야 함. 비밀값이 새면 남이 우리 Claude 키로 답을 받음 | 비용 남용, 로컬 개발에 터널 필요 | API-006은 Bearer 비밀값(16자 이상, 상수 시간 비교)이 없으면 404·틀리면 401. 로컬은 `cloudflared tunnel --url`(일회용 주소), 배포 때는 Cloudflare Tunnel에서 `/v1/chat/completions`만 Access 예외. 비밀값은 SSM에 |
 | R-A15 | iPhone Safari·홈 화면 PWA의 마이크·소리 제약: HTTPS 필수, 홈 화면 앱에서 권한을 자주 다시 물음, 화면 꺼짐·앱 뒤로 가면 WebRTC가 끊김, 통화 중 소리가 수화기 쪽으로 작게 나올 수 있음 | F-024 음성 대화가 iPhone에서 불편하거나 안 됨 | 단계 6-①에서 실제 iPhone으로 먼저 확인, Wake Lock·재연결(F-024 6), 안 되면 ADR-027 다시 보기 |
 | R-A16 | Flutter 웹의 한글 입력(IME)·첫 로딩 무게가 폰 PWA에서 두드러질 수 있음 | 글 채팅이 불편, 첫 화면이 늦음 | 음성 우선 화면이라 영향은 작음. 단계 6-①에서 측정, 나쁘면 ADR-027 대안 ① |
+| R-A17 | 게스트 계정(ADR-029)은 그 브라우저의 쿠키에만 묶인다 — Safari가 오래 안 쓴 사이트 저장소를 지우거나(ITP) 사용자가 지우면 계정을 잃고, 다른 기기와 이어지지 않는다 | 홈 화면 PWA는 대체로 남지만 보장되지 않음. 대응: 설정에 "Google 연결로 보관하기" 안내, F-008을 단계 7 다음으로 |
 | R-A13 | 모바일 OS 음성 엔진은 기기마다 다름 (Android 인식기가 읽는 소리를 다시 듣거나, 읽는 중 듣기가 멈출 수 있음, iOS 오디오 세션 전환) | 끼어들기·자동 재듣기가 웹과 다르게 동작 | iOS는 `playAndRecord`+스피커 공유 세션, F-017 AC6 실제 기기 확인에서 판단 |
 
 ---
@@ -530,6 +541,7 @@ flowchart LR
 | v1.8 | 2026-11-10 | kimtaesung98 | ADR-018~021 승인 (사용자 "추천안 전체") — AWS EC2 + Cloudflare 배포, Cloudflare Access, Polly TTS, Transcribe STT. 허용 목록·§6 환경 갱신, F-014 등록 |
 | v1.9 | 2026-11-11 | kimtaesung98 | §10 단계 5 착수(F-017 모바일 앱): ADR-022 서버 주소·평문 HTTP 범위, §6.3 `API_BASE_URL` 기본값, R-A12·R-A13. ADR-023 `shared_preferences` 승인(Q-005), `app/storage` 모듈 |
 | v1.13 | 2026-11-13 | kimtaesung98 | 전향(사용자 요청): ADR-026 OpenAI GPT Realtime(ADR-025 대체)·ADR-027 Flutter 웹 PWA(ADR-022 대체) 제안, §2.1·§2.2·§10 단계 6, R-A15·R-A16 |
+| v1.14 | 2026-11-13 | kimtaesung98 | 서비스화 제안(F-026~028): ADR-028 SQLite(`modernc.org/sqlite`, 제안 허용 목록), ADR-029 게스트 계정·서버 세션, ADR-030 페르소나 형식 v1·서버 프리셋 카탈로그(ADR-024 ④ 재검토), ADR-031 대화·요약·기억 서버 처리(ADR-024 대체 예정). 모듈 `store`·`store/sqlite`·`account`(목표), `DATA_DIR`, §10 단계 7, R-A17 |
 | v1.12 | 2026-11-12 | kimtaesung98 | F-022: ADR-025(ElevenLabs Agents 실시간 음성, 우리 서버 Custom LLM), `internal/elevenlabs` 모듈, `elevenlabs_agents` 허용, §6.3 환경변수, R-A14 |
 | v1.11 | 2026-11-11 | kimtaesung98 | F-020: ADR-024에 장기 기억(API-004 `/api/consolidate`, API-001 `longTerm`) 추가 |
 | v1.10 | 2026-11-11 | kimtaesung98 | F-019: ADR-024(대화 요약 기억 — 앱 기기 저장, 서버 요약 API-003, 페르소나 지시 `base`·`instructions` 두 층), §4.1·§4.2 인터페이스 갱신 |

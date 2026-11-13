@@ -138,6 +138,9 @@ flowchart LR
 | F-017 | 모바일 네이티브 앱 (Android·iOS) | ❌ Blocked | `/app` | 2026-11-13 | **대체됨 → F-025 PWA** (사용자 전향, 2026-11-13). 이전: 사용자 "모바일 진행"(SPEC §1.4 비목표 해제). AC2~AC5·AC7 자동 테스트 통과(`flutter test` 108개: 서버 주소·앱 안 주소 설정·저장, dart:io 스트리밍·중단, 매니페스트·Info.plist), AC1 Android APK 클라우드 빌드·CI `android` 작업. **iOS 빌드(Mac)·AC6 실제 폰 확인(사용자) 남음** |
 | F-024 | 실시간 음성 대화 (OpenAI GPT Realtime) | 🔄 In Progress | `/app`, `/server` | 2026-11-13 | 단계 6-①: 서버 API-007(`internal/openai`, 지시문 담은 임시 키) + 웹 `web/realtime.js`(WebRTC) + `OpenAiRealtimeAgent`. AC1~AC6 자동 테스트(`go test ./...` 계약 포함 · `flutter test` 218개). 웹 빌드 + 가짜 OpenAI로 브라우저에서 세션 → 임시 키로 SDP 요청 → 실패 시 기기 음성까지 확인. 남은 것: 실제 키로 iPhone·Android 확인(AC7, 사용자 — `docs/OPENAI_REALTIME_SETUP.md`) |
 | F-025 | 웹앱 (PWA) | 🔄 In Progress | `/app` | 2026-11-13 | 단계 6-③: 매니페스트("AI 말벗", 새 아이콘·maskable·iOS 아이콘), `web/sw.js`(화면 파일만, 네트워크 먼저, /api 제외), Flutter 기본 SW 끔, `web/pwa.js` + `InstallBanner`(Android 설치 창·iPhone 공유 안내), Wake Lock 미지원 안내. AC1~AC4 자동 테스트(`flutter test` 226개), 모바일 에뮬레이션에서 설치 가능(Chrome 설치 오류 0)·SW 캐시 확인. 남은 것: 정리(AC5, 6-④), 폰 설치 확인(AC6, 사용자) |
+| F-026 | 사용자 계정 · 서버 데이터 저장소 | ⏳ Pending | `/server`, `/app` | 2026-11-13 | **제안** — 사용자 "개개인의 사용을 위한 서비스 수준의 내부 데이터 백엔드". SPEC F-026·§7·API-010~014, ADR-028(SQLite `modernc.org/sqlite`)·029(게스트 계정·서버 세션). 승인 대기 (Q-010) |
+| F-027 | 페르소나 형식 v1 (앞뒤 공통 계약) | ⏳ Pending | `/server`, `/app` | 2026-11-13 | **제안** — 사용자 "백엔드에 맞물리게 프론트의 페르소나 형식을 명료화". SPEC §7.2 Persona v1, API-015·016, ADR-030(프리셋 카탈로그는 서버). 승인 대기 |
+| F-028 | 대화 · 요약 · 기억의 서버 처리 | ⏳ Pending | `/server`, `/app` | 2026-11-13 | **제안** — API-017·018, ADR-031(ADR-024 대체 예정). 원문 저장 범위 Q-009 결정 대기 |
 
 ---
 
@@ -145,6 +148,7 @@ flowchart LR
 
 <!-- SPEC §16 Q-004 결정 (2026-11-04): 남은 MVP 기능과 음성 대화는 Go + Flutter 전환 뒤에 만든다 -->
 
+00. **서비스화 (2026-11-13 제안)**: F-026·F-027·F-028 — ARCHITECTURE §10 단계 7. 지금은 ① 문서 검토(ADR-028~031, Q-009·Q-010) → 승인되면 ② 서버 저장소·게스트 계정 → ③ 페르소나 v1 → ④ 대화·기억 서버 처리 → ⑤ 앱 전환·기기 데이터 옮기기 → ⑥ 정리 → `/server`, `/app`
 0. **전향 (2026-11-13)**: F-024 OpenAI Realtime + F-025 PWA — ARCHITECTURE §10 단계 6 순서: ① 서버 API-007 + 가짜 OpenAI 계약 테스트 + 최소 음성 화면 → 실제 iPhone 확인 ② 음성 화면 연결·요약 ③ PWA 마무리 ④ ElevenLabs·기기 음성·네이티브 제거. Q-008(글 채팅·요약을 Claude로 둘지) 사용자 결정 → `/server`, `/app`
 0-1. F-019 마무리 — 실제 Claude 모드에서 미소와 대화 → 대화 끝내기 → 다음 대화가 이어지는지(AC8, 사용자). 다음 후보: 오래된 요약을 묶어 장기 기억으로 압축, 앱 시작을 음성 대화로(어르신용) → `/app`, `/server`
 1. ~~F-017 모바일 앱~~ — F-025로 대체

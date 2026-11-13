@@ -16,7 +16,7 @@
 |---------|-----------|-----------|---------------|
 | F-024 | OpenAI GPT Realtime 실시간 음성 (F-022 대체) | `/app`, `/server` | 단계 6-① 구현(API-007 `internal/openai`, `web/realtime.js` + `voice/openai_realtime*.dart`). 남은 것: 실제 키로 iPhone·Android 확인(AC7, `docs/OPENAI_REALTIME_SETUP.md`). 다음은 6-② 음성 화면 다듬기 → 6-③ PWA. Q-008 대기 |
 | F-025 | Flutter 웹 PWA (F-017 대체) | `/app` | 6-③ 구현(매니페스트·`web/sw.js`·`web/pwa.js`·`ui/install_hint.dart`·`installer_*.dart`). 다음: 6-④ ElevenLabs·기기 음성·`android/`·`ios/` 제거(AC5), 폰 홈 화면 설치 확인(AC6) |
-| F-019~F-021 | 지시 두 층 · 대화 요약 · 장기 기억 · 켜면 바로 음성 대화 | `/app`, `/server` | 구현·자동 테스트 완료(PR #17). 남은 것: 실제 Claude 모드에서 기억이 이어지는지(F-019 AC8·F-020 AC5), 폰에서 켜면 바로 듣는지(F-021 AC4) — 사용자 |
+| F-026~F-028 | 서비스화: 사용자별 서버 데이터 + 페르소나 형식 v1 | `/server`, `/app` | 단계 7-① 문서 제안(SPEC v1.25 §7·API-010~018·Q-009·Q-010, ARCHITECTURE v1.14 ADR-028~031). 사용자 승인 뒤 7-②(`internal/store`·`store/sqlite`·`account`, 게스트 계정·세션, 격리 계약 테스트)부터. `modernc.org/sqlite`는 승인 전 추가 금지 |
 
 ---
 
@@ -80,7 +80,6 @@
 
 | 날짜 | 기능 ID | 수행 작업 | 변경 파일 | 다음 세션 인계 사항 |
 |------|---------|-----------|-----------|---------------------|
-| 2026-11-11 | F-018 | 사용자 "해당 모드에서는 상시로 마이크를 듣는 것이 목표" → 끊김 무한 재시도(1~16초 백오프, 권한 거부만 멈춤), 화면 꺼짐 막기(웹 Wake Lock·Android `FLAG_KEEP_SCREEN_ON`·iOS `isIdleTimerDisabled`, 채널 `ai_agent_chat/screen`, 새 패키지 없음), 앱 뒤로/복귀 `pause`·`resume`. SPEC v1.14 | `app/lib/ui/keep_awake*.dart`, `app/lib/ui/*_page.dart`, `app/lib/voice/voice_controller.dart`, `android/.../MainActivity.kt`, `ios/Runner/AppDelegate.swift`, 테스트, 문서 | iOS `AppDelegate.swift` 채널 코드는 이 컨테이너에서 빌드 못 함 — 사용자 Mac에서 확인. 앱 시작을 음성 대화로 할지 결정 카드 대기 |
 | 2026-11-11 | F-019 | 사용자 "추가 지시를 기본(탑재)·사용자 요구로 나누고, 대화 세션 요약을 다음 세션 기반으로" → SPEC F-019·API-003, ADR-024(적용). 서버 `persona.base`·`memory` 검증·프롬프트, `/api/summary`(모의 제공자는 요약 JSON). 앱 `Persona.base`(탑재 고정, 예전 저장 값 이관), `MemoryController`(`memory.v1`), `ChatController.endSession`(새 대화·페르소나 바꾸기·대화 끝내기·앱 뒤로), 편집 화면 기본 지시(자물쇠)·내 요구 사항·지난 대화 기억 | `server/internal/chat/*`, `server/internal/httpapi/*`, `server/internal/provider/mock/*`, `server/contract/*`, `app/lib/**`, `app/test/**`, 문서 | 이 컨테이너는 Flutter 3.47.9를 storage.googleapis.com에서 받아 씀(root라 `git config safe.directory` 필요). Playwright로 한국어 입력 후 Enter는 IME 때문에 안 먹음 — 전송 버튼을 누를 것. AC8 실제 Claude 확인 남음 |
 | 2026-11-11 | F-020, F-021 | 사용자 "추천대로 진행"(다음 계획 1→2→3). F-020 장기 기억: API-004 `/api/consolidate`, API-001 `longTerm`, `MemoryController.pendingFold`·`setLongTerm`, 편집 화면 카드. F-021: `StartSettings`(`start.voice`), 서랍 스위치, 켜 두면 첫 프레임 뒤 음성 화면 열기. 3번: Android profile APK(arm64) 클라우드 빌드 | `server/internal/chat/consolidate.go`, `httpapi`, `mock`, `contract`, `app/lib/**`, `app/test/**`, 문서 | Android SDK는 dl.google.com에서 cmdline-tools를 받아 `/home/user/android-sdk`에 설치. profile 빌드라 같은 Wi-Fi의 http `chatd`로 접속 가능(ADR-022) |
 | 2026-11-12 | F-022 | 사용자 "ElevenLabs Agents를 이용" → 결정 카드로 "우리 서버 Custom LLM" 선택. 서버: config ELEVENLABS_*, `internal/elevenlabs`(토큰), API-005·006, API-002 `voiceAgent`, 계약 테스트에 가짜 ElevenLabs. 앱: `elevenlabs_agents` 0.6.1, `RealtimeAgent`·`ElevenLabsAgent`(웹은 조건부 import로 없음), `AgentVoiceController`, `VoiceSession`, `ChatController.addVoiceTurn`·`voiceContext`, Android 권한. 문서 SPEC v1.18·ADR-025·`docs/ELEVENLABS_SETUP.md`·`run-chatd.sh` SSM | `server/**`, `app/**`, `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `docs/*`, `deploy/run-chatd.sh` | 이 컨테이너는 Android SDK가 없어 APK는 CI로 확인. ElevenLabs Custom LLM URL이 `/v1` 기준인지 실제 화면에서 확인 필요. ElevenLabs 키는 사용자가 로컬·SSM에만 |
@@ -90,6 +89,7 @@
 | 2026-11-13 | F-024, F-025 | 사용자 "openai gpt realtime·pwa로 전향, 내부 알고리즘과 큰 틀만 바꾼다" → 기획 점검(유지·변경·제거 매핑), 결정 카드 "Flutter 웹 그대로". 0단계 문서: SPEC v1.22 F-024·F-025·API-007·Q-008, ARCHITECTURE v1.13 ADR-026·027(제안)·§10 단계 6·R-A15·16, F-022·F-017 대체됨 | `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `AGENT_STATE.md` | 코드는 사용자 검토 뒤. OpenAI 임시 키 API 필드는 착수 때 최신 문서로 확인. 새 패키지 없이 `dart:js_interop` + `web/realtime.js` |
 | 2026-11-13 | F-024 | PR #27 머지 → 단계 6-①: 서버 `chat.ParseVoiceSession`·`Instructions`(페르소나→기억→음성 말투→내역), `internal/openai`(client_secrets, 표준 라이브러리), API-007, API-002 `voiceAgent: openai`, 가짜 OpenAI 계약 테스트. 앱 `web/realtime.js`(WebRTC·oai-events·전사·파형), `OpenAiRealtimeAgent`(+`RealtimeBridge` 가짜로 테스트), `RealtimeAgent.kind`·`level`, `ChatApi.voiceSession` | `server/**`, `app/lib/voice/*`, `app/web/*`, `app/test/**`, `docs/OPENAI_REALTIME_SETUP.md`, 문서 | 실제 OpenAI WebRTC는 이 컨테이너에서 못 붙임(가짜 OpenAI로 SDP 요청까지 브라우저 확인). 이벤트 이름은 GA 기준 + 베타 이름 같이 받음 — 실제 연결에서 자막 확인 필요. Flutter는 storage.googleapis.com에서 3.47.9 받음 |
 | 2026-11-13 | F-025 | 사용자 "웹 테스트에서 원하는 수준의 상호작용" → "좋아 부탁해"(PWA 마무리). 매니페스트·새 아이콘(PIL로 그림)·index.html, `web/sw.js`(네트워크 먼저, /api 제외), `web/flutter_bootstrap.js`(Flutter 기본 SW 끔 — 스스로 등록을 지우고 새로 고침하기 때문), `web/pwa.js`(beforeinstallprompt·standalone·iOS 판별·Wake Lock 지원), `InstallBanner`, VoicePage Wake Lock 미지원 안내 | `app/web/*`, `app/lib/ui/*`, `app/lib/main.dart`, `app/test/**`, 문서 | 사용자가 실제 키로 웹 실시간 음성 확인(Mac/폰 어느 쪽인지 답 대기). Playwright 헤드리스는 beforeinstallprompt가 안 와서 가짜 이벤트로 확인. 스크린샷 `/mnt/project-files/screenshots/pwa/` |
+| 2026-11-13 | F-026~F-028 | 사용자 "개개인의 사용을 위한 서비스 수준 내부 데이터 백엔드 + 백엔드에 맞물리는 프론트 페르소나 형식" → 설계 제안만(코드 없음): 계정(게스트+서버 세션 쿠키), SQLite(순수 Go), 페르소나 v1(`schema`·`kind`·`presetId`·`instructions`·`revision`, 프리셋 `base`는 서버), 대화·요약·기억 서버 처리, 기기 데이터 한 번 옮기기 | `SPEC.md`, `ARCHITECTURE.md`, `README.md` | Q-009(원문 저장)·Q-010(게스트 먼저) 사용자 결정 대기. 승인 전 큰 코드 금지 |
 ---
 
 ## 압축 기준 (Compaction Rules)
@@ -102,3 +102,4 @@
 | 누적 사용자 요구사항 | 20행 초과 | 오래된 항목을 `AGENT_STATE_ARCHIVE.md`로 이동 |
 | 세션 로그 | 10행 초과 | 가장 오래된 행 삭제 |
 | Active Rules | 7개 초과 | 덜 중요한 규칙 삭제 (각 폴더 README에 상세 유지) |
+
