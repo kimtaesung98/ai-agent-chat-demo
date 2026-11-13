@@ -28,6 +28,9 @@ var allowed = map[string][]string{
 	"internal/provider/mock":      {"internal/chat", "internal/provider"},
 	"internal/provider/anthropic": {"internal/chat", "internal/provider"},
 	"internal/httpapi":            {"internal/chat", "internal/provider"},
+	"internal/store":              {},
+	"internal/store/sqlite":       {"internal/store"},
+	"internal/account":            {"internal/store"},
 }
 
 func TestImportRules(t *testing.T) {
@@ -74,6 +77,16 @@ func TestImportRules(t *testing.T) {
 			for _, p := range list {
 				if strings.HasPrefix(p, sdk) && pkg != "internal/provider/anthropic" {
 					t.Errorf("%s가 SDK(%s)를 import해요 (ADR-008)", pkg, p)
+				}
+			}
+		}
+	})
+
+	t.Run("F-026 SQLite 드라이버는 store/sqlite에서만 import한다", func(t *testing.T) {
+		for pkg, list := range imports {
+			for _, p := range list {
+				if strings.HasPrefix(p, "modernc.org/") && pkg != "internal/store/sqlite" {
+					t.Errorf("%s가 %s를 import해요 (ADR-028)", pkg, p)
 				}
 			}
 		}
