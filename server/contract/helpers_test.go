@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -86,7 +87,7 @@ func startChatd() (string, func(), error) {
 
 	var env []string
 	for _, kv := range os.Environ() {
-		if k, _, _ := strings.Cut(kv, "="); k == "ANTHROPIC_API_KEY" || k == "PORT" || k == "STATIC_DIR" || strings.HasPrefix(k, "ELEVENLABS_") {
+		if k, _, _ := strings.Cut(kv, "="); k == "ANTHROPIC_API_KEY" || k == "PORT" || k == "STATIC_DIR" || strings.HasPrefix(k, "ELEVENLABS_") || strings.HasPrefix(k, "OPENAI_") {
 			continue
 		}
 		env = append(env, kv)
@@ -94,9 +95,12 @@ func startChatd() (string, func(), error) {
 	cmd := exec.Command(bin)
 	// F-022: 가짜 ElevenLabs 서버로 토큰을 받고, Custom LLM 엔드포인트를 켠다 (실제 ElevenLabs 호출 없음)
 	fake := startFakeElevenLabs()
+	// F-024: 가짜 OpenAI 서버로 임시 키를 받는다 (실제 OpenAI 호출 없음)
+	fakeAI := startFakeOpenAI()
 	cmd.Env = append(env, fmt.Sprintf("PORT=%d", port), "STATIC_DIR="+static,
 		"ELEVENLABS_API_KEY="+fakeXIKey, "ELEVENLABS_AGENT_ID=agent_contract", "ELEVENLABS_API_BASE="+fake.URL,
-		"ELEVENLABS_LLM_SECRET="+llmSecret)
+		"ELEVENLABS_LLM_SECRET="+llmSecret,
+		"OPENAI_API_KEY="+fakeOpenAIKey, "OPENAI_API_BASE="+fakeAI.URL)
 	cmd.Stderr = os.Stderr // 요청 로그(stdout)는 버린다
 	if err := cmd.Start(); err != nil {
 		cleanup()
@@ -104,6 +108,7 @@ func startChatd() (string, func(), error) {
 	}
 	stop := func() {
 		fake.Close()
+		fakeAI.Close()
 		cmd.Process.Kill()
 		cmd.Wait()
 		cleanup()
@@ -145,6 +150,35 @@ func startFakeElevenLabs() *httptest.Server {
 			return
 		}
 		fmt.Fprintf(w, `{"token":%q,"conversation_id":"conv_1"}`, fakeToken)
+	}))
+}
+
+// F-024 계약 테스트용 값 (가짜).
+const (
+	fakeOpenAIKey = "sk-contract-fake-openai-key"
+	fakeEphemeral = "ek_contract_fake"
+)
+
+// lastInstructions는 가짜 OpenAI가 마지막으로 받은 지시문이다 (chatd가 띄운 가짜 서버일 때만 채워진다).
+var lastInstructions atomic.Value
+
+// startFakeOpenAI는 Realtime 임시 키 발급 API만 흉내 낸다. 키가 맞고 세션 지시문이 있어야 임시 키를 준다.
+func startFakeOpenAI() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Session struct {
+				Type         string `json:"type"`
+				Model        string `json:"model"`
+				Instructions string `json:"instructions"`
+			} `json:"session"`
+		}
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/realtime/client_secrets" || r.Header.Get("Authorization") != "Bearer "+fakeOpenAIKey ||
+			json.NewDecoder(r.Body).Decode(&body) != nil || body.Session.Type != "realtime" || body.Session.Instructions == "" {
+			http.Error(w, `{"error":{"message":"bad"}}`, http.StatusUnauthorized)
+			return
+		}
+		lastInstructions.Store(body.Session.Instructions)
+		fmt.Fprintf(w, `{"value":%q,"expires_at":%d,"session":{"type":"realtime","model":%q}}`, fakeEphemeral, time.Now().Add(10*time.Minute).Unix(), body.Session.Model)
 	}))
 }
 

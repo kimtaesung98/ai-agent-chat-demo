@@ -22,7 +22,17 @@ type Config struct {
 	ElevenLabsAgentID string
 	ElevenLabsBaseURL string // 비면 https://api.elevenlabs.io (테스트는 가짜 서버)
 	LLMSecret         string // ElevenLabs가 Custom LLM(/v1/chat/completions)을 부를 때 보내는 Bearer 값
+
+	// OpenAI GPT Realtime 실시간 음성 대화 (F-024, ADR-026). 키는 비밀값이라 로그·응답에 쓰지 않는다.
+	OpenAIAPIKey          string
+	OpenAIRealtimeModel   string // 비면 gpt-realtime
+	OpenAIRealtimeVoice   string // 비면 marin
+	OpenAITranscribeModel string // 비면 gpt-4o-transcribe
+	OpenAIBaseURL         string // 비면 https://api.openai.com (테스트는 가짜 서버)
 }
+
+// Realtime은 OpenAI Realtime 임시 키를 발급할 수 있는지 알려 준다 (F-024).
+func (c Config) Realtime() bool { return c.OpenAIAPIKey != "" }
 
 // MinLLMSecret은 ELEVENLABS_LLM_SECRET 최소 길이다.
 const MinLLMSecret = 16
@@ -45,6 +55,12 @@ func Load(getenv func(string) string) (Config, error) {
 		ElevenLabsAgentID: strings.TrimSpace(getenv("ELEVENLABS_AGENT_ID")),
 		ElevenLabsBaseURL: strings.TrimSpace(getenv("ELEVENLABS_API_BASE")),
 		LLMSecret:         strings.TrimSpace(getenv("ELEVENLABS_LLM_SECRET")),
+
+		OpenAIAPIKey:          strings.TrimSpace(getenv("OPENAI_API_KEY")),
+		OpenAIRealtimeModel:   strings.TrimSpace(getenv("OPENAI_REALTIME_MODEL")),
+		OpenAIRealtimeVoice:   strings.TrimSpace(getenv("OPENAI_REALTIME_VOICE")),
+		OpenAITranscribeModel: strings.TrimSpace(getenv("OPENAI_TRANSCRIBE_MODEL")),
+		OpenAIBaseURL:         strings.TrimSpace(getenv("OPENAI_API_BASE")),
 	}
 	if (c.ElevenLabsAPIKey == "") != (c.ElevenLabsAgentID == "") {
 		return Config{}, fmt.Errorf("ELEVENLABS_API_KEY와 ELEVENLABS_AGENT_ID는 함께 설정해야 해요")

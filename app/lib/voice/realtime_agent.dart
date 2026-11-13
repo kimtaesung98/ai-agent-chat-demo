@@ -1,7 +1,10 @@
-/// 실시간 음성 대화 에이전트 인터페이스 (F-022, ARCHITECTURE.md ADR-025).
-/// 듣기·말하기·끼어들기·말이 끝났는지 판단은 에이전트(ElevenLabs Agents)가 하고, 앱은 상태와 자막만 받는다.
-/// 컨트롤러는 이것만 알고, 테스트는 가짜를 쓴다. 구현은 `elevenlabs_agent.dart`.
+/// 실시간 음성 대화 에이전트 인터페이스 (F-022·F-024, ARCHITECTURE.md ADR-025·026).
+/// 듣기·말하기·끼어들기·말이 끝났는지 판단은 에이전트가 하고, 앱은 상태와 자막만 받는다.
+/// 컨트롤러는 이것만 알고, 테스트는 가짜를 쓴다. 구현은 `openai_realtime_agent.dart`(웹, OpenAI Realtime)와
+/// `elevenlabs_agent.dart`(Android·iOS, ElevenLabs — F-024 정리 단계에서 지움).
 library;
+
+import 'package:flutter/foundation.dart';
 
 /// 에이전트가 알려 주는 일.
 sealed class AgentEvent {
@@ -43,17 +46,26 @@ final class AgentReply extends AgentEvent {
   final String text;
 }
 
-/// 오류. 원문은 화면에 보이지 않는다.
+/// 오류. 원문은 화면에 보이지 않는다. [micDenied]면 마이크 권한이 없어 연결하지 않았다.
 final class AgentFailed extends AgentEvent {
-  const AgentFailed();
+  const AgentFailed({this.micDenied = false});
+  final bool micDenied;
 }
 
 abstract interface class RealtimeAgent {
+  /// 이 에이전트가 붙는 서비스 — API-002 `voiceAgent`와 같은 값(`openai`·`elevenlabs`). 서버와 같을 때만 쓴다.
+  String get kind;
+
+  /// 마이크 소리 크기 0~1 (파형, F-018 3-1). 주지 못하면 늘 0.
+  ValueListenable<double> get level;
+
   /// 에이전트가 알려 주는 일 (broadcast).
   Stream<AgentEvent> get events;
 
-  /// [token](서버가 발급, API-005)으로 연결한다. [context]는 Custom LLM 요청의 `elevenlabs_extra_body`로,
-  /// [variables]는 에이전트 설정의 `{{이름}}` 동적 변수로 간다. 실패하면 예외.
+  /// [token](서버가 발급 — ElevenLabs는 API-005, OpenAI는 API-007 임시 키)으로 연결한다.
+  /// [context]는 페르소나·기억·대화 내역(`ChatController.voiceContext`) — ElevenLabs는 Custom LLM 요청으로 넘기고,
+  /// OpenAI는 서버가 이미 지시문에 넣었으므로 처음 연결인지(내역이 비었는지)만 본다.
+  /// [variables]는 ElevenLabs 에이전트 설정의 `{{이름}}` 동적 변수. 실패하면 예외.
   Future<void> start({
     required String token,
     required Map<String, Object?> context,

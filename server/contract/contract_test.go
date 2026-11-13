@@ -287,7 +287,7 @@ func TestF022(t *testing.T) {
 	}
 	json.NewDecoder(res.Body).Decode(&cfg)
 	res.Body.Close()
-	if cfg.VoiceAgent != "elevenlabs" {
+	if res := postJSON(t, "/api/voice/token", "{}"); res.StatusCode == http.StatusServiceUnavailable {
 		t.Skip("이 서버는 실시간 음성(ElevenLabs)이 꺼져 있어요")
 	}
 
@@ -353,6 +353,50 @@ func TestF022(t *testing.T) {
 
 	t.Run("F-022 AC3 형식이 틀리면 400", func(t *testing.T) {
 		if res := completions(t, "Bearer "+llmSecret, `{"messages":[{"role":"system","content":"x"}]}`); res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("%d", res.StatusCode)
+		}
+	})
+}
+
+func TestF024(t *testing.T) {
+	var cfg struct {
+		VoiceAgent string `json:"voiceAgent"`
+	}
+	res, err := client.Get(*baseURL + "/api/config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	json.NewDecoder(res.Body).Decode(&cfg)
+	res.Body.Close()
+	if cfg.VoiceAgent != "openai" {
+		t.Skip("이 서버는 실시간 음성(OpenAI Realtime)이 꺼져 있어요")
+	}
+
+	t.Run("F-024 AC2 POST /api/voice/session은 지시문을 담은 임시 키만 주고 API 키는 주지 않는다", func(t *testing.T) {
+		res := postJSON(t, "/api/voice/session", `{"persona":{"name":"미소","role":"노인복지사","base":"천천히"},
+			"memory":[{"summary":"지난번 손주 이야기","facts":[],"followUps":[]}],
+			"history":[{"role":"user","content":"오늘 덥네"},{"role":"assistant","content":"물 드세요"}]}`)
+		b, _ := io.ReadAll(res.Body)
+		var out struct {
+			ClientSecret string `json:"clientSecret"`
+			ExpiresAt    int64  `json:"expiresAt"`
+		}
+		json.Unmarshal(b, &out)
+		if res.StatusCode != http.StatusOK || out.ClientSecret == "" || out.ExpiresAt == 0 || strings.Contains(string(b), fakeOpenAIKey) ||
+			res.Header.Get("Cache-Control") != "no-store" {
+			t.Fatalf("%d %s", res.StatusCode, b)
+		}
+		if ins, ok := lastInstructions.Load().(string); ok { // 직접 띄운 서버면 가짜 OpenAI가 받은 지시문도 본다
+			for _, s := range []string{"미소", "천천히", "손주", "오늘 덥네"} {
+				if !strings.Contains(ins, s) {
+					t.Fatalf("지시문에 %q가 없어요: %s", s, ins)
+				}
+			}
+		}
+	})
+
+	t.Run("F-024 AC3 형식 오류는 400", func(t *testing.T) {
+		if res := postJSON(t, "/api/voice/session", `{"history":"x"}`); res.StatusCode != http.StatusBadRequest {
 			t.Fatalf("%d", res.StatusCode)
 		}
 	})

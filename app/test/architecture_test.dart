@@ -132,4 +132,26 @@ void main() {
       expect(f.readAsStringSync().contains('api.anthropic.com'), isFalse, reason: f.path);
     }
   });
+
+  test('F-024 AC4 앱에 OpenAI 키·주소·지시문 틀이 없고, dart:js_interop은 웹 전용 파일에서만 쓴다 (ADR-026)', () {
+    for (final f in Directory(
+      'lib',
+    ).listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
+      final text = f.readAsStringSync();
+      expect(text.contains('api.openai.com'), isFalse, reason: '${f.path}: OpenAI는 web/realtime.js가 임시 키로만 부른다');
+      expect(text.contains('OPENAI_API_KEY'), isFalse, reason: f.path);
+      expect(text.contains('client_secrets'), isFalse, reason: f.path);
+      final js = importRe.allMatches(text).any((m) => m.group(1)!.startsWith('dart:js_interop'));
+      if (js) {
+        expect(
+          f.path.endsWith('_web.dart') || f.path.endsWith('voice/openai_realtime_agent.dart'),
+          isTrue,
+          reason: f.path,
+        );
+      }
+    }
+    final js = File('web/realtime.js').readAsStringSync();
+    expect(js.contains('client_secrets'), isFalse, reason: '임시 키 발급은 서버만');
+    expect(js.contains("'Bearer ' + secret"), isTrue, reason: '브라우저는 받은 임시 키로만 연결');
+  });
 }
