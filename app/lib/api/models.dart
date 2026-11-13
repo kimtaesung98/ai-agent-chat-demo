@@ -56,12 +56,15 @@ class VoiceTokenFailed implements Exception {
 
 /// GET /api/config 결과 (SPEC.md API-002).
 class ServerConfig {
-  const ServerConfig({required this.provider, required this.model, this.voiceAgent = false});
+  const ServerConfig({required this.provider, required this.model, this.voiceAgent = false, this.voiceProvider = ''});
   final String provider;
   final String model;
 
   /// 서버가 실시간 음성 대화(ElevenLabs Agents) 토큰을 줄 수 있는지 (F-022, API-002 `voiceAgent`).
   final bool voiceAgent;
+
+  /// 실시간 음성 서비스 — API-002 `voiceAgent` 값 그대로(`openai`·`elevenlabs`). 꺼져 있으면 빈 문자열 (F-024).
+  final String voiceProvider;
 
   bool get isMock => provider == 'mock';
 }

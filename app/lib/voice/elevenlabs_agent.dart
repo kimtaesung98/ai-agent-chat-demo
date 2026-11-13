@@ -18,6 +18,14 @@ class ElevenLabsAgent implements RealtimeAgent {
   var _ending = false;
 
   @override
+  String get kind => 'elevenlabs';
+
+  /// SDK가 소리 크기를 주지 않아 0 — 파형은 상태에 따라 저절로 움직인다.
+  @override
+  ValueListenable<double> get level => _silent;
+  static final ValueListenable<double> _silent = ValueNotifier(0);
+
+  @override
   Stream<AgentEvent> get events => _events.stream;
 
   void _emit(AgentEvent e) {

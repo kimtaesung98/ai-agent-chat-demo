@@ -7,12 +7,21 @@ import 'package:ai_agent_chat/chat/persona_controller.dart';
 import 'package:ai_agent_chat/voice/agent_voice_controller.dart';
 import 'package:ai_agent_chat/voice/realtime_agent.dart';
 import 'package:ai_agent_chat/voice/voice_controller.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes.dart';
 
 /// 테스트가 사건을 직접 흘리는 가짜 실시간 에이전트.
 class FakeAgent implements RealtimeAgent {
+  FakeAgent({this.kind = 'elevenlabs'});
+
+  @override
+  final String kind;
+
+  @override
+  final ValueNotifier<double> level = ValueNotifier(0);
+
   final _events = StreamController<AgentEvent>.broadcast(sync: true);
   final starts = <({String token, Map<String, Object?> context, Map<String, String> variables})>[];
   final muted = <bool>[];
@@ -62,17 +71,26 @@ void main() {
     bool withAgent = true,
     bool loadConfig = true,
     Duration connectTimeout = const Duration(seconds: 5),
+    String serverKind = 'elevenlabs',
+    String agentKind = 'elevenlabs',
   }) async {
-    api = FakeApi()..serverConfig = ServerConfig(provider: 'mock', model: 'm', voiceAgent: voiceAgent);
+    api = FakeApi()
+      ..serverConfig = ServerConfig(
+        provider: 'mock',
+        model: 'm',
+        voiceAgent: voiceAgent,
+        voiceProvider: voiceAgent ? serverKind : '',
+      );
     personas = PersonaController();
     memory = MemoryController();
     chat = ChatController(api, personas: personas, memory: memory);
     if (loadConfig) await chat.loadConfig();
     engine = FakeVoiceEngine();
-    agent = FakeAgent();
+    agent = FakeAgent(kind: agentKind);
     voice = AgentVoiceController(
       chat,
-      api.voiceToken,
+      // main.dart와 같은 연결: OpenAI면 API-007(맥락을 담아), 아니면 API-005
+      (context) => chat.config?.voiceProvider == 'openai' ? api.voiceSession(context) : api.voiceToken(),
       VoiceController(chat, engine),
       agent: withAgent ? agent : null,
       retryDelay: const Duration(milliseconds: 1),
@@ -289,5 +307,43 @@ void main() {
     voice.tap();
     expect(voice.active, isTrue);
     expect(agent.ends, 0);
+  });
+
+  test('F-024 AC4 서버가 openai면 페르소나·기억·내역을 담아 임시 키(API-007)를 받고 그것으로만 연결한다', () async {
+    await setUpWith(serverKind: 'openai', agentKind: 'openai');
+    await voice.start();
+    expect(api.tokenRequests, 1);
+    expect(agent.starts.single.token, 'ek-1');
+    expect(api.lastSessionContext, isNotNull);
+    expect(api.lastSessionContext!['persona'], isNotNull, reason: '서버가 지시문을 만들 페르소나');
+    expect(api.lastSessionContext!.containsKey('history'), isTrue);
+    expect(agent.starts.single.context, same(api.lastSessionContext), reason: '같은 맥락으로 연결');
+  });
+
+  test('F-024 AC4 서버와 이 기기의 실시간 음성 종류가 다르면 쓰지 않고 기기 음성으로 대화한다', () async {
+    await setUpWith(serverKind: 'elevenlabs', agentKind: 'openai');
+    await voice.start();
+    expect(api.tokenRequests, 0);
+    expect(agent.starts, isEmpty);
+    expect(engine.listening, isTrue);
+  });
+
+  test('F-024 AC5 실시간 음성은 에이전트가 주는 마이크 소리 크기로 파형을 그린다', () async {
+    await setUpWith(serverKind: 'openai', agentKind: 'openai');
+    await voice.start();
+    agent.emit(const AgentConnected());
+    agent.level.value = 0.6;
+    expect(voice.level.value, 0.6);
+  });
+
+  test('F-025 AC4 마이크 권한이 없으면 다시 연결하지 않고 멈춘 뒤 브라우저 설정을 안내한다', () async {
+    await setUpWith(serverKind: 'openai', agentKind: 'openai');
+    await voice.start();
+    agent.emit(const AgentFailed(micDenied: true));
+    await flush();
+    expect(voice.state, VoiceState.off);
+    expect(voice.notice, AgentMessages.micDenied);
+    expect(agent.starts, hasLength(1), reason: '다시 연결하지 않는다');
+    expect(engine.listening, isFalse);
   });
 }

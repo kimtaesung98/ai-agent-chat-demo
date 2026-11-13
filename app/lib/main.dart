@@ -48,10 +48,10 @@ Future<void> main() async {
     api.baseUrl = server.address;
     controller.loadConfig(); // 새 서버의 모드(모의·Claude)를 다시 읽는다
   });
-  // 실시간 음성(ElevenLabs Agents, F-022)이 되면 그것으로, 아니면 기기 음성(F-012)으로 대화한다
+  // 실시간 음성(웹: OpenAI Realtime F-024, 앱: ElevenLabs F-022)이 되면 그것으로, 아니면 기기 음성(F-012)으로 대화한다
   final voice = AgentVoiceController(
     controller,
-    api.voiceToken,
+    (context) => controller.config?.voiceProvider == 'openai' ? api.voiceSession(context) : api.voiceToken(),
     VoiceController(controller, PluginVoiceEngine()),
     agent: createRealtimeAgent(),
   );

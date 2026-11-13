@@ -40,6 +40,15 @@ func TestLoad(t *testing.T) {
 			}
 		}
 	})
+	t.Run("F-024 AC1 OpenAI Realtime 설정을 읽고 공백을 다듬는다, 키가 없으면 꺼짐", func(t *testing.T) {
+		c, err := Load(env(map[string]string{"OPENAI_API_KEY": " sk-x ", "OPENAI_REALTIME_MODEL": "gpt-realtime-2", "OPENAI_REALTIME_VOICE": "cedar", "OPENAI_API_BASE": "http://fake"}))
+		if err != nil || !c.Realtime() || c.OpenAIAPIKey != "sk-x" || c.OpenAIRealtimeModel != "gpt-realtime-2" || c.OpenAIRealtimeVoice != "cedar" || c.OpenAIBaseURL != "http://fake" {
+			t.Fatalf("c=%+v err=%v", c, err)
+		}
+		if c, _ := Load(env(nil)); c.Realtime() {
+			t.Fatal("키가 없으면 꺼져 있어야 해요")
+		}
+	})
 	t.Run("F-022 AC1 ElevenLabs 설정을 읽고, 키와 에이전트 ID가 둘 다 있어야 음성 에이전트를 켠다", func(t *testing.T) {
 		c, err := Load(env(map[string]string{"ELEVENLABS_API_KEY": " xi ", "ELEVENLABS_AGENT_ID": "agent_1", "ELEVENLABS_LLM_SECRET": "0123456789abcdef"}))
 		if err != nil || !c.VoiceAgent() || c.ElevenLabsAPIKey != "xi" || c.LLMSecret != "0123456789abcdef" {

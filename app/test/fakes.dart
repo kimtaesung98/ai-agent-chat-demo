@@ -91,6 +91,17 @@ class FakeApi implements ChatApi {
   var tokenRequests = 0;
   var tokenFails = false;
 
+  /// 마지막 API-007 요청의 context (F-024).
+  Map<String, Object?>? lastSessionContext;
+
+  @override
+  Future<String> voiceSession(Map<String, Object?> context) async {
+    tokenRequests++;
+    lastSessionContext = context;
+    if (tokenFails) throw const VoiceTokenFailed();
+    return 'ek-$tokenRequests';
+  }
+
   @override
   Future<String> voiceToken() async {
     tokenRequests++;

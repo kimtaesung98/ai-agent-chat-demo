@@ -389,6 +389,10 @@ flowchart LR
 | `ELEVENLABS_API_KEY` | N | (없음 → 실시간 음성 꺼짐) | **Y** | ElevenLabs API 키 — 대화 토큰 발급(API-005)에만. `ELEVENLABS_AGENT_ID`와 함께 | Go (F-022) |
 | `ELEVENLABS_AGENT_ID` | N | (없음) | N | ElevenLabs 에이전트 ID | Go (F-022) |
 | `ELEVENLABS_LLM_SECRET` | N | (없음 → API-006 404) | **Y** | ElevenLabs가 Custom LLM(API-006)을 부를 때 보내는 Bearer 값, 16자 이상. ElevenLabs 에이전트 설정의 비밀값과 같게 | Go (F-022) |
+| `OPENAI_API_KEY` | N | (없음 → API-007 503, 실시간 음성 꺼짐) | **Y** | OpenAI Realtime 임시 키 발급용. 앱에 가지 않는다 | Go (F-024) |
+| `OPENAI_REALTIME_MODEL` · `OPENAI_REALTIME_VOICE` | N | `gpt-realtime` · `marin` | N | 실시간 모델·목소리 | Go (F-024) |
+| `OPENAI_TRANSCRIBE_MODEL` | N | `gpt-4o-transcribe` | N | 자막용 입력 전사 모델 | Go (F-024) |
+| `OPENAI_API_BASE` | N | `https://api.openai.com` | N | 테스트용 가짜 서버 주소 | Go (F-024) |
 | `ELEVENLABS_API_BASE` | N | `https://api.elevenlabs.io` | N | ElevenLabs API 주소 (계약 테스트의 가짜 서버용) | Go (F-022) |
 | `API_BASE_URL` | N | 웹: 같은 출처 · Android 에뮬레이터: `http://10.0.2.2:3000` · iOS 시뮬레이터: `http://localhost:3000` | N | 모바일 앱이 호출할 서버 주소 — **빌드 시** `--dart-define`으로 주입, 키는 절대 주입 금지. 실제 폰은 개발 컴퓨터 LAN 주소 (ADR-022, `app/lib/api/server_address.dart`) | Flutter (F-017) |
 

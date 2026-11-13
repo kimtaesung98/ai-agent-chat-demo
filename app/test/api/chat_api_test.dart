@@ -298,4 +298,39 @@ void main() {
       await expectLater(failing.voiceToken(), throwsA(isA<VoiceTokenFailed>()));
     }
   });
+
+  test('F-024 AC4 API-002 voiceAgent가 openai면 실시간 음성 종류를 openai로 안다', () async {
+    for (final (body, on, kind) in [
+      ('{"provider":"mock","model":"m","voiceAgent":"openai"}', true, 'openai'),
+      ('{"provider":"mock","model":"m","voiceAgent":"elevenlabs"}', true, 'elevenlabs'),
+      ('{"provider":"mock","model":"m","voiceAgent":"other"}', false, ''),
+    ]) {
+      final api = HttpChatApi(baseUrl: 'http://srv', clientFactory: () => FakeClient((_) async => json(body, 200)));
+      final cfg = await api.config();
+      expect((cfg.voiceAgent, cfg.voiceProvider), (on, kind), reason: body);
+    }
+  });
+
+  test('F-024 AC4 voiceSession은 맥락을 POST /api/voice/session에 보내고 임시 키만 꺼내며, 실패는 VoiceTokenFailed', () async {
+    final client = FakeClient((_) async => json('{"clientSecret":"ek_1","expiresAt":1,"model":"gpt-realtime"}', 200));
+    final api = HttpChatApi(baseUrl: 'http://srv', clientFactory: () => client);
+    final context = {
+      'persona': {'name': '미소'},
+      'history': <Object?>[],
+    };
+    expect(await api.voiceSession(context), 'ek_1');
+    final req = client.last! as http.Request;
+    expect(req.method, 'POST');
+    expect(req.url.toString(), 'http://srv/api/voice/session');
+    expect(jsonDecode(req.body), context);
+    expect(client.closed, isTrue);
+    for (final res in [
+      () async => json('{"error":{"code":"VOICE_AGENT_OFF","message":"x"}}', 503),
+      () async => json('{"clientSecret":""}', 200),
+      () async => throw http.ClientException('down'),
+    ]) {
+      final failing = HttpChatApi(baseUrl: 'http://srv', clientFactory: () => FakeClient((_) => res()));
+      await expectLater(failing.voiceSession(const {}), throwsA(isA<VoiceTokenFailed>()));
+    }
+  });
 }

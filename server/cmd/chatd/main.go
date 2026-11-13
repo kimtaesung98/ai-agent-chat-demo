@@ -17,6 +17,7 @@ import (
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/config"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/elevenlabs"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/httpapi"
+	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/openai"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/provider"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/provider/anthropic"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/provider/mock"
@@ -93,11 +94,25 @@ func voiceOptions(cfg config.Config) []httpapi.Option {
 	if cfg.LLMSecret != "" {
 		opts = append(opts, httpapi.WithLLMSecret(cfg.LLMSecret))
 	}
+	if cfg.Realtime() {
+		c := openai.New(cfg.OpenAIAPIKey, cfg.OpenAIRealtimeModel, cfg.OpenAIRealtimeVoice, cfg.OpenAITranscribeModel, cfg.OpenAIBaseURL)
+		opts = append(opts, httpapi.WithRealtime(realtimeAdapter{c}))
+	}
 	return opts
+}
+
+// realtimeAdapter는 internal/openai를 httpapi.RealtimeSessions에 맞춘다 (두 패키지는 서로 모른다).
+type realtimeAdapter struct{ c *openai.Client }
+
+func (a realtimeAdapter) ClientSecret(ctx context.Context, instructions string) (httpapi.RealtimeSecret, error) {
+	s, err := a.c.ClientSecret(ctx, instructions)
+	return httpapi.RealtimeSecret{Value: s.Value, ExpiresAt: s.ExpiresAt, Model: s.Model}, err
 }
 
 func describeVoice(cfg config.Config) string {
 	switch {
+	case cfg.Realtime():
+		return "실시간 음성: OpenAI Realtime 켜짐 (POST /api/voice/session 임시 키 발급, 모델 " + orDefault(cfg.OpenAIRealtimeModel, openai.DefaultModel) + ")"
 	case cfg.VoiceAgent() && cfg.LLMSecret != "":
 		return "실시간 음성: ElevenLabs Agents 켜짐 (토큰 발급 + Custom LLM /v1/chat/completions)"
 	case cfg.VoiceAgent():
@@ -106,4 +121,11 @@ func describeVoice(cfg config.Config) string {
 		return "실시간 음성: Custom LLM 엔드포인트만 켜짐 — ELEVENLABS_API_KEY·ELEVENLABS_AGENT_ID가 없어 앱은 기기 음성을 써요"
 	}
 	return "실시간 음성: 꺼짐 — 앱은 기기 음성(STT·TTS)을 써요"
+}
+
+func orDefault(v, d string) string {
+	if v == "" {
+		return d
+	}
+	return v
 }

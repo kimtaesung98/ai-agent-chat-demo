@@ -44,9 +44,25 @@ type server struct {
 	provider  provider.Provider
 	static    *os.Root // nil이면 정적 파일 없음
 	log       *slog.Logger
-	tokens    TokenSource // nil이면 실시간 음성 대화 없음 (F-022)
-	llmSecret string      // 비면 /v1/chat/completions 꺼짐 (F-022)
+	tokens    TokenSource      // nil이면 실시간 음성 대화 없음 (F-022)
+	llmSecret string           // 비면 /v1/chat/completions 꺼짐 (F-022)
+	realtime  RealtimeSessions // nil이면 OpenAI 실시간 음성 없음 (F-024)
 }
+
+// RealtimeSecret은 브라우저가 OpenAI Realtime에 WebRTC로 붙을 때 쓰는 임시 키다 (F-024, API-007).
+type RealtimeSecret struct {
+	Value     string
+	ExpiresAt int64
+	Model     string
+}
+
+// RealtimeSessions는 지시문을 담은 임시 키를 발급한다 (F-024, ADR-026). 구현은 internal/openai (조립은 cmd/chatd).
+type RealtimeSessions interface {
+	ClientSecret(ctx context.Context, instructions string) (RealtimeSecret, error)
+}
+
+// WithRealtime은 POST /api/voice/session을 켜고 API-002 voiceAgent를 "openai"로 알린다.
+func WithRealtime(rs RealtimeSessions) Option { return func(s *server) { s.realtime = rs } }
 
 // TokenSource는 실시간 음성 대화(ElevenLabs Agents) 토큰을 발급한다 (F-022, ADR-025). 구현은 internal/elevenlabs.
 type TokenSource interface {
@@ -81,6 +97,7 @@ func New(p provider.Provider, staticDir string, log *slog.Logger, opts ...Option
 	mux.HandleFunc("/api/summary", only(http.MethodPost, "POST만 지원해요.", s.handleSummary))
 	mux.HandleFunc("/api/consolidate", only(http.MethodPost, "POST만 지원해요.", s.handleConsolidate))
 	mux.HandleFunc("/api/config", only(http.MethodGet, "GET만 지원해요.", s.handleConfig))
+	mux.HandleFunc("/api/voice/session", only(http.MethodPost, "POST만 지원해요.", s.handleVoiceSession))
 	mux.HandleFunc("/api/voice/token", only(http.MethodPost, "POST만 지원해요.", s.handleVoiceToken))
 	mux.HandleFunc("/v1/chat/completions", only(http.MethodPost, "POST만 지원해요.", s.handleCompletions))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -105,7 +122,10 @@ func only(method, msg string, h http.HandlerFunc) http.HandlerFunc {
 
 func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	voice := "none"
-	if s.tokens != nil {
+	switch {
+	case s.realtime != nil:
+		voice = "openai"
+	case s.tokens != nil:
 		voice = "elevenlabs"
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"provider": s.provider.Name(), "model": s.provider.Model(), "voiceAgent": voice})

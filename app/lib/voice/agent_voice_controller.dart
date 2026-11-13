@@ -1,5 +1,6 @@
-/// 실시간 음성 대화 (SPEC.md F-022, ARCHITECTURE.md ADR-025).
-/// 서버가 ElevenLabs Agents를 켜 두었고 이 기기에 실시간 에이전트가 있으면 그것으로 대화하고,
+/// 실시간 음성 대화 (SPEC.md F-022·F-024, ARCHITECTURE.md ADR-025·026).
+/// 서버가 켜 둔 실시간 음성(API-002 `voiceAgent`)과 이 기기의 에이전트 종류가 같으면 그것으로 대화하고 —
+/// 웹은 OpenAI Realtime, Android·iOS는 ElevenLabs —
 /// 아니면(웹·서버 설정 없음·토큰 실패·연결이 계속 안 됨) 기기 음성([VoiceController], F-012)으로 대화한다.
 /// 어느 쪽이든 화면은 같다 — 토글·버튼 없이 늘 듣는다 (F-018). 위젯 없이 가짜 에이전트로 단위 테스트한다.
 library;
@@ -21,6 +22,7 @@ abstract final class AgentMessages {
   static const fellBack = '실시간 음성에 연결하지 못해 기기 음성으로 대화할게요.';
   static const serverOff = '서버에 실시간 음성이 꺼져 있어 기기 음성으로 대화할게요.';
   static const noConfig = '서버 설정을 받지 못해 기기 음성으로 대화할게요. 서버 주소를 확인해 주세요.';
+  static const micDenied = '마이크를 쓸 수 없어요. 브라우저 설정에서 이 사이트의 마이크를 허용해 주세요.';
 }
 
 class AgentVoiceController extends ChangeNotifier implements VoiceSession {
@@ -39,8 +41,9 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
 
   final ChatController _chat;
 
-  /// 서버에서 대화 토큰을 받는다 (API-005, `ChatApi.voiceToken`). 실패하면 [VoiceTokenFailed].
-  final Future<String> Function() _fetchToken;
+  /// 서버에서 연결 키를 받는다 — ElevenLabs는 API-005 토큰, OpenAI는 API-007 임시 키(인자는 페르소나·기억·내역).
+  /// 실패하면 [VoiceTokenFailed].
+  final Future<String> Function(Map<String, Object?> context) _fetchToken;
   final VoiceController _fallback;
 
   /// 이 기기의 실시간 음성 에이전트. 없으면(웹) 늘 기기 음성.
@@ -82,13 +85,14 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
   @override
   String? get notice => _useFallback ? (_fallback.notice ?? _notice) : _notice;
 
-  /// 실시간 음성은 SDK가 소리 크기를 주지 않아 0 — 파형은 상태에 따라 저절로 움직인다.
+  /// 실시간 음성은 에이전트가 주는 마이크 소리 크기(주지 못하면 0 — 파형은 상태에 따라 저절로 움직인다).
   @override
-  ValueListenable<double> get level => _useFallback ? _fallback.level : silentLevel;
+  ValueListenable<double> get level => _useFallback ? _fallback.level : (agent?.level ?? silentLevel);
   @override
   bool get supported => agent != null || _fallback.supported;
 
-  bool get _canRealtime => agent != null && (_chat.config?.voiceAgent ?? false);
+  bool get _canRealtime =>
+      agent != null && (_chat.config?.voiceAgent ?? false) && _chat.config?.voiceProvider == agent!.kind;
 
   @override
   void toggle() {
@@ -150,11 +154,12 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
       _connectFailed();
     });
     try {
-      final token = await _fetchToken();
+      final context = _chat.voiceContext();
+      final token = await _fetchToken(context);
       if (gen != _gen || _disposed) return;
       await agent!.start(
         token: token,
-        context: _chat.voiceContext(),
+        context: context,
         variables: {'persona_name': _chat.personas?.selected.name ?? ''},
       );
     } on VoiceTokenFailed {
@@ -226,8 +231,13 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
       case AgentReply(:final text):
         _sentence = text;
         _chat.addVoiceTurn(Role.assistant, text);
-      case AgentFailed():
-        break; // 끊기면 AgentDisconnected가 따로 온다
+      case AgentFailed(:final micDenied):
+        if (micDenied) {
+          // 권한이 없으면 다시 연결해도 소용없다 — 멈추고 알린다 (F-025 AC4)
+          stop();
+          _notice = AgentMessages.micDenied;
+        }
+      // 그 밖의 오류는 끊기면 AgentDisconnected가 따로 온다
       case AgentDisconnected(:final byUser):
         if (byUser) return;
         // 늘 듣는 것이 목표 — 에이전트·네트워크가 끊어도 다시 연결한다 (F-022 AC7)
