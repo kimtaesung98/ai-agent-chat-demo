@@ -19,6 +19,7 @@ abstract final class AgentMessages {
   static const reconnecting = '잠깐 연결이 끊겼어요. 다시 연결하고 있어요.';
   static const fellBack = '실시간 음성에 연결하지 못해 기기 음성으로 대화할게요.';
   static const serverOff = '서버에 실시간 음성이 꺼져 있어 기기 음성으로 대화할게요.';
+  static const noConfig = '서버 설정을 받지 못해 기기 음성으로 대화할게요. 서버 주소를 확인해 주세요.';
 }
 
 class AgentVoiceController extends ChangeNotifier implements VoiceSession {
@@ -114,8 +115,13 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
       _useFallback = true;
       if (agent != null) {
         // 이 기기는 실시간 음성을 쓸 수 있는데 서버가 꺼 두었다 (환경변수 없음·설정을 못 받음) — 화면과 로그에 알린다
-        debugPrint('실시간 음성 꺼짐: 서버 voiceAgent=${_chat.config?.voiceAgent}, 설정 실패=${_chat.configFailed}');
-        _notice = AgentMessages.serverOff;
+        if (_chat.config == null) {
+          debugPrint('실시간 음성 꺼짐: 서버 설정(/api/config)을 받지 못함 — 서버 주소·연결 확인');
+          _notice = AgentMessages.noConfig;
+        } else {
+          debugPrint('실시간 음성 꺼짐: 서버가 voiceAgent=none — chatd에 ELEVENLABS_* 환경변수 확인');
+          _notice = AgentMessages.serverOff;
+        }
       }
       return _fallback.start();
     }

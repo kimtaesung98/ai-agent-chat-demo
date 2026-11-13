@@ -73,8 +73,17 @@ class FakeApi implements ChatApi {
   /// 서버 설정 (F-022: [voiceAgent]면 실시간 음성 대화를 쓴다).
   ServerConfig serverConfig = const ServerConfig(provider: 'mock', model: 'mock-echo');
 
+  /// 남은 횟수만큼 설정 요청이 실패한다.
+  var configFailures = 0;
+
   @override
-  Future<ServerConfig> config() async => serverConfig;
+  Future<ServerConfig> config() async {
+    if (configFailures > 0) {
+      configFailures--;
+      throw StateError('연결 실패');
+    }
+    return serverConfig;
+  }
 
   /// 실시간 음성 토큰 요청 수. [tokenFails]면 [VoiceTokenFailed].
   var tokenRequests = 0;

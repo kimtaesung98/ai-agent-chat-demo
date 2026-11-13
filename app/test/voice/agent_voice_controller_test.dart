@@ -191,6 +191,27 @@ void main() {
     expect(voice.notice, isNull, reason: '웹은 원래 기기 음성');
   });
 
+  test('F-022 AC6 서버 설정을 받지 못하면 기기 음성으로 대화하고 그 이유를 알린다', () async {
+    await setUpWith(loadConfig: false);
+    api.configFailures = 2; // 앱 시작 때 한 번, 음성 시작 때 한 번
+    await chat.loadConfig();
+    await voice.start();
+    expect(api.tokenRequests, 0);
+    expect(engine.listening, isTrue);
+    expect(voice.notice, AgentMessages.noConfig);
+  });
+
+  test('F-022 AC1 앱 시작 때 설정 요청이 실패해도 음성 시작 때 다시 받아 실시간 음성으로 연결한다', () async {
+    await setUpWith(loadConfig: false);
+    api.configFailures = 1;
+    await chat.loadConfig();
+    expect(chat.configFailed, isTrue);
+    await voice.start();
+    expect(chat.configFailed, isFalse, reason: '다시 받으면 실패 표시를 지운다');
+    expect(agent.starts, hasLength(1));
+    expect(voice.notice, AgentMessages.connecting);
+  });
+
   test('F-022 AC6 연결이 알림 없이 멈추면 시간 초과로 다시 시도하고, 계속 안 되면 기기 음성으로 바꾼다', () async {
     await setUpWith(connectTimeout: const Duration(milliseconds: 20));
     agent.hang = true;
