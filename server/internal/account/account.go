@@ -76,6 +76,7 @@ type Principal struct {
 	User      User
 	Guest     bool
 	TokenHash string
+	Since     time.Time // 세션을 연 시각 (게스트 사용량을 세션 단위로 셈)
 }
 
 // Subject는 사용량을 셀 때 쓰는 이름이다 (F-030).
@@ -287,7 +288,7 @@ func (s *Service) LinkGoogle(ctx context.Context, p Principal, idToken string) (
 // StartGuest는 게스트 세션을 만든다 (F-030). 사용량 확인은 호출자(usage)가 먼저 한다.
 func (s *Service) StartGuest(ctx context.Context) (string, Principal, error) {
 	token, sess, err := s.newSession(ctx, "", store.SessionGuest, GuestSessionTTL)
-	return token, Principal{Guest: true, TokenHash: sess.TokenHash}, err
+	return token, Principal{Guest: true, TokenHash: sess.TokenHash, Since: sess.CreatedAt}, err
 }
 
 // Authenticate는 세션 토큰을 확인한다. 끝난 세션·정지된 계정이면 ErrUnauthenticated.
@@ -309,7 +310,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Principal, er
 		return Principal{}, ErrUnauthenticated
 	}
 	if sess.Kind == store.SessionGuest {
-		return Principal{Guest: true, TokenHash: h}, nil // 게스트는 연장하지 않는다
+		return Principal{Guest: true, TokenHash: h, Since: sess.CreatedAt}, nil // 게스트는 연장하지 않는다
 	}
 	u, err := s.store.GetUser(ctx, sess.UserID)
 	if errors.Is(err, store.ErrNotFound) || (err == nil && u.Status != store.StatusActive) {
@@ -320,7 +321,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Principal, er
 	if now.Sub(sess.LastSeenAt) >= touchEvery {
 		s.store.TouchSession(ctx, h, now, now.Add(sessionTTL(u.Role)))
 	}
-	return Principal{User: u, TokenHash: h}, nil
+	return Principal{User: u, TokenHash: h, Since: sess.CreatedAt}, nil
 }
 
 // Logout은 그 세션만 지운다.

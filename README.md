@@ -24,6 +24,8 @@ cd ../app && flutter analyze && flutter test   # Flutter 분석·테스트
 
 브라우저에서 `http://localhost:3000`을 엽니다.
 
+첫 최고 관리자(원장) 계정: `cd server && DATA_DIR=./data go run ./cmd/chatd admin bootstrap -name 원장` → 터미널에 나온 10자리 코드로 로그인 (F-026, 앱 로그인 화면은 단계 7-⑤).
+
 | 환경변수 | 기본값 | 설명 |
 |---|---|---|
 | `PORT` | `3000` | 서버 포트 |
@@ -34,6 +36,8 @@ cd ../app && flutter analyze && flutter test   # Flutter 분석·테스트
 | `ELEVENLABS_LLM_SECRET` | (없음) | ElevenLabs가 Custom LLM(`/v1/chat/completions`)을 부를 때의 Bearer 비밀값 (16자 이상) |
 | `OPENAI_API_KEY` | (없음) | 있으면 웹 음성 대화가 OpenAI GPT Realtime (F-024). 설정·폰 확인: [`docs/OPENAI_REALTIME_SETUP.md`](./docs/OPENAI_REALTIME_SETUP.md) |
 | `OPENAI_REALTIME_MODEL` · `OPENAI_REALTIME_VOICE` | `gpt-realtime` · `marin` | 실시간 모델·목소리 |
+| `DATA_DIR` | (없음 → 메모리 DB) | 계정·데이터 DB 폴더 (`chatd.db`) — F-026 |
+| `GOOGLE_CLIENT_ID` · `GUEST_MODE` · `REQUIRE_LOGIN` | (없음) · `off` · `off` | Google 로그인 · 게스트 체험 · 로그인 없는 AI 막기 (F-026·F-030, ARCHITECTURE §6.3에 상한 값) |
 
 ---
 
@@ -138,11 +142,11 @@ flowchart LR
 | F-017 | 모바일 네이티브 앱 (Android·iOS) | ❌ Blocked | `/app` | 2026-11-13 | **대체됨 → F-025 PWA** (사용자 전향, 2026-11-13). 이전: 사용자 "모바일 진행"(SPEC §1.4 비목표 해제). AC2~AC5·AC7 자동 테스트 통과(`flutter test` 108개: 서버 주소·앱 안 주소 설정·저장, dart:io 스트리밍·중단, 매니페스트·Info.plist), AC1 Android APK 클라우드 빌드·CI `android` 작업. **iOS 빌드(Mac)·AC6 실제 폰 확인(사용자) 남음** |
 | F-024 | 실시간 음성 대화 (OpenAI GPT Realtime) | 🔄 In Progress | `/app`, `/server` | 2026-11-13 | 단계 6-①: 서버 API-007(`internal/openai`, 지시문 담은 임시 키) + 웹 `web/realtime.js`(WebRTC) + `OpenAiRealtimeAgent`. AC1~AC6 자동 테스트(`go test ./...` 계약 포함 · `flutter test` 218개). 웹 빌드 + 가짜 OpenAI로 브라우저에서 세션 → 임시 키로 SDP 요청 → 실패 시 기기 음성까지 확인. 남은 것: 실제 키로 iPhone·Android 확인(AC7, 사용자 — `docs/OPENAI_REALTIME_SETUP.md`) |
 | F-025 | 웹앱 (PWA) | 🔄 In Progress | `/app` | 2026-11-13 | 단계 6-③: 매니페스트("AI 말벗", 새 아이콘·maskable·iOS 아이콘), `web/sw.js`(화면 파일만, 네트워크 먼저, /api 제외), Flutter 기본 SW 끔, `web/pwa.js` + `InstallBanner`(Android 설치 창·iPhone 공유 안내), Wake Lock 미지원 안내. AC1~AC4 자동 테스트(`flutter test` 226개), 모바일 에뮬레이션에서 설치 가능(Chrome 설치 오류 0)·SW 캐시 확인. 남은 것: 정리(AC5, 6-④), 폰 설치 확인(AC6, 사용자) |
-| F-026 | 사용자 계정 · 로그인 · 서버 데이터 저장소 | 🔄 In Progress | `/server`, `/app` | 2026-11-13 | 승인 — 로그인은 관리자 발급 코드 또는 연결된 Google(Q-010), SQLite `modernc.org/sqlite` v1.59.0(ADR-028). 7-② 일부: `internal/store`·`store/sqlite`(마이그레이션)·`account`(코드·Google·세션·역할 계층) + Go 테스트 통과. 남은 것: HTTP API 연결·`usage`·계약 테스트·`chatd admin bootstrap` |
+| F-026 | 사용자 계정 · 로그인 · 서버 데이터 저장소 | 🔄 In Progress | `/server`, `/app` | 2026-11-13 | 7-② 서버 완료: SQLite 저장소, 코드·Google 로그인, 세션, `chatd admin bootstrap`, API-010~014·019~022. AC1~AC7·AC9 자동 테스트(Go 단위·httpapi·계약). 남은 것: 앱 로그인 화면·기기 데이터 옮기기(AC8), 실제 확인(AC10) |
 | F-027 | 페르소나 형식 v1 (앞뒤 공통 계약) | ⏳ Pending | `/server`, `/app` | 2026-11-13 | 승인 (PR #30) — 사용자 "백엔드에 맞물리게 프론트의 페르소나 형식을 명료화". SPEC §7.2 Persona v1, API-015·016, ADR-030(프리셋 카탈로그는 서버) |
 | F-028 | 대화 · 요약 · 기억의 서버 처리 | ⏳ Pending | `/server`, `/app` | 2026-11-13 | 승인 (PR #30) — API-017·018, ADR-031(ADR-024 대체 예정). 원문은 Q-009 추천안(30일)으로 |
-| F-029 | 역할 계층 · 권한 부여 | 🔄 In Progress | `/server`, `/app` | 2026-11-13 | 승인 — 사용자 "최고 관리자(개발자·원장) > 요양사 > 어르신·보호자, 상위가 하위를 추가·권한 부여". ADR-032, 보는 범위 Q-011 추천안 |
-| F-030 | 게스트 체험 · 사용량 제한 | ⏳ Pending | `/server`, `/app` | 2026-11-13 | 승인 — 사용자 "게스트가 많은 토큰을 발생시켜 누수를 일으키면 안 돼". ADR-033, 게스트 기본 꺼짐 |
+| F-029 | 역할 계층 · 권한 부여 | 🔄 In Progress | `/server`, `/app` | 2026-11-13 | 서버 완료: 역할 × 줄 역할 표, 요양사 범위(남의 어르신 404), 보호자 연결, 자기·마지막 최고 관리자 보호, 감사 기록. AC1~AC6 자동 테스트. 남은 것: 관리 화면(AC7), 보는 범위 Q-011 |
+| F-030 | 게스트 체험 · 사용량 제한 | 🔄 In Progress | `/server`, `/app` | 2026-11-13 | 서버 완료: `internal/usage`(게스트·IP·사용자·음성·전체 상한, 보내기 전 한 트랜잭션), 게스트 세션·글 채팅 제한. AC1~AC6 자동 테스트. `REQUIRE_LOGIN`은 앱 로그인 화면 전까지 꺼짐. 남은 것: 앱 체험 버튼 |
 | F-031 | 어르신 페르소나 (기본 설정 + 대화로 강화) | ⏳ Pending | `/server`, `/app` | 2026-11-13 | 승인 — 방향. 사용자 "원문은 모바일에 지속 보관, 이를 바탕으로 노인의 페르소나 강화, 보호자·요양사는 기초 통합 설정, 노치원 먼저". ADR-034·035, 노치원 기획서(Q-014) 뒤 세부 |
 
 ---
