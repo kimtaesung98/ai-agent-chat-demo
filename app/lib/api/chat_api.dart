@@ -40,10 +40,6 @@ abstract interface class ChatApi {
 
   Future<ServerConfig> config();
 
-  /// 실시간 음성 대화(ElevenLabs Agents) 토큰을 받는다 (F-022, API-005). 실패하면 [VoiceTokenFailed].
-  /// 토큰은 짧게 쓰고 버린다 — 저장하거나 로그에 남기지 않는다. ElevenLabs API 키는 서버에만 있다.
-  Future<String> voiceToken();
-
   /// OpenAI Realtime 임시 키를 받는다 (F-024, API-007). [context]는 `ChatController.voiceContext`(페르소나·기억·내역) —
   /// 서버가 이것으로 지시문을 만들어 키에 담는다. 실패하면 [VoiceTokenFailed]. 키는 저장하거나 로그에 남기지 않는다.
   Future<String> voiceSession(Map<String, Object?> context);
@@ -68,14 +64,14 @@ abstract final class ClientMessages {
 
 /// HTTP로 서버를 부르는 [ChatApi].
 class HttpChatApi implements ChatApi {
-  /// [baseUrl]이 비어 있으면 같은 출처(웹)로 부른다. 모바일은 `--dart-define=API_BASE_URL=...`.
+  /// [baseUrl]이 비어 있으면 같은 출처로 부른다. 개발 때 다른 주소는 `--dart-define=API_BASE_URL=...`.
   HttpChatApi({String baseUrl = '', http.Client Function()? clientFactory})
     : _base = _trim(baseUrl),
       _newClient = clientFactory ?? createHttpClient;
 
   String _base;
 
-  /// 서버 주소. 앱 설정에서 바꾸면 다음 요청부터 쓴다 (F-017).
+  /// 서버 주소. 비어 있으면 같은 출처.
   String get baseUrl => _base;
   set baseUrl(String value) => _base = _trim(value);
 
@@ -95,11 +91,7 @@ class HttpChatApi implements ChatApi {
       return ServerConfig(
         provider: json['provider'] as String,
         model: json['model'] as String,
-        voiceAgent: json['voiceAgent'] == 'elevenlabs' || json['voiceAgent'] == 'openai',
-        voiceProvider: switch (json['voiceAgent']) {
-          final String v when v == 'elevenlabs' || v == 'openai' => v,
-          _ => '',
-        },
+        voiceAgent: json['voiceAgent'] == 'openai',
       );
     } finally {
       client.close();
@@ -119,28 +111,6 @@ class HttpChatApi implements ChatApi {
       final secret = json is Map ? json['clientSecret'] : null;
       if (res.statusCode != 200 || secret is! String || secret.isEmpty) throw const VoiceTokenFailed();
       return secret;
-    } on VoiceTokenFailed {
-      rethrow;
-    } catch (_) {
-      throw const VoiceTokenFailed();
-    } finally {
-      client.close();
-    }
-  }
-
-  @override
-  Future<String> voiceToken() async {
-    final client = _newClient();
-    try {
-      final res = await client.post(
-        _uri('/api/voice/token'),
-        headers: {'content-type': 'application/json'},
-        body: '{}',
-      );
-      final json = jsonDecode(utf8.decode(res.bodyBytes));
-      final token = json is Map ? json['conversationToken'] : null;
-      if (res.statusCode != 200 || token is! String || token.isEmpty) throw const VoiceTokenFailed();
-      return token;
     } on VoiceTokenFailed {
       rethrow;
     } catch (_) {

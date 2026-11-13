@@ -2,7 +2,7 @@ import 'package:ai_agent_chat/chat/chat_controller.dart';
 import 'package:ai_agent_chat/main.dart';
 import 'package:ai_agent_chat/ui/install_hint.dart';
 import 'package:ai_agent_chat/ui/voice_page.dart';
-import 'package:ai_agent_chat/voice/voice_controller.dart';
+import 'package:ai_agent_chat/voice/voice_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -80,8 +80,9 @@ void main() {
   });
 
   testWidgets('F-025 AC4 화면 꺼짐 막기를 지원하지 않는 브라우저면 음성 화면에서 한 번 안내한다', (tester) async {
-    final chat = ChatController(FakeApi());
-    final voice = VoiceController(chat, FakeVoiceEngine());
+    final api = FakeApi();
+    final chat = ChatController(api);
+    final (:voice, agent: _) = fakeRealtimeVoice(chat, api);
     addTearDown(voice.dispose);
     await open(tester, FakeInstaller(InstallMode.installed, wakeLockSupported: false), voice: voice);
     await tester.tap(find.byKey(const Key('open-voice-page')));

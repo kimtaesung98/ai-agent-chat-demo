@@ -50,24 +50,9 @@ void main() {
     expect(c.about.length, Persona.maxAbout);
   });
 
-  test('F-017 AC7 앱에서 넣은 서버 주소는 다시 열어도 남고, 비우면 기본 주소로 돌아간다', () async {
-    final store = MemoryStore();
-    final s = loadServer(store, fallback: 'http://10.0.2.2:3000');
-    expect(s.address, 'http://10.0.2.2:3000');
-    expect(s.update('http://192.168.0.10:3000/'), isNull);
-    await settle();
-    expect(loadServer(store, fallback: 'http://10.0.2.2:3000').address, 'http://192.168.0.10:3000');
-
-    s.update('');
-    await settle();
-    expect(store.read(StoreKeys.server), isNull);
-    expect(loadServer(store, fallback: 'http://10.0.2.2:3000').address, 'http://10.0.2.2:3000');
-  });
-
   test('Q-005 F-019 대화 내용 자체는 저장하지 않고 끝난 대화의 요약만 남긴다 (F-007 전)', () {
     expect(StoreKeys.all, {
       StoreKeys.personas,
-      StoreKeys.server,
       StoreKeys.memory,
       StoreKeys.voiceOnStart,
       StoreKeys.auth,

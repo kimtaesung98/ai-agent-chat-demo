@@ -5,7 +5,7 @@ import 'package:ai_agent_chat/chat/memory_controller.dart';
 import 'package:ai_agent_chat/chat/persona_controller.dart';
 import 'package:ai_agent_chat/chat/start_settings.dart';
 import 'package:ai_agent_chat/main.dart';
-import 'package:ai_agent_chat/voice/voice_controller.dart';
+import 'package:ai_agent_chat/voice/agent_voice_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -18,8 +18,8 @@ void main() {
   late ChatController chat;
   late StartSettings start;
   late DisplaySettings display;
-  late FakeVoiceEngine engine;
-  late VoiceController voice;
+  late FakeAgent agent;
+  late AgentVoiceController voice;
 
   Future<void> launch(WidgetTester tester, {Account? account, bool onboarded = false, bool withVoice = true}) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -27,12 +27,12 @@ void main() {
     addTearDown(tester.view.reset);
     auth = AuthController(google: FakeGoogle(), account: account, onboarded: onboarded);
     personas = PersonaController();
-    chat = ChatController(FakeApi(), personas: personas, memory: MemoryController());
+    final api = FakeApi();
+    chat = ChatController(api, personas: personas, memory: MemoryController());
     await chat.loadConfig();
     start = StartSettings();
     display = DisplaySettings();
-    engine = FakeVoiceEngine();
-    voice = VoiceController(chat, engine);
+    (:voice, :agent) = fakeRealtimeVoice(chat, api);
     addTearDown(voice.dispose);
     await tester.pumpWidget(
       ChatApp(
@@ -94,7 +94,8 @@ void main() {
     expect(personas.selected.id, 'elder-care');
     expect(start.voiceOnStart, isTrue, reason: '다음에도 켜면 바로 음성 대화');
     expect(find.byKey(const Key('voice-page')), findsOneWidget);
-    expect(engine.listening, isTrue);
+    expect(voice.state, VoiceState.listening);
+    expect(agent.starts, hasLength(1));
   });
 
   testWidgets('F-023 AC4 다른 상대를 고르고 글자로 시작하면 채팅 화면', (tester) async {

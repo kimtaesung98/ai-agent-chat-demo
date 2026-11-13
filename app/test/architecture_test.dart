@@ -62,9 +62,6 @@ void main() {
             p == 'package:flutter/foundation.dart' ||
             p.startsWith('../chat/') ||
             p.startsWith('../api/models.dart') ||
-            p.startsWith('package:speech_to_text/') ||
-            p.startsWith('package:flutter_tts/') ||
-            p.startsWith('package:elevenlabs_agents/') ||
             !p.contains('/');
         expect(ok, isTrue, reason: '$key → $p');
       }
@@ -103,27 +100,19 @@ void main() {
     }
   });
 
-  test('F-012 음성 패키지는 plugin_voice_engine.dart에서만 import한다 (ADR-014)', () {
-    for (final f in Directory(
-      'lib',
-    ).listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
-      final imports = importRe.allMatches(f.readAsStringSync()).map((m) => m.group(1)!);
-      final usesPackage = imports.any(
-        (p) => p.startsWith('package:speech_to_text/') || p.startsWith('package:flutter_tts/'),
-      );
-      if (usesPackage) expect(f.path, endsWith('voice/plugin_voice_engine.dart'));
+  test('F-025 AC5 기기 음성·ElevenLabs 패키지를 쓰지 않는다 (ADR-027)', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    for (final name in ['speech_to_text', 'flutter_tts', 'elevenlabs_agents']) {
+      expect(pubspec.contains(name), isFalse, reason: 'pubspec.yaml: $name');
     }
-  });
-
-  test('F-022 elevenlabs_agents는 voice/elevenlabs_agent.dart에서만 import하고, 앱에 ElevenLabs 키를 두지 않는다 (ADR-025)', () {
+    expect(File('android/app/build.gradle.kts').existsSync(), isFalse, reason: '네이티브 Android 빌드 없음');
+    expect(Directory('ios/Runner.xcodeproj').existsSync(), isFalse, reason: '네이티브 iOS 빌드 없음');
     for (final f in Directory(
       'lib',
     ).listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
       final text = f.readAsStringSync();
-      final uses = importRe.allMatches(text).any((m) => m.group(1)!.startsWith('package:elevenlabs_agents/'));
-      if (uses) expect(f.path, endsWith('voice/elevenlabs_agent.dart'));
-      expect(text.contains('xi-api-key'), isFalse, reason: f.path);
-      expect(text.contains('api.elevenlabs.io'), isFalse, reason: f.path);
+      expect(text.contains('xi-api-key') || text.contains('api.elevenlabs.io'), isFalse, reason: f.path);
+      expect(text.contains('MethodChannel'), isFalse, reason: '${f.path}: 네이티브 채널 없음');
     }
   });
 

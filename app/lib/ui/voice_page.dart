@@ -6,7 +6,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../chat/chat_controller.dart';
-import '../voice/voice_controller.dart';
+import '../voice/voice_session.dart';
 import 'keep_awake.dart';
 import 'persona_widgets.dart';
 import 'theme.dart';
@@ -319,7 +319,7 @@ class _VoiceView {
         final asked = chat.entries.reversed.where((e) => e.isUser).firstOrNull?.text ?? '';
         return _VoiceView(
           label: '생각하고 있어요',
-          caption: asked.isEmpty ? '' : '“$asked”',
+          caption: notice ?? (asked.isEmpty ? '' : '“$asked”'), // 연결·다시 연결 중이면 그 안내
           captionColor: c.muted,
           hint: '잠시만 기다려 주세요',
           orbOuter: c.agent,

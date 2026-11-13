@@ -29,12 +29,11 @@ else
   : >"$envdir/chatd.env"
 fi
 unset key
-# 실시간 음성(F-022) — 세 값이 다 SSM에 있을 때만 켠다. 없으면 앱은 기기 음성
-if xi=$(param /chatd/elevenlabs-api-key 2>/dev/null) && agent=$(param /chatd/elevenlabs-agent-id 2>/dev/null) &&
-  llm=$(param /chatd/elevenlabs-llm-secret 2>/dev/null); then
-  printf 'ELEVENLABS_API_KEY=%s\nELEVENLABS_AGENT_ID=%s\nELEVENLABS_LLM_SECRET=%s\n' "$xi" "$agent" "$llm" >>"$envdir/chatd.env"
+# 실시간 음성(F-024) — SSM에 OpenAI 키가 있을 때만 켠다. 없으면 앱은 글 대화만
+if oa=$(param /chatd/openai-api-key 2>/dev/null); then
+  printf 'OPENAI_API_KEY=%s\n' "$oa" >>"$envdir/chatd.env"
 fi
-unset xi agent llm
+unset oa
 docker rm -f chatd >/dev/null 2>&1 || true
 docker run -d --name chatd --network chatnet --restart unless-stopped \
   --read-only --cap-drop ALL --security-opt no-new-privileges \

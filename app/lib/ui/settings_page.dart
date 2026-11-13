@@ -7,13 +7,11 @@ import 'package:flutter/material.dart';
 import '../chat/auth_controller.dart';
 import '../chat/chat_controller.dart';
 import '../chat/display_settings.dart';
-import '../chat/server_settings.dart';
 import '../chat/start_settings.dart';
-import '../voice/voice_controller.dart';
+import '../voice/voice_session.dart';
 import 'login_page.dart';
 import 'memory_page.dart';
 import 'persona_widgets.dart';
-import 'server_dialog.dart';
 import 'theme.dart';
 
 Future<void> openSettingsPage(
@@ -23,18 +21,16 @@ Future<void> openSettingsPage(
   AuthController? auth,
   StartSettings? start,
   DisplaySettings? display,
-  ServerSettings? server,
 }) {
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) =>
-          SettingsPage(chat: chat, voice: voice, auth: auth, start: start, display: display, server: server),
+      builder: (_) => SettingsPage(chat: chat, voice: voice, auth: auth, start: start, display: display),
     ),
   );
 }
 
 class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key, required this.chat, this.voice, this.auth, this.start, this.display, this.server});
+  const SettingsPage({super.key, required this.chat, this.voice, this.auth, this.start, this.display});
 
   final ChatController chat;
   final VoiceSession? voice;
@@ -45,9 +41,6 @@ class SettingsPage extends StatelessWidget {
   /// 음성이 없으면 시작 방식 칸을 그리지 않는다.
   final StartSettings? start;
   final DisplaySettings? display;
-
-  /// 모바일 앱만. 웹은 같은 출처라 null.
-  final ServerSettings? server;
 
   Future<void> _signOut(BuildContext context, AuthController auth) async {
     final yes = await showDialog<bool>(
@@ -87,7 +80,7 @@ class SettingsPage extends StatelessWidget {
         shape: Border(bottom: BorderSide(color: c.line)),
       ),
       body: ListenableBuilder(
-        listenable: Listenable.merge([chat, ?auth, ?start, ?display, ?server, ?personas]),
+        listenable: Listenable.merge([chat, ?auth, ?start, ?display, ?personas]),
         builder: (context, _) => Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 680),
@@ -194,20 +187,6 @@ class SettingsPage extends StatelessWidget {
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
-                if (server case final server?)
-                  _Section(
-                    title: '연결',
-                    children: [
-                      ListTile(
-                        key: const Key('server'),
-                        leading: const Icon(Icons.dns_outlined),
-                        title: const Text('서버 주소'),
-                        subtitle: Text(server.address, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        trailing: const Icon(Icons.edit_outlined),
-                        onTap: () => showServerDialog(context, server),
                       ),
                     ],
                   ),
