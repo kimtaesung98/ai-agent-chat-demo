@@ -109,6 +109,23 @@ type UsageDelta struct {
 }
 
 // Store는 서버 DB다. 모든 메서드는 동시에 불러도 안전하다.
+// Persona는 사람마다 가진 대화 상대다 (F-027, SPEC.md §7.2 Persona v1).
+// kind "preset"의 기본 지시는 저장하지 않는다 — 카탈로그(chat 패키지)에서 찾는다.
+type Persona struct {
+	ID           string
+	UserID       string
+	Kind         string // preset · custom
+	PresetID     string
+	Name         string
+	Role         string
+	Tones        []string
+	Instructions string
+	Revision     int
+	ClientID     string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type Store interface {
 	Close() error
 
@@ -148,4 +165,15 @@ type Store interface {
 	AddUsage(ctx context.Context, deltas []UsageDelta) error
 	// DeleteUsageBefore는 bucket < before인 행을 지운다 (버킷 문자열은 사전 순 = 시간 순).
 	DeleteUsageBefore(ctx context.Context, before string) (int, error)
+
+	// 페르소나 (F-027). 모두 user_id로 거른다 — 남의 id면 ErrNotFound.
+	// CreatePersona는 그 사람 페르소나가 max개 이상이면 ErrQuota, 같은 clientId가 있으면 ErrConflict.
+	CreatePersona(ctx context.Context, p Persona, max int) error
+	ListPersonas(ctx context.Context, userID string) ([]Persona, error)
+	GetPersona(ctx context.Context, userID, id string) (Persona, error)
+	// UpdatePersona는 저장된 revision이 p.Revision-1일 때만 바꾼다. 다르면 ErrConflict.
+	UpdatePersona(ctx context.Context, p Persona) error
+	DeletePersona(ctx context.Context, userID, id string) error
+	// SeedPersonas는 그 계정에 아직 한 번도 넣지 않았을 때만 ps를 넣고 true (한 트랜잭션).
+	SeedPersonas(ctx context.Context, userID string, ps []Persona) (bool, error)
 }

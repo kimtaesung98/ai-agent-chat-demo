@@ -18,6 +18,7 @@ import (
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/account"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/chat"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/provider"
+	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/store"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/usage"
 )
 
@@ -54,6 +55,7 @@ type server struct {
 	accounts *account.Service
 	limiter  *usage.Limiter
 	authOpts AuthOptions
+	store    store.Store // 개인 데이터 (F-027~, personas.go) — accounts와 같은 DB
 }
 
 // RealtimeSecret은 브라우저가 OpenAI Realtime에 WebRTC로 붙을 때 쓰는 임시 키다 (F-024, API-007).

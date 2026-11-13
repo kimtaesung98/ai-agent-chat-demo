@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"sync"
 	"testing"
 	"time"
@@ -41,8 +42,9 @@ func TestF026AC6Persistence(t *testing.T) {
 		}
 		var n int
 		d2.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n)
-		if n != 1 {
-			t.Fatalf("마이그레이션 행 %d개", n)
+		files, _ := fs.Glob(migrations, "migrations/*.sql")
+		if n != len(files) {
+			t.Fatalf("마이그레이션 행 %d개, 파일 %d개", n, len(files))
 		}
 	})
 	t.Run("F-026 AC6 DATA_DIR가 없으면 메모리 DB", func(t *testing.T) {

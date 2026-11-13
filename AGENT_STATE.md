@@ -16,7 +16,7 @@
 |---------|-----------|-----------|---------------|
 | F-024 | OpenAI GPT Realtime 실시간 음성 (F-022 대체) | `/app`, `/server` | 단계 6-① 구현(API-007 `internal/openai`, `web/realtime.js` + `voice/openai_realtime*.dart`). 남은 것: 실제 키로 iPhone·Android 확인(AC7, `docs/OPENAI_REALTIME_SETUP.md`). 다음은 6-② 음성 화면 다듬기 → 6-③ PWA. Q-008 대기 |
 | F-025 | Flutter 웹 PWA (F-017 대체) | `/app` | 6-③ 구현(매니페스트·`web/sw.js`·`web/pwa.js`·`ui/install_hint.dart`·`installer_*.dart`). 다음: 6-④ ElevenLabs·기기 음성·`android/`·`ios/` 제거(AC5), 폰 홈 화면 설치 확인(AC6) |
-| F-026~F-031 | 서비스화(노치원 먼저) | `/server`, `/app` | 7-② 서버 완료(계정·로그인·역할·사용량·관리 API, `chatd admin bootstrap`). 다음 7-③: 대화 상대 페르소나 v1·프리셋 카탈로그·`/api/personas`, 7-④ 대화·요약·기억 서버 처리. 7-⑤ 앱 로그인 화면이 나오면 `REQUIRE_LOGIN` 기본을 on으로. 다른 스레드가 ElevenLabs·기기 음성·네이티브 코드를 지우는 중 — `voiceagent.go`·`internal/elevenlabs`·앱 `voice/` 건드리지 않기 |
+| F-026~F-031 | 서비스화(노치원 먼저) | `/server`, `/app` | 7-②·7-③ 서버 완료(계정·로그인·역할·사용량·관리 API, `chatd admin bootstrap`, 프리셋 카탈로그·`/api/personas`). 다음 7-④: 대화·요약·기억 서버 처리(`/api/conversations`·`/end`, API-001·007 `conversationId` → `httpapi.PersonaPrompt`로 프롬프트), 어르신 페르소나 `learned`. 7-⑤ 앱 로그인 화면이 나오면 `REQUIRE_LOGIN` 기본을 on으로. 다른 스레드가 ElevenLabs·기기 음성·네이티브 코드를 지우는 중 — `voiceagent.go`·`internal/elevenlabs`·앱 `voice/` 건드리지 않기 |
 
 ---
 
@@ -82,7 +82,6 @@
 
 | 날짜 | 기능 ID | 수행 작업 | 변경 파일 | 다음 세션 인계 사항 |
 |------|---------|-----------|-----------|---------------------|
-| 2026-11-12 | F-023 | 사용자 "로그인 화면 UI, 이외 기능 UI도 web 수준에서 기획·제작해 네이티브 앱 기반으로" → SPEC F-023·S-004~S-007, `docs/SCREEN_PLAN.md`. `AuthController`(Google 모의 `MockGoogleSignIn` · 이름만 적고 시작 · 첫 실행), `DisplaySettings`(글자 크기), `AppShell`, 로그인·첫 실행·설정·기억 화면, 서랍의 시작 방식·서버 주소를 설정으로 옮김. `flutter test` 197개 | `app/lib/**`, `app/test/**`, `SPEC.md` v1.19, `README.md`, `app/README.md`, `docs/SCREEN_PLAN.md`, `docs/screens/*` | 서버 인증 없음(F-008 보류). 앱 이름 "AI 말벗"은 가칭. Flutter 3.47.9는 storage.googleapis.com에서 받음. Dart private named parameter(`this._google`) 사용 — 3.47 analyzer 권장 |
 | 2026-11-13 | F-018 | 사용자 "음성 인식 시 파장이 움직이는 시각 효과" + "두 번째 말부터 여전히 인식 못 함" → `ui/voice_wave.dart` 막대 파형(마이크 dB→0~1 `voice/level_meter.dart`, `VoiceEngine.level`·`VoiceSession.level`), SPEC 3-1·AC11. `plugin_voice_engine.dart`: 다 읽은 뒤 듣기 재시작 때 닫은 세션의 끝남 알림이 새 세션을 또 열던 겹침 막기(`_restarting`), 인식 상태·오류 debugPrint | `app/lib/ui/voice_wave.dart`, `app/lib/voice/*`, `app/test/*`, `SPEC.md` | 파형이 평평하면 마이크 소리가 엔진에 안 들어옴(시뮬레이터 오디오 입력). 실제 iPhone 확인 필요 |
 | 2026-11-13 | F-012 | 사용자 "자기 응답을 재귀로 입력으로 받는다, 방지하면서 실시간 반응" → `VoiceController`: 생각·읽는 중과 읽기 끝·끊김 뒤 3초(`echoTail`) 안에 시작된 말은 읽은 답 낱말(오인식 포함)을 빼고 사용자 말만 보냄, 대부분 답이면 무시. SPEC 5-1·AC9 | `app/lib/voice/voice_controller.dart`, `app/test/voice/voice_controller_test.dart`, `SPEC.md` | 글자 거르기는 완벽하지 않음 — 진짜 에코 제거는 실시간 음성(F-022, WebRTC AEC). 실제 iPhone에서 확인 필요 |
 | 2026-11-13 | F-024, F-025 | 사용자 "openai gpt realtime·pwa로 전향, 내부 알고리즘과 큰 틀만 바꾼다" → 기획 점검(유지·변경·제거 매핑), 결정 카드 "Flutter 웹 그대로". 0단계 문서: SPEC v1.22 F-024·F-025·API-007·Q-008, ARCHITECTURE v1.13 ADR-026·027(제안)·§10 단계 6·R-A15·16, F-022·F-017 대체됨 | `SPEC.md`, `ARCHITECTURE.md`, `README.md`, `AGENT_STATE.md` | 코드는 사용자 검토 뒤. OpenAI 임시 키 API 필드는 착수 때 최신 문서로 확인. 새 패키지 없이 `dart:js_interop` + `web/realtime.js` |
@@ -92,6 +91,7 @@
 | 2026-11-13 | F-026~F-030 | 사용자 "로그인은 관리자 발송 코드 또는 Google, DB 라이브러리 추가, 역할 계층(최고 관리자·요양사·어르신·보호자, 상위→하위 추가·권한), 게스트는 토큰 누수 없게" → 문서 개정: 이름만 계정 없앰, F-029·F-030, ADR-029 개정·032·033, ADR-028 승인 | `SPEC.md`, `ARCHITECTURE.md`, `README.md` | Q-009(원문 30일)·Q-011(보는 범위)·Q-012(코드 전달) 추천안으로 진행 중 |
 | 2026-11-13 | F-026, F-029, F-031 | 7-② 첫 코드: `internal/store`(인터페이스·역할), `store/sqlite`(modernc v1.59.0 — v1.60은 go 1.26 요구라 피함, 마이그레이션 embed, 연결 1개), `account`(코드 10자리·해시, 세션, Google JWKS, 역할 계층 Can·범위·감사). archtest에 새 패키지·SQLite 드라이버 규칙. 사용자 방향 반영: 원문 기기 보관, F-031 어르신 페르소나, ADR-034·035 | `server/internal/{store,account}/**`, `SPEC.md`, `ARCHITECTURE.md` | HTTP 연결 전이라 앱 동작은 그대로. 노치원 기획서(Q-014) 기다림 |
 | 2026-11-13 | F-026, F-029, F-030 | 사용자 "남은 일 마무리, 다음 진행" → 7-② 완료: `internal/usage`, `config.LoadAccounts`, httpapi `auth.go`(withAccounts 미들웨어 — httpapi.go는 두 줄만 바꿈), `cmd/chatd/accounts.go`(조립·청소·`admin bootstrap`), 계약 테스트 `accounts_test.go`(X-Test-IP로 IP 분리) | `server/**`, `SPEC.md`, `ARCHITECTURE.md`, `README.md` | `REQUIRE_LOGIN` 기본 off(지금 앱이 로그인 없이 쓰므로). Q-011·Q-012 추천안 |
+| 2026-11-13 | F-027 | 단계 7-③ 서버: `chat/presets.go`(탑재 4개, 노치원 추천 미소)·`chat/persona_v1.go`(형식 v1 검증·프롬프트 매핑), 마이그레이션 002 `personas`·`users.personas_seeded`, `store` 페르소나 메서드, `account.PersonaOwner`(대리 범위), httpapi `personas.go`(API-015·016, `?userId=`, 409에 서버 값). 공통 예시 `server/contract/testdata/persona_v1.json` | `server/internal/{chat,store,account,httpapi}/**`, `server/contract/personas_test.go`, `SPEC.md` v1.29, `ARCHITECTURE.md` v1.18, `README.md` | 앱은 아직 기기 `personas.v1`을 씀 — 7-⑤에서 `/api/personas`로. F-029 AC3의 요약 부분은 7-④ |
 ---
 
 ## 압축 기준 (Compaction Rules)

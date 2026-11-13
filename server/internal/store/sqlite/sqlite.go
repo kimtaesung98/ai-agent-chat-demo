@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -379,4 +380,127 @@ func (d *DB) DeleteUsageBefore(ctx context.Context, before string) (int, error) 
 	}
 	n, _ := res.RowsAffected()
 	return int(n), nil
+}
+
+// --- 페르소나 (F-027) ---
+
+const personaCols = `id, user_id, kind, preset_id, name, role, tones, instructions, revision, COALESCE(client_id, ''), created_at, updated_at`
+
+func scanPersona(row scanner) (store.Persona, error) {
+	var p store.Persona
+	var tones, created, updated string
+	if err := row.Scan(&p.ID, &p.UserID, &p.Kind, &p.PresetID, &p.Name, &p.Role, &tones, &p.Instructions, &p.Revision, &p.ClientID, &created, &updated); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return p, store.ErrNotFound
+		}
+		return p, err
+	}
+	if err := json.Unmarshal([]byte(tones), &p.Tones); err != nil {
+		return p, err
+	}
+	p.CreatedAt, p.UpdatedAt = parseTS(created), parseTS(updated)
+	return p, nil
+}
+
+func tonesJSON(t []string) string {
+	if t == nil {
+		t = []string{}
+	}
+	b, _ := json.Marshal(t)
+	return string(b)
+}
+
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+func insertPersona(ctx context.Context, x execer, p store.Persona) error {
+	_, err := x.ExecContext(ctx, `INSERT INTO personas (id, user_id, kind, preset_id, name, role, tones, instructions, revision, client_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.ID, p.UserID, p.Kind, p.PresetID, p.Name, p.Role, tonesJSON(p.Tones), p.Instructions, p.Revision, nullable(p.ClientID), ts(p.CreatedAt), ts(p.UpdatedAt))
+	if isUnique(err) {
+		return store.ErrConflict
+	}
+	return err
+}
+
+func (d *DB) CreatePersona(ctx context.Context, p store.Persona, max int) error {
+	tx, err := d.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var n int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM personas WHERE user_id = ?`, p.UserID).Scan(&n); err != nil {
+		return err
+	}
+	if n >= max {
+		return store.ErrQuota
+	}
+	if err := insertPersona(ctx, tx, p); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (d *DB) ListPersonas(ctx context.Context, userID string) ([]store.Persona, error) {
+	rows, err := d.db.QueryContext(ctx, `SELECT `+personaCols+` FROM personas WHERE user_id = ? ORDER BY created_at, id`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []store.Persona
+	for rows.Next() {
+		p, err := scanPersona(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func (d *DB) GetPersona(ctx context.Context, userID, id string) (store.Persona, error) {
+	return scanPersona(d.db.QueryRowContext(ctx, `SELECT `+personaCols+` FROM personas WHERE user_id = ? AND id = ?`, userID, id))
+}
+
+func (d *DB) UpdatePersona(ctx context.Context, p store.Persona) error {
+	res, err := d.db.ExecContext(ctx, `UPDATE personas SET kind = ?, preset_id = ?, name = ?, role = ?, tones = ?, instructions = ?, revision = ?, updated_at = ?
+		WHERE user_id = ? AND id = ? AND revision = ?`,
+		p.Kind, p.PresetID, p.Name, p.Role, tonesJSON(p.Tones), p.Instructions, p.Revision, ts(p.UpdatedAt), p.UserID, p.ID, p.Revision-1)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 1 {
+		return nil
+	}
+	if _, err := d.GetPersona(ctx, p.UserID, p.ID); err != nil {
+		return err // ErrNotFound
+	}
+	return store.ErrConflict
+}
+
+func (d *DB) DeletePersona(ctx context.Context, userID, id string) error {
+	return affected(d.db.ExecContext(ctx, `DELETE FROM personas WHERE user_id = ? AND id = ?`, userID, id))
+}
+
+func (d *DB) SeedPersonas(ctx context.Context, userID string, ps []store.Persona) (bool, error) {
+	tx, err := d.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, `UPDATE users SET personas_seeded = 1 WHERE id = ? AND personas_seeded = 0`, userID)
+	if err != nil {
+		return false, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return false, nil
+	}
+	for _, p := range ps {
+		if err := insertPersona(ctx, tx, p); err != nil {
+			return false, err
+		}
+	}
+	return true, tx.Commit()
 }

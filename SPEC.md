@@ -5,7 +5,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v1.28 |
+| 문서 버전 | v1.29 |
 | 상태 | 승인됨 (MVP 범위) |
 | 작성자 | kimtaesung98 |
 | 최종 수정일 | 2026-11-13 |
@@ -621,11 +621,12 @@
   5. 사람마다 페르소나 최대 20개. 프리셋 페르소나는 처음 계정을 만들 때 4개를 넣는다(지울 수 있음, "탑재 페르소나 다시 넣기"로 복구). 어르신의 페르소나는 담당 요양사·최고 관리자도 정해 줄 수 있다(F-029).
   6. 앱 `Persona` 모델·편집 화면·저장은 이 형식을 그대로 쓴다. 지금의 `PersonaRequest`(API-001 `persona`)는 옛 앱·세션 없는 요청용으로 남긴다.
 - **수용 기준**:
-  - [ ] AC1. `GET /api/presets`가 카탈로그(§7.2)를 돌려주고, `GET/POST/PUT/DELETE /api/personas`가 §7.2 형식·제한으로 검증한다. 제한을 넘거나 `schema`가 틀리면 400 (Go 단위·계약 테스트)
-  - [ ] AC2. Given `kind: "preset"` 페르소나, Then 시스템 프롬프트의 기본 지시는 카탈로그 값이고, 앱이 `base`를 보내도 무시한다 (Go 단위 테스트)
-  - [ ] AC3. Given 옛 `revision`의 `PUT`, Then 409이고 저장 값은 그대로 (계약 테스트)
+  - [x] AC1. `GET /api/presets`가 카탈로그(§7.2)를 돌려주고, `GET/POST/PUT/DELETE /api/personas`가 §7.2 형식·제한으로 검증한다. 제한을 넘거나 `schema`가 틀리면 400 (Go 단위·계약 테스트)
+  - [x] AC2. Given `kind: "preset"` 페르소나, Then 시스템 프롬프트의 기본 지시는 카탈로그 값이고, 앱이 `base`를 보내도 무시한다 (Go 단위 테스트)
+  - [x] AC3. Given 옛 `revision`의 `PUT`, Then 409이고 저장 값은 그대로 (계약 테스트)
   - [ ] AC4. 앱 `Persona.fromJson`·`toJson`이 §7.2 예시와 같은 JSON을 주고받고, 모르는 필드는 버린다 (Flutter 단위 테스트 — 서버 테스트와 **같은 예시 파일** `server/contract/testdata/persona_v1.json`)
   - [ ] AC5. 편집 화면: 프리셋이면 기본 지시를 읽기만, 사용자 페르소나면 지시를 쓴다. 저장하면 서버에 `PUT`, 실패하면 이전 값으로 돌리고 안내 (위젯 테스트, 가짜 API)
+- **구현 메모 (단계 7-③ 서버)**: 카탈로그 `server/internal/chat/presets.go`, 검증 `chat/persona_v1.go`, 저장 `personas` 테이블(마이그레이션 002), API `httpapi/personas.go`. 탑재 4개는 그 계정 목록을 처음 읽거나 처음 만들 때 한 번만 넣는다(`users.personas_seeded`). AC4·AC5(앱)는 단계 7-⑤
 - **관련 항목**: F-005 · F-019 · F-026 · S-002 · §7.2 · ADR-016·024·030
 - **Owner Folder**: `/server` (`chat` 프리셋 카탈로그·검증, API), `/app` (`api/models.dart`, 편집 화면)
 
@@ -924,6 +925,7 @@ erDiagram
 > - `POST /api/auth/code` `{code}` → 200 `{user}` + `Set-Cookie: sid` · 401 `BAD_CODE` · 429 `RATE_LIMITED` / `POST /api/auth/google` `{idToken}` → 200 · 401 · 403 `NOT_INVITED` (Google 꺼지면 404) / `POST /api/auth/guest` → 200 `{guest, turns}` (꺼지면 404, 429) / `POST /api/auth/logout` → 204 / `GET /api/auth/options` → `{code, google, guest, careSetting}`
 > - `GET /api/me` → `{user: {id, name, role, status, google, grantableRoles}}` 또는 `{guest: true}` / `POST /api/me/google` `{idToken}` → 연결
 > - `GET /api/admin/users` → `{users: [{…, inviteEmail, elders, guardians}], grantableRoles}` / `POST /api/admin/users` `{name, role, inviteEmail?, elderIds?}` → 201 `{user, code, codeExpiresAt}` / `PATCH /api/admin/users/{id}` `{name?, role?, status?}` / `DELETE …/{id}` → 204 / `POST …/{id}/code` → `{code, expiresAt}` / `POST /api/admin/care` `{caregiverId, elderId, remove?}` (최고 관리자) / `POST /api/admin/guardians` `{guardianId, elderId, remove?}` / `GET /api/admin/audit` → `{entries}` (최고 관리자)
+> - `GET /api/presets` → `{presets: [{id, version, name, role, tones, base, recommended}], careSetting}` (세션 없이) / `GET /api/personas` → `{personas: [Persona v1…], max: 20}` (처음이면 탑재 4개를 넣고) / `POST /api/personas` Persona v1 → 201 · 400(형식·20개 초과) / `GET·PUT·DELETE /api/personas/{id}` — `PUT`은 `revision`이 저장 값과 같아야 하고 다르면 409 `{error, persona: 서버 값}` / `POST /api/personas/presets` → 지운 탑재 페르소나 다시 넣기. 모두 `?userId=`로 남의 것: 최고 관리자는 모두, 요양사는 맡은 어르신, 보호자는 연결된 어르신 보기만(고치면 403), 그 밖은 404
 > - 코드가 담긴 응답은 `Cache-Control: no-store`. 공통: 세션 없으면 401 `UNAUTHENTICATED`, 볼 수 없는 id는 404 `NOT_FOUND`, 등급이 모자라면 403 `FORBIDDEN`, `revision` 충돌 409 `CONFLICT`, 상한·로그인 시도 초과 429 `QUOTA_EXCEEDED`·`RATE_LIMITED`, 다른 `Origin`의 상태 변경 403. API-001·007은 선택 필드 `conversationId`를 받는다(F-028).
 
 > API-005·006은 F-024 단계 4에서 지운다 (ADR-026).
@@ -1141,6 +1143,7 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | v1.24 | 2026-11-13 | kimtaesung98 | F-025 단계 6-③ 구현: AC1~AC4 체크, 상세 동작 1(서비스 워커 방식) |
 | v1.25 | 2026-11-13 | kimtaesung98 | 서비스화 제안(사용자 요청 "개개인의 사용을 위한 서비스 수준의 내부 데이터 백엔드 + 백엔드에 맞물리는 페르소나 형식"): F-026 계정·서버 저장소, F-027 페르소나 형식 v1, F-028 대화·요약·기억 서버 처리. §7 ERD·엔티티(Persona v1), API-010~018 초안, Q-009·Q-010 |
 | v1.26 | 2026-11-13 | kimtaesung98 | 사용자 결정 반영: 로그인은 관리자 발급 코드 또는 Google(Q-010, 이름만 계정 없앰), DB 라이브러리 승인, F-029 역할 계층(최고 관리자·요양사·어르신·보호자, 위에서 아래로 만들기·부여), F-030 게스트 체험·사용량 제한. F-026~028 승인. §7 역할·코드·담당·보호자·감사·사용량, API-019~022, Q-011·Q-012 |
+| v1.29 | 2026-11-13 | kimtaesung98 | 단계 7-③ 서버: F-027 AC1~AC3 구현(프리셋 카탈로그·Persona v1 검증·`/api/presets`·`/api/personas`), `?userId=` 대리 범위, 409 응답에 서버 값 |
 | v1.28 | 2026-11-13 | kimtaesung98 | 단계 7-② 구현: API-010~022 요약, F-026·F-029·F-030 자동 수용 기준 체크, 게스트·음성 상한 셈법, `REQUIRE_LOGIN`(앱 로그인 전까지 꺼짐) |
 | v1.27 | 2026-11-13 | kimtaesung98 | 사용자 방향: 원문은 기기에 계속 보관(Q-009 결정), F-031 어르신 페르소나(기본 통합 설정 + 대화로 강화), 배포 유형(노치원 먼저), Q-013·Q-014 |
 | v1.23 | 2026-11-13 | kimtaesung98 | F-024 단계 6-① 구현: AC1~AC6 체크, 상세 동작 7(정리 전에는 기기 음성으로, 마이크 거부 안내) |
