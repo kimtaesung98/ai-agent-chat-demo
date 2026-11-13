@@ -44,12 +44,10 @@ var mimeTypes = map[string]string{
 }
 
 type server struct {
-	provider  provider.Provider
-	static    *os.Root // nil이면 정적 파일 없음
-	log       *slog.Logger
-	tokens    TokenSource      // nil이면 실시간 음성 대화 없음 (F-022)
-	llmSecret string           // 비면 /v1/chat/completions 꺼짐 (F-022)
-	realtime  RealtimeSessions // nil이면 OpenAI 실시간 음성 없음 (F-024)
+	provider provider.Provider
+	static   *os.Root // nil이면 정적 파일 없음
+	log      *slog.Logger
+	realtime RealtimeSessions // nil이면 OpenAI 실시간 음성 없음 (F-024)
 
 	// 계정 기능 (F-026·F-029·F-030, auth.go). accounts가 nil이면 꺼짐
 	accounts *account.Service
@@ -73,20 +71,8 @@ type RealtimeSessions interface {
 // WithRealtime은 POST /api/voice/session을 켜고 API-002 voiceAgent를 "openai"로 알린다.
 func WithRealtime(rs RealtimeSessions) Option { return func(s *server) { s.realtime = rs } }
 
-// TokenSource는 실시간 음성 대화(ElevenLabs Agents) 토큰을 발급한다 (F-022, ADR-025). 구현은 internal/elevenlabs.
-type TokenSource interface {
-	ConversationToken(ctx context.Context) (string, error)
-}
-
 // Option은 선택 기능을 켠다.
 type Option func(*server)
-
-// WithVoiceAgent는 POST /api/voice/token을 켜고 API-002에 voiceAgent를 알린다.
-func WithVoiceAgent(ts TokenSource) Option { return func(s *server) { s.tokens = ts } }
-
-// WithLLMSecret은 ElevenLabs가 부르는 Custom LLM 엔드포인트(POST /v1/chat/completions)를 켠다.
-// 요청은 `Authorization: Bearer <secret>`이어야 한다.
-func WithLLMSecret(secret string) Option { return func(s *server) { s.llmSecret = secret } }
 
 // New는 HTTP 핸들러를 만든다. staticDir를 열 수 없으면 경고를 남기고 정적 파일 요청에 404를 준다.
 func New(p provider.Provider, staticDir string, log *slog.Logger, opts ...Option) http.Handler {
@@ -107,8 +93,6 @@ func New(p provider.Provider, staticDir string, log *slog.Logger, opts ...Option
 	mux.HandleFunc("/api/consolidate", only(http.MethodPost, "POST만 지원해요.", s.handleConsolidate))
 	mux.HandleFunc("/api/config", only(http.MethodGet, "GET만 지원해요.", s.handleConfig))
 	mux.HandleFunc("/api/voice/session", only(http.MethodPost, "POST만 지원해요.", s.handleVoiceSession))
-	mux.HandleFunc("/api/voice/token", only(http.MethodPost, "POST만 지원해요.", s.handleVoiceToken))
-	mux.HandleFunc("/v1/chat/completions", only(http.MethodPost, "POST만 지원해요.", s.handleCompletions))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			notFound(w, r)
@@ -135,11 +119,8 @@ func only(method, msg string, h http.HandlerFunc) http.HandlerFunc {
 
 func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	voice := "none"
-	switch {
-	case s.realtime != nil:
+	if s.realtime != nil {
 		voice = "openai"
-	case s.tokens != nil:
-		voice = "elevenlabs"
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"provider": s.provider.Name(), "model": s.provider.Model(), "voiceAgent": voice})
 }

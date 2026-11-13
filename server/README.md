@@ -42,12 +42,11 @@ flowchart LR
     Sum -->|"기록 한 덩어리 · SummarySystemPrompt"| Stream
     Stream -->|"답 글자 모으기 → ParseSummary"| SumOut[요약 JSON<br>summary · facts · followUps]
     SumOut -->|"200 JSON 또는 502"| Browser
-    HTTP -->|"POST /api/voice/token (F-022)"| Tok[elevenlabs<br>ConversationToken]
-    Tok -->|"xi-api-key"| Eleven[[ElevenLabs API]]
-    Tok -->|"토큰만 200 · 502 · 503"| Browser
-    ElevenAgent([ElevenLabs Agents]) -->|"POST /v1/chat/completions<br>Bearer 비밀값 (F-022)"| HTTP
-    HTTP -->|"OpenAI 본문 + elevenlabs_extra_body"| Comp[chat<br>ParseCompletionRequest]
-    Comp -->|"messages[] · system (voice)"| Stream
+    HTTP -->|"POST /api/voice/session (F-024)<br>persona · memory · longTerm · history"| VS[chat<br>ParseVoiceSession · Instructions]
+    VS -->|"지시문"| RT[openai<br>ClientSecret]
+    RT -->|"Bearer OPENAI_API_KEY · session.instructions"| OpenAI[[OpenAI Realtime API]]
+    OpenAI -->|"임시 키 ek_…"| RT
+    RT -->|"임시 키만 200 · 502 · 503"| Browser
     HTTP -->|"POST /api/consolidate (F-020)"| Cons[chat<br>ParseConsolidateRequest · ParseLongTerm]
     Cons -->|"ConsolidateSystemPrompt"| Stream
     Stream --> Mock
@@ -56,7 +55,6 @@ flowchart LR
     Claude -->|"스트리밍 이벤트"| Anthropic
     Mock -->|"Chunk"| SSE[SSE 쓰기<br>이벤트마다 flush]
     Anthropic -->|"Chunk 또는 *provider.Error"| SSE
-    SSE -->|"/v1/chat/completions는 OpenAI 조각 · data: [DONE]"| ElevenAgent
     SSE -->|"event: delta / done / error"| Browser
     Browser -.->|"연결 종료"| Cancel[r.Context 취소]
     Cancel -.-> Stream
@@ -66,7 +64,8 @@ flowchart LR
 |---|---|
 | `cmd/chatd` | 진입점: 설정 → 제공자 → HTTP 조립, 시작 로그(모드만), 종료 신호 처리 |
 | `internal/config` | 환경변수 읽기·검증 (잘못된 `PORT`면 기동 중단) |
-| `internal/chat` | 도메인: `Message`, 입력 검증(`mode`·`persona` 포함), 최근 20턴 정리, 음성 말투 프롬프트 `VoiceSystemPrompt`, 페르소나 프롬프트(`persona.go`, 기본 지시 `base` + 요구 사항), 지난 대화 기억 프롬프트·`memory` 검증(`memory.go`), 세션 요약 요청·기록·모델 답 해석(`summary.go`, API-003), 장기 기억 묶기·`longTerm`(`consolidate.go`, API-004) — `Request.SystemPrompt()` (순수 함수) |
+| `internal/chat` | 도메인: `Message`, 입력 검증(`mode`·`persona` 포함), 최근 20턴 정리, 음성 말투 프롬프트 `VoiceSystemPrompt`, 페르소나 프롬프트(`persona.go`, 기본 지시 `base` + 요구 사항), 지난 대화 기억 프롬프트·`memory` 검증(`memory.go`), 세션 요약 요청·기록·모델 답 해석(`summary.go`, API-003), 장기 기억 묶기·`longTerm`(`consolidate.go`, API-004), 실시간 음성 지시문 `VoiceSession.Instructions()`(`realtime.go`, API-007) — `Request.SystemPrompt()` (순수 함수) |
+| `internal/openai` | OpenAI Realtime 임시 키 발급 (`POST /v1/realtime/client_secrets`, 표준 라이브러리만) — 키는 오류·로그에 넣지 않음 (F-024) |
 | `internal/provider` | `Provider` 인터페이스, `Chunk`, 사용자용 오류(`Error`, `UserMessage`) |
 | `internal/provider/mock` | 모의 제공자 (계약 테스트가 답 문구로 턴 수를 확인) |
 | `internal/provider/anthropic` | Claude 어댑터 (공식 Go SDK — 이 폴더에서만 import) |

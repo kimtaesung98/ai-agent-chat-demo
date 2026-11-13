@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/config"
-	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/elevenlabs"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/httpapi"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/openai"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/provider"
@@ -101,15 +100,9 @@ func describeMode(p provider.Provider) string {
 	return "모드: Claude — 모델 " + p.Model()
 }
 
-// voiceOptions는 ElevenLabs 실시간 음성 대화를 켠다 (F-022, ADR-025).
+// voiceOptions는 OpenAI Realtime 실시간 음성 대화를 켠다 (F-024, ADR-026).
 func voiceOptions(cfg config.Config) []httpapi.Option {
 	var opts []httpapi.Option
-	if cfg.VoiceAgent() {
-		opts = append(opts, httpapi.WithVoiceAgent(elevenlabs.New(cfg.ElevenLabsAPIKey, cfg.ElevenLabsAgentID, cfg.ElevenLabsBaseURL)))
-	}
-	if cfg.LLMSecret != "" {
-		opts = append(opts, httpapi.WithLLMSecret(cfg.LLMSecret))
-	}
 	if cfg.Realtime() {
 		c := openai.New(cfg.OpenAIAPIKey, cfg.OpenAIRealtimeModel, cfg.OpenAIRealtimeVoice, cfg.OpenAITranscribeModel, cfg.OpenAIBaseURL)
 		opts = append(opts, httpapi.WithRealtime(realtimeAdapter{c}))
@@ -126,17 +119,10 @@ func (a realtimeAdapter) ClientSecret(ctx context.Context, instructions string) 
 }
 
 func describeVoice(cfg config.Config) string {
-	switch {
-	case cfg.Realtime():
+	if cfg.Realtime() {
 		return "실시간 음성: OpenAI Realtime 켜짐 (POST /api/voice/session 임시 키 발급, 모델 " + orDefault(cfg.OpenAIRealtimeModel, openai.DefaultModel) + ")"
-	case cfg.VoiceAgent() && cfg.LLMSecret != "":
-		return "실시간 음성: ElevenLabs Agents 켜짐 (토큰 발급 + Custom LLM /v1/chat/completions)"
-	case cfg.VoiceAgent():
-		return "실시간 음성: ElevenLabs 토큰 발급만 켜짐 — ELEVENLABS_LLM_SECRET이 없어 Custom LLM 엔드포인트는 꺼져 있어요"
-	case cfg.LLMSecret != "":
-		return "실시간 음성: Custom LLM 엔드포인트만 켜짐 — ELEVENLABS_API_KEY·ELEVENLABS_AGENT_ID가 없어 앱은 기기 음성을 써요"
 	}
-	return "실시간 음성: 꺼짐 — 앱은 기기 음성(STT·TTS)을 써요"
+	return "실시간 음성: 꺼짐 — OPENAI_API_KEY가 없어 앱은 글 대화만 해요"
 }
 
 func orDefault(v, d string) string {

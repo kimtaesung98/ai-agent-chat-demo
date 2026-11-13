@@ -1,8 +1,7 @@
-/// 실시간 음성 대화 (SPEC.md F-022·F-024, ARCHITECTURE.md ADR-025·026).
-/// 서버가 켜 둔 실시간 음성(API-002 `voiceAgent`)과 이 기기의 에이전트 종류가 같으면 그것으로 대화하고 —
-/// 웹은 OpenAI Realtime, Android·iOS는 ElevenLabs —
-/// 아니면(웹·서버 설정 없음·토큰 실패·연결이 계속 안 됨) 기기 음성([VoiceController], F-012)으로 대화한다.
-/// 어느 쪽이든 화면은 같다 — 토글·버튼 없이 늘 듣는다 (F-018). 위젯 없이 가짜 에이전트로 단위 테스트한다.
+/// 실시간 음성 대화 (SPEC.md F-024, ARCHITECTURE.md ADR-026).
+/// 서버가 실시간 음성(API-002 `voiceAgent` == `openai`)을 켜 두었고 이 브라우저가 WebRTC·마이크를 쓸 수 있으면
+/// OpenAI Realtime으로 대화한다. 안 되면(서버 설정 없음·임시 키 실패·연결이 계속 안 됨) 한 번 알리고 꺼진다 —
+/// 대화는 글 채팅으로 계속한다. 토글·버튼 없이 늘 듣는다 (F-018). 위젯 없이 가짜 에이전트로 단위 테스트한다.
 library;
 
 import 'dart:async';
@@ -12,54 +11,51 @@ import 'package:flutter/foundation.dart';
 import '../api/models.dart';
 import '../chat/chat_controller.dart';
 import 'realtime_agent.dart';
-import 'voice_controller.dart';
-import 'voice_engine.dart';
+import 'voice_session.dart';
+
+export 'voice_session.dart';
 
 /// 화면에 보여 줄 실시간 음성 안내.
 abstract final class AgentMessages {
   static const connecting = '연결하고 있어요. 잠깐만요.';
   static const reconnecting = '잠깐 연결이 끊겼어요. 다시 연결하고 있어요.';
-  static const fellBack = '실시간 음성에 연결하지 못해 기기 음성으로 대화할게요.';
-  static const serverOff = '서버에 실시간 음성이 꺼져 있어 기기 음성으로 대화할게요.';
-  static const noConfig = '서버 설정을 받지 못해 기기 음성으로 대화할게요. 서버 주소를 확인해 주세요.';
+  static const failed = '음성 대화에 연결하지 못했어요. 글로 이야기하거나 잠시 뒤 다시 눌러 주세요.';
+  static const serverOff = '지금은 음성 대화를 할 수 없어요. 글로 이야기해 주세요.';
+  static const noConfig = '서버에 연결하지 못해 음성 대화를 시작할 수 없어요. 네트워크를 확인해 주세요.';
+  static const unsupported = '이 브라우저에서는 음성 대화를 할 수 없어요. Chrome이나 Safari 최신 버전에서 열어 주세요.';
   static const micDenied = '마이크를 쓸 수 없어요. 브라우저 설정에서 이 사이트의 마이크를 허용해 주세요.';
 }
 
 class AgentVoiceController extends ChangeNotifier implements VoiceSession {
   AgentVoiceController(
     this._chat,
-    this._fetchToken,
-    this._fallback, {
+    this._fetchToken, {
     this.agent,
     this.retryDelay = const Duration(seconds: 1),
     this.maxConnectFailures = 3,
     this.connectTimeout = const Duration(seconds: 15),
   }) {
-    _fallback.addListener(_onFallback);
     _sub = agent?.events.listen(_onEvent);
   }
 
   final ChatController _chat;
 
-  /// 서버에서 연결 키를 받는다 — ElevenLabs는 API-005 토큰, OpenAI는 API-007 임시 키(인자는 페르소나·기억·내역).
-  /// 실패하면 [VoiceTokenFailed].
+  /// 서버에서 API-007 임시 키를 받는다 (인자는 페르소나·기억·내역). 실패하면 [VoiceTokenFailed].
   final Future<String> Function(Map<String, Object?> context) _fetchToken;
-  final VoiceController _fallback;
 
-  /// 이 기기의 실시간 음성 에이전트. 없으면(웹) 늘 기기 음성.
+  /// 이 브라우저의 실시간 음성 에이전트. 없으면(WebRTC·마이크 없음, 테스트 VM) 음성 대화를 켜지 않는다.
   final RealtimeAgent? agent;
   StreamSubscription<AgentEvent>? _sub;
 
-  /// 끊겼을 때 다시 연결하기까지 기다리는 시간. 연달아 끊기면 1 · 2 · 4 · 8 · 16배 (F-022 AC7).
+  /// 끊겼을 때 다시 연결하기까지 기다리는 시간. 연달아 끊기면 1 · 2 · 4 · 8 · 16배 (F-024 AC6).
   final Duration retryDelay;
 
-  /// 한 번도 연결되지 못하고 이만큼 연달아 실패하면 기기 음성으로 바꾼다 (F-022 AC6).
+  /// 한 번도 연결되지 못하고 이만큼 연달아 실패하면 알리고 끈다 (F-024 상세 7).
   final int maxConnectFailures;
 
-  /// 이만큼 기다려도 연결되지 않으면 실패로 본다 — SDK가 실패도 끊김도 알리지 않고 멈출 수 있다.
+  /// 이만큼 기다려도 연결되지 않으면 실패로 본다 — 연결이 실패도 끊김도 알리지 않고 멈출 수 있다.
   final Duration connectTimeout;
 
-  var _useFallback = false;
   VoiceState _state = VoiceState.off;
   String _partial = '';
   String _sentence = '';
@@ -70,33 +66,27 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
   var _gen = 0; // 연결 세대 — 끄기·다시 연결 때 늘려 이전 연결의 사건을 무시한다
   var _disposed = false;
   var _suspended = false;
-
-  /// 지금 실시간 음성(ElevenLabs)으로 대화 중인지. 기기 음성이면 false.
-  bool get realtime => !_useFallback && _state != VoiceState.off;
+  Timer? _timeout; // 연결 시간 초과 — 연결되거나 끄면 취소한다
 
   @override
-  VoiceState get state => _useFallback ? _fallback.state : _state;
+  VoiceState get state => _state;
   @override
-  bool get active => state != VoiceState.off;
+  bool get active => _state != VoiceState.off;
   @override
-  String get partial => _useFallback ? _fallback.partial : _partial;
+  String get partial => _partial;
   @override
-  String get sentence => _useFallback ? _fallback.sentence : _sentence;
+  String get sentence => _sentence;
   @override
-  String? get notice => _useFallback ? (_fallback.notice ?? _notice) : _notice;
+  String? get notice => _notice;
 
-  /// 실시간 음성은 에이전트가 주는 마이크 소리 크기(주지 못하면 0 — 파형은 상태에 따라 저절로 움직인다).
+  /// 에이전트가 주는 마이크 소리 크기(주지 못하면 0 — 파형은 상태에 따라 저절로 움직인다).
   @override
-  ValueListenable<double> get level => _useFallback ? _fallback.level : (agent?.level ?? silentLevel);
+  ValueListenable<double> get level => agent?.level ?? silentLevel;
   @override
-  bool get supported => agent != null || _fallback.supported;
-
-  bool get _canRealtime =>
-      agent != null && (_chat.config?.voiceAgent ?? false) && _chat.config?.voiceProvider == agent!.kind;
+  bool get supported => agent != null;
 
   @override
   void toggle() {
-    if (_useFallback) return _fallback.toggle();
     if (_state == VoiceState.off) {
       unawaited(start());
     } else {
@@ -107,7 +97,6 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
   /// 화면 누르기: 꺼져 있으면 켠다. 켜져 있으면 아무것도 하지 않는다 — 끼어들기는 말로 하면 에이전트가 알아서 멈춘다.
   @override
   void tap() {
-    if (_useFallback) return _fallback.tap();
     if (_state == VoiceState.off) unawaited(start());
   }
 
@@ -115,26 +104,21 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
   Future<void> start() async {
     if (active) return;
     _notice = null;
+    if (agent == null) return _off(AgentMessages.unsupported);
     // 앱을 켜자마자 음성 대화를 시작하면 서버 설정(voiceAgent)이 아직 안 왔을 수 있다 — 기다렸다가 고른다
-    if (agent != null && _chat.config == null) {
+    if (_chat.config == null) {
       await _chat.loadConfig();
       if (_disposed || active) return;
     }
-    if (!_canRealtime) {
-      _useFallback = true;
-      if (agent != null) {
-        // 이 기기는 실시간 음성을 쓸 수 있는데 서버가 꺼 두었다 (환경변수 없음·설정을 못 받음) — 화면과 로그에 알린다
-        if (_chat.config == null) {
-          debugPrint('실시간 음성 꺼짐: 서버 설정(/api/config)을 받지 못함 — 서버 주소·연결 확인');
-          _notice = AgentMessages.noConfig;
-        } else {
-          debugPrint('실시간 음성 꺼짐: 서버가 voiceAgent=none — chatd에 ELEVENLABS_* 환경변수 확인');
-          _notice = AgentMessages.serverOff;
-        }
-      }
-      return _fallback.start();
+    final config = _chat.config;
+    if (config == null) {
+      debugPrint('실시간 음성 꺼짐: 서버 설정(/api/config)을 받지 못함');
+      return _off(AgentMessages.noConfig);
     }
-    _useFallback = false;
+    if (!config.voiceAgent) {
+      debugPrint('실시간 음성 꺼짐: 서버가 voiceAgent=none — chatd의 OpenAI 키 설정 확인');
+      return _off(AgentMessages.serverOff);
+    }
     _connectFailures = 0;
     _retries = 0;
     _state = VoiceState.thinking;
@@ -146,8 +130,9 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
   Future<void> _connect() async {
     final gen = ++_gen;
     _connected = false;
-    Timer(connectTimeout, () {
-      if (gen != _gen || _disposed || _connected || _state == VoiceState.off || _useFallback) return;
+    _timeout?.cancel();
+    _timeout = Timer(connectTimeout, () {
+      if (gen != _gen || _disposed || _connected || _state == VoiceState.off) return;
       debugPrint('실시간 음성: 연결 시간 초과');
       _gen++; // 늦게 오는 이 연결의 사건은 무시한다
       unawaited(agent?.end());
@@ -157,14 +142,10 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
       final context = _chat.voiceContext();
       final token = await _fetchToken(context);
       if (gen != _gen || _disposed) return;
-      await agent!.start(
-        token: token,
-        context: context,
-        variables: {'persona_name': _chat.personas?.selected.name ?? ''},
-      );
+      await agent!.start(token: token, context: context);
     } on VoiceTokenFailed {
-      debugPrint('실시간 음성: 서버가 대화 토큰을 주지 못함');
-      if (gen == _gen && !_disposed) _toFallback(); // 서버가 토큰을 못 줌 → 바로 기기 음성
+      debugPrint('실시간 음성: 서버가 임시 키를 주지 못함');
+      if (gen == _gen && !_disposed) _giveUp(); // 서버가 키를 못 줌 → 다시 해도 소용없다
     } catch (e) {
       debugPrint('실시간 음성: 연결 실패 (${e.runtimeType})');
       if (gen == _gen && !_disposed) _connectFailed();
@@ -173,7 +154,7 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
 
   void _connectFailed() {
     _connectFailures++;
-    if (_connectFailures >= maxConnectFailures) return _toFallback();
+    if (_connectFailures >= maxConnectFailures) return _giveUp();
     _scheduleReconnect();
   }
 
@@ -195,24 +176,29 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
     );
   }
 
-  /// 기기 음성으로 바꿔 계속 대화한다 (F-022 AC6).
-  void _toFallback() {
+  /// 연결을 포기하고 한 번 알린다 — 대화는 글 채팅으로 계속한다 (F-024 AC6).
+  void _giveUp() {
     _gen++;
     unawaited(agent?.end());
+    _off(AgentMessages.failed);
+  }
+
+  void _off(String notice) {
+    _timeout?.cancel();
     _state = VoiceState.off;
     _partial = '';
     _sentence = '';
-    _useFallback = true;
-    _notice = AgentMessages.fellBack;
+    _suspended = false;
+    _notice = notice;
     _notify();
-    unawaited(_fallback.start());
   }
 
   void _onEvent(AgentEvent e) {
-    if (_disposed || _useFallback || _state == VoiceState.off) return;
+    if (_disposed || _state == VoiceState.off) return;
     switch (e) {
       case AgentConnected():
         _connected = true;
+        _timeout?.cancel();
         _connectFailures = 0;
         _retries = 0;
         _notice = null;
@@ -240,7 +226,7 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
       // 그 밖의 오류는 끊기면 AgentDisconnected가 따로 온다
       case AgentDisconnected(:final byUser):
         if (byUser) return;
-        // 늘 듣는 것이 목표 — 에이전트·네트워크가 끊어도 다시 연결한다 (F-022 AC7)
+        // 늘 듣는 것이 목표 — 에이전트·네트워크가 끊어도 다시 연결한다 (F-024 AC6)
         if (_connected) {
           _scheduleReconnect();
         } else {
@@ -252,15 +238,15 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
 
   @override
   void stop() {
-    if (_useFallback) {
-      _fallback.stop();
-      _useFallback = false;
-      _notice = null;
-      _notify();
+    if (_state == VoiceState.off) {
+      if (_notice != null) {
+        _notice = null;
+        _notify();
+      }
       return;
     }
-    if (_state == VoiceState.off) return;
     _gen++;
+    _timeout?.cancel();
     unawaited(agent?.end());
     _state = VoiceState.off;
     _partial = '';
@@ -273,7 +259,6 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
   /// 앱이 뒤로 감: 마이크만 끈다. 연결과 대화는 그대로.
   @override
   void pause() {
-    if (_useFallback) return _fallback.pause();
     if (_state == VoiceState.off || _suspended) return;
     _suspended = true;
     unawaited(agent?.setMuted(true));
@@ -282,7 +267,6 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
   /// 앱이 돌아옴: 마이크를 다시 켜고, 그사이 끊겼으면 다시 연결한다.
   @override
   void resume() {
-    if (_useFallback) return _fallback.resume();
     final was = _suspended;
     _suspended = false;
     if (_state == VoiceState.off || !was) return;
@@ -294,10 +278,6 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
     }
   }
 
-  void _onFallback() {
-    if (_useFallback) _notify();
-  }
-
   void _notify() {
     if (!_disposed) notifyListeners();
   }
@@ -306,7 +286,7 @@ class AgentVoiceController extends ChangeNotifier implements VoiceSession {
   void dispose() {
     _disposed = true;
     _gen++;
-    _fallback.removeListener(_onFallback);
+    _timeout?.cancel();
     unawaited(_sub?.cancel());
     agent?.dispose();
     super.dispose();

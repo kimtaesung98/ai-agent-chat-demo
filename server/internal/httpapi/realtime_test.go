@@ -5,10 +5,46 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/provider"
 )
+
+func startWith(t *testing.T, p provider.Provider, log *bytes.Buffer, opts ...Option) string {
+	t.Helper()
+	if log == nil {
+		log = &bytes.Buffer{}
+	}
+	srv := httptest.NewServer(New(p, t.TempDir(), slog.New(slog.NewJSONHandler(log, nil)), opts...))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+func do(t *testing.T, method, url, auth, body string) (*http.Response, string) {
+	t.Helper()
+	req, _ := http.NewRequest(method, url, strings.NewReader(body))
+	if auth != "" {
+		req.Header.Set("Authorization", auth)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(res.Body)
+	return res, string(b)
+}
+
+func done() *fakeProvider {
+	return &fakeProvider{stream: chunks([]provider.Chunk{{Text: "네, "}, {Text: "좋아요."}, {Done: true, StopReason: "end_turn"}}, nil)}
+}
 
 type fakeRealtime struct {
 	got *string // 받은 지시문
@@ -40,7 +76,7 @@ func TestVoiceSession(t *testing.T) {
 	t.Run("F-024 AC2 켜져 있으면 지시문을 담아 임시 키만 주고, API-002 voiceAgent는 openai", func(t *testing.T) {
 		var log bytes.Buffer
 		var got string
-		url := startWith(t, done(), &log, WithRealtime(fakeRealtime{got: &got}), WithVoiceAgent(fakeTokens{tok: "t"}))
+		url := startWith(t, done(), &log, WithRealtime(fakeRealtime{got: &got}))
 		res, body := do(t, "POST", url+"/api/voice/session", "", sessionBody)
 		var out map[string]any
 		json.Unmarshal([]byte(body), &out)

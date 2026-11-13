@@ -24,7 +24,7 @@ OPENAI_API_KEY=sk-... STATIC_DIR=../app/build/web go run ./cmd/chatd
 
 | 환경변수 | 기본값 | 설명 |
 |---|---|---|
-| `OPENAI_API_KEY` | (없음) | 없으면 실시간 음성이 꺼지고 웹은 기기 음성으로 대화 |
+| `OPENAI_API_KEY` | (없음) | 없으면 실시간 음성이 꺼지고, 음성 버튼은 안내만 한다 (글 채팅은 그대로) |
 | `OPENAI_REALTIME_MODEL` | `gpt-realtime` | 실시간 모델 |
 | `OPENAI_REALTIME_VOICE` | `marin` | 목소리 (`cedar`도 추천) |
 | `OPENAI_TRANSCRIBE_MODEL` | `gpt-4o-transcribe` | 자막용 입력 전사 모델 |
@@ -65,7 +65,7 @@ cloudflared tunnel --url http://localhost:3000     # 출력된 https://….trycl
 
 | 증상 | 확인 |
 |---|---|
-| "기기 음성으로 대화할게요"가 뜬다 | `OPENAI_API_KEY`, 시작 로그, `/api/config`의 `voiceAgent` |
+| "지금은 음성 대화를 할 수 없어요"가 뜬다 | `OPENAI_API_KEY`, 시작 로그, `/api/config`의 `voiceAgent` |
 | "마이크를 쓸 수 없어요" | 주소가 HTTPS인지, 브라우저·iOS 설정에서 이 사이트 마이크 허용 |
 | 연결 중에서 멈춘다 | 서버 로그의 `realtime session error`(키·모델 이름), 브라우저 콘솔의 `realtime 4xx` |
 | 소리가 안 난다 (iPhone) | 무음 스위치, 화면을 한 번 눌러 시작했는지 (자동 재생 제한) |

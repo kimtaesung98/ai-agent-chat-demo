@@ -1,4 +1,4 @@
-/// 기기 저장 (SPEC.md Q-005 · F-017 AC7, ARCHITECTURE.md ADR-023).
+/// 기기 저장 (SPEC.md Q-005, ARCHITECTURE.md ADR-023). 웹은 localStorage.
 /// 페르소나·내 프로필·서버 주소·지난 대화 요약(F-019)·로그인 이름과 첫 실행 여부·글자 크기(F-023)를 키-값 저장소에 JSON 글자로 둔다.
 /// 대화 내용 자체는 저장하지 않는다 (F-007) — 끝난 세션의 요약만 남긴다.
 /// `shared_preferences`는 [PrefsStore] 파일(`prefs_store.dart`)에서만 import한다.
@@ -12,7 +12,6 @@ import '../chat/auth_controller.dart';
 import '../chat/display_settings.dart';
 import '../chat/memory_controller.dart';
 import '../chat/persona_controller.dart';
-import '../chat/server_settings.dart';
 import '../chat/start_settings.dart';
 
 /// 문자열 키-값 저장소. 읽기는 바로, 쓰기는 비동기. 테스트는 [MemoryStore].
@@ -41,12 +40,11 @@ class MemoryStore implements KeyValueStore {
 
 abstract final class StoreKeys {
   static const personas = 'personas.v1';
-  static const server = 'server.address';
   static const memory = 'memory.v1';
   static const voiceOnStart = 'start.voice';
   static const auth = 'auth.v1';
   static const textSize = 'display.textSize';
-  static const all = {personas, server, memory, voiceOnStart, auth, textSize};
+  static const all = {personas, memory, voiceOnStart, auth, textSize};
 }
 
 /// 저장된 페르소나로 컨트롤러를 만들고, 바뀔 때마다 저장한다.
@@ -104,13 +102,6 @@ DisplaySettings loadDisplay(KeyValueStore store) {
   settings.addListener(
     () => _write(store, StoreKeys.textSize, settings.textSize == TextSize.normal ? null : settings.textSize.name),
   );
-  return settings;
-}
-
-/// 저장된 서버 주소로 설정을 만들고, 바뀔 때마다 저장한다.
-ServerSettings loadServer(KeyValueStore store, {required String fallback}) {
-  final settings = ServerSettings(fallback: fallback, saved: store.read(StoreKeys.server) ?? '');
-  settings.addListener(() => _write(store, StoreKeys.server, settings.custom.isEmpty ? null : settings.custom));
   return settings;
 }
 

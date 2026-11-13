@@ -147,8 +147,8 @@ class ChatController extends ChangeNotifier {
   _Session _ensureSession() =>
       _session ??= _Session('session-${_clock().microsecondsSinceEpoch}-${_sessionSeq++}', personas?.request);
 
-  /// 실시간 음성 대화(F-022)에서 확정된 말 한마디를 대화 내역에 넣는다. 서버에 보내지 않는다 —
-  /// 답은 ElevenLabs가 우리 서버(Custom LLM)를 불러 만들고, 여기서는 화면·요약(F-019)·다시 연결용으로 남긴다.
+  /// 실시간 음성 대화(F-024)에서 확정된 말 한마디를 대화 내역에 넣는다. 서버에 보내지 않는다 —
+  /// 답은 OpenAI Realtime이 만들고, 여기서는 화면·요약(F-019)·다시 연결용으로 남긴다.
   void addVoiceTurn(Role role, String text) {
     if (text.trim().isEmpty) return;
     _ensureSession();
@@ -156,7 +156,7 @@ class ChatController extends ChangeNotifier {
     _notify();
   }
 
-  /// 실시간 음성 대화를 시작할 때 ElevenLabs에 넘길 맥락 (F-022, API-006 `elevenlabs_extra_body`).
+  /// 실시간 음성 대화를 시작할 때 서버(API-007)에 넘길 맥락 (F-024). 서버가 이것으로 지시문을 만든다.
   /// API-001과 같은 `persona`·`memory`·`longTerm`에, 다시 연결해도 맥락이 이어지게 지금까지의 `history`를 싣는다.
   /// 시스템 프롬프트 틀은 서버가 만든다 (ADR-016).
   Map<String, Object?> voiceContext() {
@@ -177,7 +177,7 @@ class ChatController extends ChangeNotifier {
     };
   }
 
-  /// [voiceContext] `history` 최대 메시지 수 (서버 MaxAgentHistory와 같음).
+  /// [voiceContext] `history` 최대 메시지 수 (서버 chat.MaxSessionHistory와 같음).
   static const maxVoiceHistory = 40;
 
   /// 마지막 답이 오류면 다시 시도할 수 있다 (F-004 AC2).

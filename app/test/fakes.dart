@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'package:ai_agent_chat/api/chat_api.dart';
-import 'package:ai_agent_chat/voice/voice_engine.dart';
+import 'package:ai_agent_chat/chat/chat_controller.dart';
+import 'package:ai_agent_chat/voice/agent_voice_controller.dart';
+import 'package:ai_agent_chat/voice/realtime_agent.dart';
 
 /// 요청마다 StreamController를 하나 열어 두는 가짜 API. 테스트가 이벤트를 직접 흘린다.
 class FakeApi implements ChatApi {
@@ -72,8 +74,8 @@ class FakeApi implements ChatApi {
     });
   }
 
-  /// 서버 설정 (F-022: [voiceAgent]면 실시간 음성 대화를 쓴다).
-  ServerConfig serverConfig = const ServerConfig(provider: 'mock', model: 'mock-echo');
+  /// 서버 설정 (F-024: [voiceAgent]면 실시간 음성 대화를 쓴다).
+  ServerConfig serverConfig = const ServerConfig(provider: 'mock', model: 'mock-echo', voiceAgent: true);
 
   /// 남은 횟수만큼 설정 요청이 실패한다.
   var configFailures = 0;
@@ -87,7 +89,7 @@ class FakeApi implements ChatApi {
     return serverConfig;
   }
 
-  /// 실시간 음성 토큰 요청 수. [tokenFails]면 [VoiceTokenFailed].
+  /// 실시간 음성 임시 키 요청 수(API-007). [tokenFails]면 [VoiceTokenFailed].
   var tokenRequests = 0;
   var tokenFails = false;
 
@@ -101,72 +103,58 @@ class FakeApi implements ChatApi {
     if (tokenFails) throw const VoiceTokenFailed();
     return 'ek-$tokenRequests';
   }
-
-  @override
-  Future<String> voiceToken() async {
-    tokenRequests++;
-    if (tokenFails) throw const VoiceTokenFailed();
-    return 'token-$tokenRequests';
-  }
 }
 
-/// 테스트가 들은 것을 직접 흘리고, 읽기 완료를 직접 정하는 가짜 엔진.
-class FakeVoiceEngine implements VoiceEngine {
-  FakeVoiceEngine([List<String>? log, this.canListen = true]) : log = log ?? [];
-
-  final List<String> log;
-  final _heard = StreamController<Heard>.broadcast(sync: true);
-  final spoken = <String>[];
-  final _pending = <Completer<void>>[];
-  var listening = false;
-  var cancels = 0;
-
-  @override
-  Future<bool> prepare() async => canListen;
-
-  @override
-  final bool canListen;
-  @override
-  bool get canSpeak => true;
-  @override
-  Stream<Heard> get heard => _heard.stream;
+/// 테스트가 사건을 직접 흘리는 가짜 실시간 에이전트 (F-024).
+class FakeAgent implements RealtimeAgent {
   @override
   final ValueNotifier<double> level = ValueNotifier(0);
 
-  void hear(Heard h) {
-    if (h is HeardFinal || h is ListenEnded || h is ListenFailed) listening = false;
-    _heard.add(h);
-  }
+  final _events = StreamController<AgentEvent>.broadcast(sync: true);
+  final starts = <({String token, Map<String, Object?> context})>[];
+  final muted = <bool>[];
+  var ends = 0;
+  var failStart = false;
+  var hang = false; // 실패도 끊김도 알리지 않고 멈춘다
 
-  bool get hasPending => _pending.isNotEmpty;
+  /// 연결 시작하면 바로 [AgentConnected]를 알린다 (화면 테스트용).
+  var autoConnect = false;
 
-  /// 지금 대기 중인 읽기를 끝낸다.
-  void finishAll() {
-    while (_pending.isNotEmpty) {
-      _pending.removeAt(0).complete();
-    }
-  }
+  void emit(AgentEvent e) => _events.add(e);
 
   @override
-  void startListening() => listening = true;
-  @override
-  void stopListening() => listening = false;
+  Stream<AgentEvent> get events => _events.stream;
 
   @override
-  Future<void> speak(String sentence) {
-    spoken.add(sentence);
-    log.add('speak:$sentence');
-    final c = Completer<void>();
-    _pending.add(c);
-    return c.future;
+  Future<void> start({required String token, required Map<String, Object?> context}) async {
+    starts.add((token: token, context: context));
+    if (failStart) throw StateError('연결 실패');
+    if (hang) await Completer<void>().future;
+    if (autoConnect) emit(const AgentConnected());
   }
 
   @override
-  void cancelSpeech() {
-    cancels++;
-    finishAll();
-  }
+  Future<void> end() async => ends++;
 
   @override
-  void dispose() => _heard.close();
+  Future<void> setMuted(bool m) async => muted.add(m);
+
+  @override
+  void dispose() => _events.close();
+}
+
+/// 화면 테스트용 실시간 음성: 가짜 에이전트가 연결을 바로 알린다. [chat]은 [api]를 써야 한다.
+({AgentVoiceController voice, FakeAgent agent}) fakeRealtimeVoice(
+  ChatController chat,
+  FakeApi api, {
+  bool supported = true,
+}) {
+  final agent = FakeAgent()..autoConnect = true;
+  final voice = AgentVoiceController(
+    chat,
+    api.voiceSession,
+    agent: supported ? agent : null,
+    retryDelay: const Duration(milliseconds: 100),
+  );
+  return (voice: voice, agent: agent);
 }
