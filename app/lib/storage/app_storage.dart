@@ -1,5 +1,5 @@
 /// 기기 저장 (SPEC.md Q-005 · F-017 AC7, ARCHITECTURE.md ADR-023).
-/// 페르소나·내 프로필·서버 주소·지난 대화 요약(F-019)을 키-값 저장소에 JSON 글자로 둔다.
+/// 페르소나·내 프로필·서버 주소·지난 대화 요약(F-019)·로그인 이름과 첫 실행 여부·글자 크기(F-023)를 키-값 저장소에 JSON 글자로 둔다.
 /// 대화 내용 자체는 저장하지 않는다 (F-007) — 끝난 세션의 요약만 남긴다.
 /// `shared_preferences`는 [PrefsStore] 파일(`prefs_store.dart`)에서만 import한다.
 library;
@@ -8,6 +8,8 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../chat/auth_controller.dart';
+import '../chat/display_settings.dart';
 import '../chat/memory_controller.dart';
 import '../chat/persona_controller.dart';
 import '../chat/server_settings.dart';
@@ -42,7 +44,9 @@ abstract final class StoreKeys {
   static const server = 'server.address';
   static const memory = 'memory.v1';
   static const voiceOnStart = 'start.voice';
-  static const all = {personas, server, memory, voiceOnStart};
+  static const auth = 'auth.v1';
+  static const textSize = 'display.textSize';
+  static const all = {personas, server, memory, voiceOnStart, auth, textSize};
 }
 
 /// 저장된 페르소나로 컨트롤러를 만들고, 바뀔 때마다 저장한다.
@@ -77,6 +81,29 @@ MemoryController loadMemory(KeyValueStore store) {
 StartSettings loadStart(KeyValueStore store) {
   final settings = StartSettings(store.read(StoreKeys.voiceOnStart) == 'true');
   settings.addListener(() => _write(store, StoreKeys.voiceOnStart, settings.voiceOnStart ? 'true' : null));
+  return settings;
+}
+
+/// 저장된 로그인 상태(이름·첫 실행 여부)로 시작하고, 바뀔 때마다 저장한다 (F-023). 토큰은 저장하지 않는다.
+AuthController loadAuth(KeyValueStore store, {required GoogleSignIn google}) {
+  Object? saved;
+  try {
+    final raw = store.read(StoreKeys.auth);
+    if (raw != null) saved = jsonDecode(raw);
+  } catch (_) {
+    saved = null; // 깨진 값은 무시하고 로그인 전으로
+  }
+  final auth = AuthController.restore(saved, google: google);
+  auth.addListener(() => _write(store, StoreKeys.auth, jsonEncode(auth.snapshot())));
+  return auth;
+}
+
+/// 저장된 글자 크기를 읽고, 바뀔 때마다 저장한다 (F-023).
+DisplaySettings loadDisplay(KeyValueStore store) {
+  final settings = DisplaySettings(TextSize.parse(store.read(StoreKeys.textSize)));
+  settings.addListener(
+    () => _write(store, StoreKeys.textSize, settings.textSize == TextSize.normal ? null : settings.textSize.name),
+  );
   return settings;
 }
 

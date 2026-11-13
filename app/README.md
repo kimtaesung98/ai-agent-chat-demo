@@ -42,6 +42,11 @@ flowchart LR
     Ctrl -->|"notifyListeners"| UI
     UI -->|"화면 갱신 · liveRegion"| User
     Api -->|"GET /api/config"| Server
+    User -->|"Google로 시작 · 이름 · 대화 상대 고르기"| Shell[ui/app_shell.dart<br>S-004 로그인 · S-005 첫 실행]
+    Shell -->|"signInWithGoogle(모의) · continueAsGuest · completeOnboarding"| Auth[chat/auth_controller.dart<br>ChangeNotifier]
+    Auth -->|"로그인 · 첫 실행 상태"| Shell
+    Shell -->|"로그인·첫 실행 뒤"| UI
+    UI -->|"서랍 → 설정 (S-006 · S-007)"| Auth
     User -->|"목소리"| Engine[voice/plugin_voice_engine.dart<br>speech_to_text · flutter_tts]
     UI -->|"마이크 버튼"| Voice[voice/voice_controller.dart<br>ChangeNotifier]
     Engine -->|"중간 · 확정 문장"| Voice
@@ -92,7 +97,7 @@ flowchart LR
 | `lib/chat/start_settings.dart` | 앱 시작 설정: 켜면 바로 음성 대화 (F-021) |
 | `lib/chat/memory_controller.dart` | 지난 대화 기억: 세션 요약을 페르소나별로 모으고(20개), 다음 요청용 최근 5개, 지우기, `snapshot`·`restore` (F-019) |
 | `lib/chat/server_settings.dart` | 모바일 앱 서버 주소: 빌드 주소 + 앱에서 넣은 주소, 주소 검사 (F-017 AC7) |
-| `lib/storage/app_storage.dart` | `KeyValueStore`·`MemoryStore`, 페르소나·서버 주소 불러오기와 바뀔 때 저장 (Q-005, ADR-023) |
+| `lib/storage/app_storage.dart` | `KeyValueStore`·`MemoryStore`, 페르소나·서버 주소·기억·시작 방식·로그인(`auth.v1`)·글자 크기 불러오기와 바뀔 때 저장 (Q-005, ADR-023, F-023) |
 | `lib/storage/prefs_store.dart` | `shared_preferences` 구현 — 패키지는 이 파일에서만 import |
 | `lib/voice/voice_engine.dart` | `VoiceEngine` 인터페이스와 들은 것(`HeardPartial`·`HeardFinal`·`ListenEnded`·`ListenFailed`) |
 | `lib/voice/plugin_voice_engine.dart` | `speech_to_text`·`flutter_tts`로 만든 엔진 — 패키지는 이 파일에서만 import (R-A11 특이점 처리) |
@@ -103,7 +108,15 @@ flowchart LR
 | `lib/ui/keep_awake*.dart` | 음성 대화 화면 동안 화면 꺼짐 막기 (F-018 AC8): 웹은 Screen Wake Lock API(`dart:js_interop`), 앱은 채널 `ai_agent_chat/screen` → Android `MainActivity.kt` `FLAG_KEEP_SCREEN_ON` · iOS `AppDelegate.swift` `isIdleTimerDisabled`. 새 패키지 없음 |
 | `lib/ui/persona_widgets.dart` | 페르소나 아바타 · 사이드바 · 내 프로필 대화상자 (900px 미만은 서랍) |
 | `lib/ui/persona_editor.dart` | S-002 페르소나 편집 화면 (이름 · 역할 칩 · 말투 칩 최대 6개 · 추가 지시) |
-| `lib/ui/server_dialog.dart` | 서버 주소 대화상자 (모바일 앱만, 사이드바 "서버 주소") |
+| `lib/ui/server_dialog.dart` | 서버 주소 대화상자 (모바일 앱만, 설정 "서버 주소") |
+| `lib/chat/auth_controller.dart` | 로그인 상태·첫 실행 여부 (F-023). `GoogleSignIn` 인터페이스 — 지금은 `MockGoogleSignIn`, 진짜는 F-008. 이름만 적고 시작 |
+| `lib/chat/display_settings.dart` | 글자 크기 보통·크게·아주 크게 (F-023, `MaterialApp.builder`가 앱 전체에 곱함) |
+| `lib/ui/app_shell.dart` | 첫 화면 고르기: 로그인 전 S-004 · 첫 실행 S-005 · 그 뒤 S-001 (F-023) |
+| `lib/ui/login_page.dart` | S-004 로그인 (큰 버튼 두 개 · 이름 적기 · 모의 안내) |
+| `lib/ui/onboarding_page.dart` | S-005 첫 실행 대화 상대 고르기 (큰 카드 · 미소 추천 · 말로/글자로 시작) |
+| `lib/ui/settings_page.dart` | S-006 설정 (계정·로그아웃 확인 · 내 프로필 · 시작 방식 · 기억 · 글자 크기 · 서버 주소 · 앱 정보) |
+| `lib/ui/memory_page.dart` | S-007 지난 대화 기억 (페르소나 칩 + 편집 화면과 같은 `MemoryList`) |
+| `lib/ui/big_button.dart` | 어르신용 큰 버튼 (높이 64 · 글자 20) |
 | `lib/ui/theme.dart` | 라이트·다크 색 (MVP HTML 디자인과 같은 값) |
 | `android/` · `ios/` | 네이티브 껍데기 (F-017): 권한(마이크·음성 인식·인터넷), 음성 엔진 조회(queries), 개발용 평문 HTTP 범위, 앱 이름. Dart 코드는 웹과 같음 |
 
