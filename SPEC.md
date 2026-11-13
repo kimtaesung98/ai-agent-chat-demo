@@ -117,12 +117,14 @@
 | F-014 | 클라우드 배포 (AWS + Cloudflare) | 컨테이너 이미지로 AWS 서울 EC2에 올리고 Cloudflare Tunnel·Access로 HTTPS 주소에서 허용한 사람만 쓰게 함 (ADR-018·019) | P0 | 배포 |
 | F-015 | Polly 음성 답 | 음성 답을 Amazon Polly 목소리로 읽음, 서버 `POST /api/tts` (ADR-020) | P1 | 배포 뒤 |
 | F-016 | Transcribe 음성 인식 | 말을 Amazon Transcribe 스트리밍으로 인식, 서버 중계 WebSocket `/api/stt` (ADR-021) | P1 | 배포 뒤 |
-| F-017 | 모바일 네이티브 앱 (Android·iOS) | 같은 Flutter 코드로 Android·iOS 앱 빌드, 텍스트·음성 대화 (ARCHITECTURE §10 단계 5, ADR-022) | P0 | 모바일 |
+| F-017 | 모바일 네이티브 앱 (Android·iOS) | 같은 Flutter 코드로 Android·iOS 앱 빌드, 텍스트·음성 대화 (ARCHITECTURE §10 단계 5, ADR-022). **대체됨 → F-025 (PWA)** | P0 | 모바일 |
 | F-018 | 음성 전용 화면 | 버튼 없이 계속 이어지는 음성 대화 화면(어르신용): 큰 상태 원·큰 자막, 화면 누르기·말로 끊기, 대화 끝내기 (S-003) | P1 | 모바일 |
 | F-021 | 켜면 바로 음성 대화 | 설정을 켜 두면 앱을 열자마자 지금 페르소나와 음성 대화 화면(S-003)으로 시작한다 (어르신용) | P1 | 모바일 |
 | F-020 | 장기 기억 (기억 압축) | 최근 요약 5개 밖으로 밀린 오래된 요약을 페르소나마다 장기 기억 하나로 묶어 다음 대화에 함께 싣는다 | P1 | 모바일 |
-| F-022 | 실시간 음성 대화 (ElevenLabs Agents) | 앱 음성 대화를 ElevenLabs Agents(WebRTC 실시간 음성)로 하고, 답은 ElevenLabs가 우리 서버를 Custom LLM으로 불러 Claude가 만든다. 안 되면 기기 음성(F-012)으로 (ADR-025) | P0 | 모바일 |
+| F-022 | 실시간 음성 대화 (ElevenLabs Agents) | 앱 음성 대화를 ElevenLabs Agents(WebRTC 실시간 음성)로 하고, 답은 ElevenLabs가 우리 서버를 Custom LLM으로 불러 Claude가 만든다. 안 되면 기기 음성(F-012)으로 (ADR-025). **대체됨 → F-024** | P0 | 모바일 |
 | F-023 | 앱 화면 기반 · 로그인 화면 | 로그인(S-004, Google은 모의 · 이름만 적고 시작) → 첫 실행 대화 상대 고르기(S-005) → 채팅·음성, 설정(S-006)·지난 대화 기억(S-007)·글자 크기. 네이티브 앱의 화면 바탕 (`docs/SCREEN_PLAN.md`) | P1 | 모바일 |
+| F-024 | 실시간 음성 대화 (OpenAI GPT Realtime) | 브라우저가 OpenAI Realtime과 WebRTC로 직접 대화한다(듣기·말 끝 판단·답·목소리를 모델 하나가). 서버는 페르소나·기억으로 지시문을 만들어 임시 키에 담아 준다 (ADR-026) | P0 | 전향 |
+| F-025 | 웹앱(PWA) | 같은 Flutter 웹 빌드를 홈 화면에 설치하는 PWA로 낸다. 네이티브 Android·iOS 빌드와 기기 음성 엔진은 뺀다 (ADR-027) | P0 | 전향 |
 | F-019 | 페르소나 지시 두 층 · 대화 요약 기억 | 추가 지시를 탑재 페르소나의 고정 **기본 지시**와 사용자의 **요구 사항**으로 나누고, 대화 세션이 끝나면 요약을 기기에 남겨 다음 대화의 맥락으로 쓴다 | P1 | 모바일 |
 
 ### 4.2 기능 상세
@@ -298,7 +300,8 @@
 - **Owner Folder**: `/server` (`internal/speech`, `/api/stt`), `/app` (`voice`)
 
 #### F-017. 모바일 네이티브 앱 (Android·iOS)
-> 상태: 승인 (사용자, 2026-11-11 — "웹서비스 동작을 완료했으니 모바일 네이티브 앱을 진행하자". AWS·Cloudflare 작업은 정지). ARCHITECTURE.md §10 단계 5, ADR-022
+> 상태: **대체됨 → F-025** (사용자 "웹, 즉 pwa를 하여 만들거야", 2026-11-13). `android/`·`ios/`는 F-025에서 지운다. 아래는 기록용
+> 이전 상태: 승인 (사용자, 2026-11-11 — "웹서비스 동작을 완료했으니 모바일 네이티브 앱을 진행하자". AWS·Cloudflare 작업은 정지). ARCHITECTURE.md §10 단계 5, ADR-022
 
 - **사용자 스토리**: 사용자로서, 나는 브라우저 대신 폰에 설치한 앱으로 에이전트와 글·목소리로 대화하고 싶다. 왜냐하면 폰에서는 앱이 마이크·스피커를 쓰기 편하고 바로 열 수 있기 때문이다.
 - **상세 동작**:
@@ -414,7 +417,8 @@
 - **Owner Folder**: `/app` (지시 두 층 화면, 세션·기억·저장), `/server` (`base`·`memory` 프롬프트, 요약 API)
 
 #### F-022. 실시간 음성 대화 (ElevenLabs Agents)
-> 상태: 승인 (사용자 "ElevenLabs Agents를 이용", 2026-11-12. Claude 연결 방식은 사용자가 "우리 서버 Custom LLM" 선택). 구조는 ADR-025
+> 상태: **대체됨 → F-024** (사용자 "openai gpt realtime을 사용할거야", 2026-11-13). 코드는 F-024 단계 4에서 지운다. 아래는 기록용
+> 이전 상태: 승인 (사용자 "ElevenLabs Agents를 이용", 2026-11-12. Claude 연결 방식은 사용자가 "우리 서버 Custom LLM" 선택). 구조는 ADR-025
 
 - **사용자 스토리**: 어르신 사용자로서, 나는 사람과 통화하듯 끊김 없이 말하고 듣고 싶다. 기기 음성 인식·합성은 말이 끝났는지 늦게 알아채고 목소리가 기계 같아서 대화가 자연스럽지 않다.
 - **상세 동작**:
@@ -436,6 +440,52 @@
   - [ ] AC8. 수동 확인: ElevenLabs 에이전트를 만들고(Custom LLM = 공개 HTTPS chatd 주소) Android 폰에서 미소와 실시간으로 대화된다. 끼어들기·재연결·다음 대화 기억 확인 (사용자 — `docs/ELEVENLABS_SETUP.md`)
 - **관련 항목**: F-012 · F-018 · F-019 · F-020 · API-002 · API-005 · API-006 · ADR-025
 - **Owner Folder**: `/app`, `/server`
+
+#### F-024. 실시간 음성 대화 (OpenAI GPT Realtime)
+> 상태: 승인 (사용자 "개발 방향을 전향할거야. openai gpt realtime을 사용할거야", 2026-11-13). 구조는 ADR-026. F-022를 대체한다. **수용 기준 초안 — 사용자 검토 뒤 착수**
+
+- **사용자 스토리**: 어르신 사용자로서, 나는 사람과 통화하듯 끊김 없이 말하고 듣고 싶다. 대화 상대는 내가 고른 페르소나와 지난 대화를 기억하는 사람이어야 한다.
+- **상세 동작**:
+  1. 음성 대화(S-003 음성 화면, 채팅 화면 마이크)는 브라우저가 OpenAI Realtime과 **WebRTC로 직접** 한다. 듣기·말이 끝났는지 판단·답 만들기·목소리·말로 끼어들기를 실시간 모델 하나가 한다 (말 → 말, 글자로 바꿔 다른 모델을 부르지 않는다).
+  2. 연결 전에 앱은 `POST /api/voice/session`(API-007)에 API-001과 같은 `persona`(기본 지시 + 내 요구 사항)·`memory`·`longTerm`과 지금까지의 대화 `history`(최대 40개)를 보낸다.
+  3. 서버는 지금 쓰는 틀(페르소나 → 기억 → 음성 말투, ADR-015·016·024)로 **지시문(instructions)** 을 만들고, `history`는 "지금까지의 대화"로 지시문 끝에 붙인다. 이 지시문과 목소리·말 끝 판단·입력 전사 설정을 담아 OpenAI에서 **임시 키(ephemeral client secret)** 를 받고, 앱에는 임시 키와 만료 시각만 준다. OpenAI API 키와 지시문 원문은 앱으로 가지 않는다.
+  4. 앱은 마이크를 에코 제거·잡음 억제를 켜고 연결하고, 답 소리는 바로 재생한다. 사용자 말 전사와 답 전사 이벤트로 자막(S-003)과 채팅 내역을 채운다. 파형은 마이크 소리 크기로 그린다(F-018 3-1).
+  5. 대화를 끝내면(대화 끝내기·새 대화·페르소나 바꾸기·앱 뒤로) 연결을 끊고, 전사로 지금처럼 요약해 기억에 넣는다(F-019·F-020).
+  6. 늘 듣기(F-018): 대화 중 끊기면 버튼 없이 새 임시 키로 다시 연결하고 대화 내역을 이어 넘긴다(1·2·4·8·16초). 앱이 뒤로 가면 마이크를 끄고, 돌아오면 다시 연결한다.
+  7. 서버 설정 없음·임시 키 실패·연결 3번 실패면 "음성 대화를 할 수 없어요"를 한 번 알리고 글 채팅으로 계속한다. 기기 음성 엔진(F-012)으로 돌아가지 않는다(F-025에서 제거).
+  8. 키가 없는 모의 모드에서는 API-007이 503이고, 글 채팅은 지금처럼 모의 제공자로 동작한다.
+- **수용 기준 (초안)**:
+  - [ ] AC1. 서버는 `OPENAI_API_KEY`와 `OPENAI_REALTIME_MODEL`(기본 `gpt-realtime`)·`OPENAI_REALTIME_VOICE`를 읽고, 값은 오류·로그에 없다 (Go 단위)
+  - [ ] AC2. API-007은 키가 없으면 503 `VOICE_AGENT_OFF`, 있으면 임시 키·만료 시각만(키 없이) 200, 업스트림 실패는 502 `VOICE_AGENT_ERROR`. 업스트림 요청의 지시문에 페르소나·기억·음성 말투·대화 내역이 들어간다. 키·임시 키·지시문·대화 본문은 로그에 없다 (Go 단위·httpapi·계약 테스트 — 가짜 OpenAI 서버)
+  - [ ] AC3. API-007의 `persona`·`memory`·`longTerm`·`history` 형식 오류는 API-001과 같은 400 (httpapi·계약 테스트)
+  - [ ] AC4. 앱 코드에 OpenAI 키·지시문 틀이 없고, 앱은 임시 키로만 연결한다 (의존 규칙·단위 테스트)
+  - [ ] AC5. 전사 이벤트로 사용자 말·답이 내역과 자막에 남고, 끝내면 연결을 끊고 요약한다 (단위 테스트 — 가짜 Realtime 연결)
+  - [ ] AC6. 끊기면 다시 연결하며 대화 내역을 이어 넘기고, 앱이 뒤로 가면 마이크를 끈다. 실패하면 한 번 알리고 글 채팅으로 계속한다 (단위 테스트)
+  - [ ] AC7. 수동 확인: iPhone Safari·홈 화면 PWA와 Android Chrome에서 미소와 실시간으로 대화된다. 말로 끼어들기, 스피커로 나온 자기 답을 다시 듣지 않기, 다음 대화 기억 확인 (사용자)
+- **관련 항목**: F-018 · F-019 · F-020 · F-025 · API-002 · API-007 · ADR-026 · Q-008
+- **Owner Folder**: `/app`, `/server`
+
+#### F-025. 웹앱 (PWA)
+> 상태: 승인 (사용자 "웹, 즉 pwa를 하여 만들거야", 2026-11-13. 화면은 결정 카드에서 "Flutter 웹 그대로" 선택). 구조는 ADR-027. F-017을 대체한다. **수용 기준 초안 — 사용자 검토 뒤 착수**
+
+- **사용자 스토리**: 사용자로서, 나는 앱 스토어 없이 주소 하나로 폰 홈 화면에 앱을 깔고 바로 대화하고 싶다.
+- **상세 동작**:
+  1. 같은 Flutter 웹 빌드를 PWA로 낸다: 매니페스트(이름·아이콘·`standalone`·`lang: ko`·세로)와 서비스 워커. 서비스 워커는 화면 파일만 캐시하고 `/api/*`와 음성 연결은 캐시하지 않는다.
+  2. 홈 화면 추가 안내: Android Chrome은 설치 버튼, iPhone Safari는 "공유 → 홈 화면에 추가" 그림 안내. 이미 설치해 연 경우에는 보이지 않는다.
+  3. 마이크는 HTTPS(또는 `localhost`)에서만 된다. 폰 시험은 터널 주소로, 공개 배포는 F-014를 다시 시작할 때(사용자 승인).
+  4. 화면 꺼짐 막기는 웹 Wake Lock(F-018 AC8 그대로). 지원하지 않으면 한 번 안내한다.
+  5. 마이크 권한 거부·다시 묻기 안내는 브라우저·홈 화면 앱 설정을 가리킨다.
+  6. 페르소나·기억·설정은 지금처럼 기기 저장(`shared_preferences` 웹 = localStorage, ADR-023).
+  7. `app/android`·`app/ios`, 기기 음성 엔진(`speech_to_text`·`flutter_tts`), 네이티브 화면 꺼짐 막기 채널, 서버 주소 설정 화면(웹은 같은 출처)을 지운다.
+- **수용 기준 (초안)**:
+  - [ ] AC1. `flutter build web` 결과에 매니페스트(이름·아이콘 192·512·maskable·`standalone`·`lang: ko`)와 서비스 워커가 있다 (설정 파일 검사 테스트)
+  - [ ] AC2. 서비스 워커는 `/api/*`를 캐시하지 않고, 새 빌드를 올리면 다음 실행에 새 화면이 뜬다 (검사 테스트 + 수동)
+  - [ ] AC3. 홈 화면 추가 안내는 설치 전 브라우저에서만 보이고, iPhone Safari와 Android Chrome에 맞는 안내를 보여 준다 (위젯 테스트)
+  - [ ] AC4. 마이크 권한 거부·Wake Lock 미지원 안내가 브라우저 기준 문장이다 (위젯·단위 테스트)
+  - [ ] AC5. `android/`·`ios/`, `speech_to_text`·`flutter_tts`·`elevenlabs_agents`가 저장소와 `pubspec.yaml`에 없고, `flutter analyze`·`flutter test`·`go test ./...`가 통과한다
+  - [ ] AC6. 수동 확인: 터널 HTTPS 주소로 iPhone·Android에 홈 화면 설치 → 로그인·첫 실행·글 채팅·음성 대화(F-024 AC7)가 된다 (사용자)
+- **관련 항목**: F-014 · F-018 · F-023 · F-024 · ADR-023 · ADR-027
+- **Owner Folder**: `/app`
 
 #### F-021. 켜면 바로 음성 대화
 > 상태: 승인 (사용자 "추천대로 진행", 2026-11-11 — 다음 계획 2번, F-018 때 결정 대기였던 항목)
@@ -613,6 +663,9 @@ flowchart LR
 | API-004 | POST | `/api/consolidate` | 오래된 요약들을 장기 기억 하나로 묶어 JSON으로 | 없음 | F-020 |
 | API-005 | POST | `/api/voice/token` | ElevenLabs 실시간 음성 대화 토큰 (키는 주지 않음) | 없음 | F-022 |
 | API-006 | POST | `/v1/chat/completions` | ElevenLabs가 부르는 OpenAI 호환 Custom LLM (SSE) | Bearer `ELEVENLABS_LLM_SECRET` | F-022 |
+| API-007 | POST | `/api/voice/session` | OpenAI Realtime 임시 키 (서버가 만든 지시문을 담아 발급, 키는 주지 않음) | 없음 | F-024 |
+
+> API-005·006은 F-024 단계 4에서 지운다 (ADR-026).
 
 ### 9.3 엔드포인트 상세
 #### API-001. 채팅 스트리밍
@@ -693,6 +746,13 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 - **응답 (200, `text/event-stream`)**: `data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"맑아요"},"finish_reason":null}],…}` 조각들, 마지막 `finish_reason: "stop"` 조각 뒤 `data: [DONE]`. 제공자 오류는 사용자용 문장을 `content`로 보내고 끝낸다. `stream: false`면 `chat.completion` JSON 하나
 - **오류 코드**: 400 (API-001과 같은 코드), 401 `UNAUTHORIZED`, 404, 405, 413
 
+#### API-007. 실시간 음성 세션 (F-024, 초안)
+- **요청**: `{ "persona": { … }, "memory": [ … ], "longTerm": { … }, "history": [ { "role": "user", "content": "…" } ] }` — 형식·제한은 API-001과 같다. `history`는 최대 40개
+- **동작**: 서버가 지시문을 만들어 OpenAI 임시 키 발급(`POST https://api.openai.com/v1/realtime/client_secrets`, 세션 설정에 `instructions`·`voice`·말 끝 판단·입력 전사)을 부른다. 정확한 필드는 착수 때 OpenAI 최신 문서로 확인한다
+- **응답 (200)**: `{ "clientSecret": "…", "expiresAt": 1763030000, "model": "gpt-realtime" }` — `Cache-Control: no-store`. 저장·로그 없음
+- **오류 코드**: 400(API-001과 같은 코드), 405, 413, 502 `VOICE_AGENT_ERROR`, 503 `VOICE_AGENT_OFF`
+- API-002 `voiceAgent`는 `"openai"`(API-007 사용 가능) 또는 `"none"`
+
 #### API-002. 설정 조회
 - **응답 (200)**: `voiceAgent`는 `"elevenlabs"`(API-005 사용 가능) 또는 `"none"` (F-022)
 ```json
@@ -707,6 +767,7 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 |---|---|---|---|---|
 | Claude API (Anthropic) | 에이전트 응답 생성 | REST `POST /v1/messages`, `stream: true` | 토큰 사용량 기준 과금 | `error` 이벤트로 사용자 안내 (F-004), 모의 모드로 시연 지속 가능 |
 | ElevenLabs Agents (F-022) | 실시간 음성 대화(인식·말 끝 판단·합성·끼어들기, WebRTC) | 서버: `GET /v1/convai/conversation/token`(`xi-api-key`). 앱: `elevenlabs_agents` 패키지(토큰으로 연결). ElevenLabs → 우리 서버 API-006(Custom LLM) | ElevenLabs 요금(대화 분당) + Claude 토큰 | 토큰·연결 실패 시 기기 음성(F-012)으로 계속 (F-022 AC6) |
+| OpenAI Realtime (F-024) | 실시간 음성 대화(인식·말 끝 판단·답·합성·끼어들기, WebRTC) | 서버: 임시 키 발급(`OPENAI_API_KEY`, 표준 라이브러리). 브라우저: 임시 키로 WebRTC 연결 | 오디오 토큰 과금(분 단위, 착수 때 단가 확인) | 임시 키·연결 실패 시 글 채팅으로 계속 (F-024 AC6) |
 | 기기 음성 엔진 (F-012) | 음성 인식(STT) · 음성 합성(TTS) | `speech_to_text` · `flutter_tts` 패키지 — 웹은 브라우저 Web Speech API, 모바일은 OS 엔진 (ADR-014) | 무료 | 미지원·권한 거부 시 텍스트 채팅으로 계속 (F-012 AC7) |
 
 ---
@@ -714,7 +775,7 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 ## 11. 보안 및 개인정보
 
 - **인증/인가**: MVP 없음 — 내부 네트워크 시연용. 공개 배포 전 F-008 필요
-- **수집하는 개인정보와 목적**: 서버는 수집·저장하지 않음. 앱은 페르소나·내 프로필과 끝난 대화의 **요약**(F-019)을 그 기기에만 저장한다 — 사용자가 편집 화면에서 지울 수 있다. 요약을 만들 때 대화 내용이 AI 제공자로 한 번 더 간다. 실시간 음성(F-022)을 쓰면 목소리와 대화 내용, 페르소나·기억이 ElevenLabs를 거친다(ElevenLabs 대화 기록 보존은 에이전트 설정에서 끈다 — `docs/ELEVENLABS_SETUP.md`)
+- **수집하는 개인정보와 목적**: 서버는 수집·저장하지 않음. 앱은 페르소나·내 프로필과 끝난 대화의 **요약**(F-019)을 그 기기에만 저장한다 — 사용자가 편집 화면에서 지울 수 있다. 요약을 만들 때 대화 내용이 AI 제공자로 한 번 더 간다. 실시간 음성(F-022)을 쓰면 목소리와 대화 내용, 페르소나·기억이 ElevenLabs를 거친다(ElevenLabs 대화 기록 보존은 에이전트 설정에서 끈다 — `docs/ELEVENLABS_SETUP.md`). 실시간 음성(F-024)을 쓰면 목소리·대화 내용과 서버가 만든 지시문(페르소나·기억)이 OpenAI를 거친다 — OpenAI의 API 데이터 보존 정책을 배포 전에 확인한다
 - **음성 (F-012)**: 앱과 서버는 음성을 녹음·전송·저장하지 않는다. 단, 브라우저 음성 인식은 브라우저 회사 서버에서 처리될 수 있다 (예: Chrome은 Google 서버). 공개 배포 전 안내 문구 필요 (ARCHITECTURE R-A10)
 - **암호화**: 운영 배포 시 HTTPS 리버스 프록시 뒤에서 실행
 - **비밀값 관리**: `ANTHROPIC_API_KEY`는 환경변수로만. 코드·저장소·로그·클라이언트 응답에 절대 포함 금지
@@ -774,6 +835,7 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | Q-006 | F-008 Google 로그인을 Phase 3에서 MVP로 앞당길지, 새 패키지(`google_sign_in`)를 허용할지 | F-008 | kimtaesung98 | 보류 — Phase 3 그대로 (사용자 결정, 2026-11-10). 로그인은 디자인에만 두고 Node MVP 제거(F-013)를 먼저 한다 |
 | Q-003 | 호스팅 환경 (클라우드 컨테이너 / 사내 서버 등) | ARCHITECTURE §6 | kimtaesung98 | AWS 서울 EC2 + Cloudflare Tunnel·Access (사용자 "추천안 전체" 선택, 2026-11-10) — ADR-018·019, F-014 |
 | Q-004 | 남은 MVP 기능 F-003·F-004를 현재 Node MVP에서 먼저 만들지, Go + Flutter 전환(ARCHITECTURE §10) 뒤에 만들지 | F-003, F-004 | kimtaesung98 | 전환 뒤에 만든다. F-003은 §10 단계 3(Flutter 웹)에서 구현. 음성 대화도 Flutter 전환 뒤에 만든다 (2026-11-04) |
+| Q-008 | 실시간 음성은 GPT가 답한다(F-024). 글 채팅(API-001)·요약(API-003)·장기 기억(API-004)도 OpenAI로 옮길지, Claude로 둘지 — 같은 페르소나라도 음성과 글의 말투가 다를 수 있음 | F-024 | kimtaesung98 | 제안: 일단 Claude 유지(서버 `Provider` 인터페이스 뒤라 나중에 바꾸기 쉬움). 사용자 결정 대기 |
 | Q-007 | AWS 음성 서비스로 바꿀 범위와 순서 — 제안: F-014 클라우드 배포 → F-015 Polly TTS → F-016 Transcribe STT(서버 중계). 새 의존성 `aws-sdk-go-v2`·Go WebSocket·Flutter `record` 허용 여부 (ADR-020·021) | F-012 | kimtaesung98 | 추천안 전체: F-014 → F-015 → F-016, 새 의존성 허용 — 각 단계에서 추가 (사용자, 2026-11-10) |
 
 ---
@@ -809,6 +871,7 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | v1.13 | 2026-11-11 | kimtaesung98 | F-018 개정: 어르신용 상시 대화 — 모드 버튼 제거, 화면 누르기 끼어들기, 끊김 자동 복구, 쉼 2초 (사용자 피드백) |
 | v1.14 | 2026-11-11 | kimtaesung98 | F-018 개정: 늘 듣기 — 끊김 무한 재시도, 화면 꺼짐 막기(AC8), 앱 복귀 시 다시 듣기(AC9), 수동 확인 AC10 (사용자 피드백) |
 | v1.18 | 2026-11-12 | kimtaesung98 | F-022 실시간 음성 대화(ElevenLabs Agents, 우리 서버 Custom LLM) 등록(사용자 요청). API-002 `voiceAgent`, API-005 `/api/voice/token`, API-006 `/v1/chat/completions`, §10·§11 |
+| v1.22 | 2026-11-13 | kimtaesung98 | 개발 방향 전향(사용자 요청): F-024 OpenAI GPT Realtime 실시간 음성(F-022 대체), F-025 PWA(F-017 대체, 화면은 Flutter 웹 그대로). API-007 `/api/voice/session` 초안, Q-008 추가. 수용 기준은 초안 |
 | v1.21 | 2026-11-13 | kimtaesung98 | F-012 개정: 자기 답을 다시 듣지 않기(상세 동작 5-1, AC9) (사용자 피드백) |
 | v1.20 | 2026-11-13 | kimtaesung98 | F-018 개정: 음성 화면 소리 파형(상세 동작 3-1, AC11) (사용자 요청) |
 | v1.19 | 2026-11-12 | kimtaesung98 | F-023 앱 화면 기반 · 로그인 화면 등록(사용자 요청). 화면 S-004~S-007, 화면 기획 `docs/SCREEN_PLAN.md`. Google 로그인은 모의, 서버 인증은 F-008 보류 그대로 |
