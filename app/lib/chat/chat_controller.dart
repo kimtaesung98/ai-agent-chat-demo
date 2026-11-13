@@ -78,6 +78,7 @@ class ChatController extends ChangeNotifier {
   Future<void> loadConfig() async {
     try {
       _config = await _api.config();
+      _configFailed = false; // 한 번 실패했어도 다시 받으면 지운다 (예: iOS 로컬 네트워크 권한 창이 첫 요청을 막음)
     } catch (_) {
       _configFailed = true;
     }

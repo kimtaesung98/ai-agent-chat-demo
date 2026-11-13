@@ -86,6 +86,7 @@ class HttpChatApi implements ChatApi {
     final client = _newClient();
     try {
       final res = await client.get(_uri('/api/config'));
+      if (res.statusCode != 200) throw http.ClientException('config ${res.statusCode}');
       final json = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       return ServerConfig(
         provider: json['provider'] as String,
