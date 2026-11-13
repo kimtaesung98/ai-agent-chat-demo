@@ -504,3 +504,158 @@ func (d *DB) SeedPersonas(ctx context.Context, userID string, ps []store.Persona
 	}
 	return true, tx.Commit()
 }
+
+// --- 대화·요약·장기 기억 (F-028) ---
+
+func listJSON(v []string) string { return tonesJSON(v) }
+
+func optTS(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return ts(t)
+}
+
+func optParseTS(s string) time.Time {
+	if s == "" {
+		return time.Time{}
+	}
+	return parseTS(s)
+}
+
+func (d *DB) CreateConversation(ctx context.Context, c store.Conversation) error {
+	_, err := d.db.ExecContext(ctx, `INSERT INTO conversations (id, user_id, persona_id, channel, status, started_at, ended_at, turns) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.ID, c.UserID, c.PersonaID, c.Channel, c.Status, ts(c.StartedAt), optTS(c.EndedAt), c.Turns)
+	return err
+}
+
+func (d *DB) GetConversation(ctx context.Context, userID, id string) (store.Conversation, error) {
+	var c store.Conversation
+	var started, ended string
+	err := d.db.QueryRowContext(ctx, `SELECT id, user_id, persona_id, channel, status, started_at, ended_at, turns FROM conversations WHERE user_id = ? AND id = ?`, userID, id).
+		Scan(&c.ID, &c.UserID, &c.PersonaID, &c.Channel, &c.Status, &started, &ended, &c.Turns)
+	if errors.Is(err, sql.ErrNoRows) {
+		return c, store.ErrNotFound
+	}
+	c.StartedAt, c.EndedAt = parseTS(started), optParseTS(ended)
+	return c, err
+}
+
+func (d *DB) UpdateConversation(ctx context.Context, c store.Conversation) error {
+	return affected(d.db.ExecContext(ctx, `UPDATE conversations SET status = ?, ended_at = ?, turns = ? WHERE user_id = ? AND id = ?`,
+		c.Status, optTS(c.EndedAt), c.Turns, c.UserID, c.ID))
+}
+
+func (d *DB) AddConversationTurn(ctx context.Context, userID, id string) error {
+	return affected(d.db.ExecContext(ctx, `UPDATE conversations SET turns = turns + 1 WHERE user_id = ? AND id = ?`, userID, id))
+}
+
+const summaryCols = `id, user_id, persona_id, conversation_id, ended_at, summary, facts, follow_ups, turns, folded`
+
+func scanSummary(row scanner) (store.Summary, error) {
+	var s store.Summary
+	var ended, facts, follow string
+	if err := row.Scan(&s.ID, &s.UserID, &s.PersonaID, &s.ConversationID, &ended, &s.Summary, &facts, &follow, &s.Turns, &s.Folded); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return s, store.ErrNotFound
+		}
+		return s, err
+	}
+	s.EndedAt = parseTS(ended)
+	if err := json.Unmarshal([]byte(facts), &s.Facts); err != nil {
+		return s, err
+	}
+	return s, json.Unmarshal([]byte(follow), &s.FollowUps)
+}
+
+func (d *DB) PutSummary(ctx context.Context, s store.Summary) (store.Summary, error) {
+	_, err := d.db.ExecContext(ctx, `INSERT INTO summaries (id, user_id, persona_id, conversation_id, ended_at, summary, facts, follow_ups, turns, folded)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+		ON CONFLICT (conversation_id) DO UPDATE SET ended_at = excluded.ended_at, summary = excluded.summary,
+			facts = excluded.facts, follow_ups = excluded.follow_ups, turns = excluded.turns
+		WHERE summaries.user_id = excluded.user_id`,
+		s.ID, s.UserID, s.PersonaID, s.ConversationID, ts(s.EndedAt), s.Summary, listJSON(s.Facts), listJSON(s.FollowUps), s.Turns)
+	if err != nil {
+		return store.Summary{}, err
+	}
+	return scanSummary(d.db.QueryRowContext(ctx, `SELECT `+summaryCols+` FROM summaries WHERE user_id = ? AND conversation_id = ?`, s.UserID, s.ConversationID))
+}
+
+func (d *DB) ListSummaries(ctx context.Context, userID, personaID string) ([]store.Summary, error) {
+	rows, err := d.db.QueryContext(ctx, `SELECT `+summaryCols+` FROM summaries WHERE user_id = ? AND persona_id = ? ORDER BY ended_at, id`, userID, personaID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []store.Summary
+	for rows.Next() {
+		s, err := scanSummary(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+func (d *DB) DeleteSummary(ctx context.Context, userID, id string) error {
+	return affected(d.db.ExecContext(ctx, `DELETE FROM summaries WHERE user_id = ? AND id = ?`, userID, id))
+}
+
+func (d *DB) DeleteSummaries(ctx context.Context, userID string, ids []string) error {
+	for _, id := range ids {
+		if _, err := d.db.ExecContext(ctx, `DELETE FROM summaries WHERE user_id = ? AND id = ?`, userID, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (d *DB) FoldInto(ctx context.Context, lt store.LongTermMemory, ids []string) error {
+	tx, err := d.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `INSERT INTO long_term_memory (persona_id, user_id, summary, facts, covers_until, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT (persona_id) DO UPDATE SET summary = excluded.summary, facts = excluded.facts, covers_until = excluded.covers_until, updated_at = excluded.updated_at
+		WHERE long_term_memory.user_id = excluded.user_id`,
+		lt.PersonaID, lt.UserID, lt.Summary, listJSON(lt.Facts), ts(lt.CoversUntil), ts(lt.UpdatedAt)); err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if _, err := tx.ExecContext(ctx, `UPDATE summaries SET folded = 1 WHERE user_id = ? AND id = ?`, lt.UserID, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (d *DB) GetLongTerm(ctx context.Context, userID, personaID string) (store.LongTermMemory, error) {
+	var lt store.LongTermMemory
+	var facts, covers, updated string
+	err := d.db.QueryRowContext(ctx, `SELECT persona_id, user_id, summary, facts, covers_until, updated_at FROM long_term_memory WHERE user_id = ? AND persona_id = ?`, userID, personaID).
+		Scan(&lt.PersonaID, &lt.UserID, &lt.Summary, &facts, &covers, &updated)
+	if errors.Is(err, sql.ErrNoRows) {
+		return lt, store.ErrNotFound
+	}
+	if err != nil {
+		return lt, err
+	}
+	lt.CoversUntil, lt.UpdatedAt = parseTS(covers), parseTS(updated)
+	return lt, json.Unmarshal([]byte(facts), &lt.Facts)
+}
+
+func (d *DB) DeletePersonaMemory(ctx context.Context, userID, personaID string) error {
+	tx, err := d.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, q := range []string{`DELETE FROM summaries WHERE user_id = ? AND persona_id = ?`, `DELETE FROM long_term_memory WHERE user_id = ? AND persona_id = ?`} {
+		if _, err := tx.ExecContext(ctx, q, userID, personaID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}

@@ -96,6 +96,11 @@ func (s *server) withAccounts(next http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/personas/{id}", s.handleGetPersona)
 	mux.HandleFunc("PUT /api/personas/{id}", s.handleUpdatePersona)
 	mux.HandleFunc("DELETE /api/personas/{id}", s.handleDeletePersona)
+	mux.HandleFunc("GET /api/personas/{id}/memory", s.handlePersonaMemory)
+	mux.HandleFunc("DELETE /api/personas/{id}/memory", s.handleDeletePersonaMemory)
+	mux.HandleFunc("DELETE /api/summaries/{id}", s.handleDeleteSummary)
+	mux.HandleFunc("POST /api/conversations", s.handleOpenConversation)
+	mux.HandleFunc("POST /api/conversations/{id}/end", s.handleEndConversation)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
@@ -139,10 +144,10 @@ func (s *server) withAccounts(next http.Handler) http.Handler {
 
 // accountRoute는 계정·개인 데이터 API 경로다 (이 미들웨어의 mux가 처리).
 func accountRoute(p string) bool {
-	if p == "/api/me" || p == "/api/presets" || p == "/api/personas" {
+	if p == "/api/me" || p == "/api/presets" || p == "/api/personas" || p == "/api/conversations" {
 		return true
 	}
-	for _, pre := range []string{"/api/auth/", "/api/me/", "/api/admin/", "/api/personas/"} {
+	for _, pre := range []string{"/api/auth/", "/api/me/", "/api/admin/", "/api/personas/", "/api/conversations/", "/api/summaries/"} {
 		if strings.HasPrefix(p, pre) {
 			return true
 		}

@@ -5,7 +5,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v1.30 |
+| 문서 버전 | v1.31 |
 | 상태 | 승인됨 (MVP 범위) |
 | 작성자 | kimtaesung98 |
 | 최종 수정일 | 2026-11-13 |
@@ -582,7 +582,7 @@
 - **수용 기준**:
   - [x] AC1. Given 각 역할, When 낮은 등급·같은 등급·높은 등급 계정 만들기·역할 바꾸기, Then 낮은 등급만 성공(super_admin은 super_admin도), 나머지 403 `FORBIDDEN` (Go 단위 표 테스트 — 역할 × 동작 전부)
   - [x] AC2. 요양사는 맡지 않은 어르신·그 보호자를 목록에서 못 보고 id로 요청하면 404 (계약 테스트)
-  - [ ] AC3. 보호자는 연결된 어르신의 요약만 보고 원문·다른 어르신은 404, 페르소나는 바꾸지 못함 (계약 테스트)
+  - [x] AC3. 보호자는 연결된 어르신의 요약만 보고 원문·다른 어르신은 404, 페르소나는 바꾸지 못함 (계약 테스트)
   - [x] AC4. 자기 자신·마지막 super_admin은 강등·정지·삭제 거절 (Go 테스트)
   - [x] AC5. 역할을 낮추거나 정지하면 그 계정의 다음 요청부터 바로 반영 (계약 테스트)
   - [x] AC6. 권한 동작마다 `audit_log` 행이 생기고 코드·내용은 없다 (Go 테스트)
@@ -644,10 +644,11 @@
   6. API-003·004는 세션 없는 옛 앱용으로 당분간 남기고, 단계 7-⑥에서 지운다.
 - **수용 기준**:
   - [ ] AC1. Given `conversationId`가 있는 API-001·007, Then 서버가 DB의 페르소나·프로필·최근 요약 5개·장기 기억으로 지금과 같은 시스템 프롬프트를 만든다. 남의 대화 id면 404 (Go·계약 테스트)
-  - [ ] AC2. Given 끝난 주고받기가 있는 대화, When `/end`, Then 요약이 저장되고, 6번째 요약부터 장기 기억이 묶인다. 두 번 불러도 요약은 하나 (Go·계약 테스트, 모의 제공자)
+  - [x] AC2. Given 끝난 주고받기가 있는 대화, When `/end`, Then 요약이 저장되고, 6번째 요약부터 장기 기억이 묶인다. 두 번 불러도 요약은 하나 (Go·계약 테스트, 모의 제공자)
   - [ ] AC3. 서버 DB에는 원문이 없고, 기기에는 원문이 계속 남는다. 대화 지우기는 서버 요약과 기기 원문을 모두 지운다 (Go·Flutter 저장 테스트)
   - [ ] AC4. 앱: 새 대화·다른 페르소나·대화 끝내기·앱이 뒤로 감 → `/end` 한 번. 기억 화면이 서버 값을 보여 주고 지운다 (단위·위젯 테스트, 가짜 API)
   - [ ] AC5. 수동 확인: 폰에서 미소와 대화 → 끝내기 → 브라우저 저장소를 지우지 않은 채 다시 열어 말을 걸면 이어 가고, 서버 DB에 요약이 보인다 (사용자)
+- **구현 메모 (단계 7-④ 서버)**: `server/internal/httpapi/conversations.go`, 마이그레이션 003(`conversations`·`summaries`·`long_term_memory`). AC1은 페르소나·최근 요약·장기 기억까지 됨(Go·계약 테스트) — 프로필 `about`은 API-013(프로필)이 생기면 붙인다. AC3은 서버 쪽(DB 파일에 원문이 없음, Go 테스트)만, 기기 원문 보관은 7-⑤. 요약 실패면 대화는 `ended`로 남고, 서버는 원문이 없으니 앱이 기기 원문으로 `/end`를 다시 부른다. 요약·장기 기억 호출은 F-030 서버 전체 상한에 센다
 - **관련 항목**: F-007 · F-019 · F-020 · F-024 · F-026 · API-001·003·004·007 · ADR-024·031
 - **Owner Folder**: `/server`, `/app`
 
@@ -927,6 +928,7 @@ erDiagram
 > - `GET /api/me` → `{user: {id, name, role, status, google, grantableRoles}}` 또는 `{guest: true}` / `POST /api/me/google` `{idToken}` → 연결
 > - `GET /api/admin/users` → `{users: [{…, inviteEmail, elders, guardians}], grantableRoles}` / `POST /api/admin/users` `{name, role, inviteEmail?, elderIds?}` → 201 `{user, code, codeExpiresAt}` / `PATCH /api/admin/users/{id}` `{name?, role?, status?}` / `DELETE …/{id}` → 204 / `POST …/{id}/code` → `{code, expiresAt}` / `POST /api/admin/care` `{caregiverId, elderId, remove?}` (최고 관리자) / `POST /api/admin/guardians` `{guardianId, elderId, remove?}` / `GET /api/admin/audit` → `{entries}` (최고 관리자)
 > - `GET /api/presets` → `{presets: [{id, version, name, role, tones, base, recommended}], careSetting}` (세션 없이) / `GET /api/personas` → `{personas: [Persona v1…], max: 20}` (처음이면 탑재 4개를 넣고) / `POST /api/personas` Persona v1 → 201 · 400(형식·20개 초과) / `GET·PUT·DELETE /api/personas/{id}` — `PUT`은 `revision`이 저장 값과 같아야 하고 다르면 409 `{error, persona: 서버 값}` / `POST /api/personas/presets` → 지운 탑재 페르소나 다시 넣기. 모두 `?userId=`로 남의 것: 최고 관리자는 모두, 요양사는 맡은 어르신, 보호자는 연결된 어르신 보기만(고치면 403), 그 밖은 404
+> - `POST /api/conversations` `{personaId, channel: text|voice}` → 201 `{id, personaId, channel, status: open, startedAt, turns}` / `POST /api/conversations/{id}/end` `{messages}` → 200 `{conversation, summary}` (메시지가 없으면 요약 없이 `summary: null`, 요약 실패 502, 상한 429) / API-001·007에 `conversationId`를 보내면 앱이 보낸 `persona`·`memory`·`longTerm`은 버리고 DB 값을 쓴다(남의 대화 404) / `GET /api/personas/{id}/memory` → `{personaId, longTerm|null, summaries: [{id, conversationId, endedAt, summary, facts, followUps, turns, folded}]}` / `DELETE /api/personas/{id}/memory`·`DELETE /api/summaries/{id}` → 204. 기억도 `?userId=` 범위는 페르소나와 같다(보호자는 보기만)
 > - 코드가 담긴 응답은 `Cache-Control: no-store`. 공통: 세션 없으면 401 `UNAUTHENTICATED`, 볼 수 없는 id는 404 `NOT_FOUND`, 등급이 모자라면 403 `FORBIDDEN`, `revision` 충돌 409 `CONFLICT`, 상한·로그인 시도 초과 429 `QUOTA_EXCEEDED`·`RATE_LIMITED`, 다른 `Origin`의 상태 변경 403. API-001·007은 선택 필드 `conversationId`를 받는다(F-028).
 
 > API-005·006은 6-④에서 지웠다 (ADR-026). 아래 상세는 기록용.
@@ -1144,6 +1146,7 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | v1.24 | 2026-11-13 | kimtaesung98 | F-025 단계 6-③ 구현: AC1~AC4 체크, 상세 동작 1(서비스 워커 방식) |
 | v1.25 | 2026-11-13 | kimtaesung98 | 서비스화 제안(사용자 요청 "개개인의 사용을 위한 서비스 수준의 내부 데이터 백엔드 + 백엔드에 맞물리는 페르소나 형식"): F-026 계정·서버 저장소, F-027 페르소나 형식 v1, F-028 대화·요약·기억 서버 처리. §7 ERD·엔티티(Persona v1), API-010~018 초안, Q-009·Q-010 |
 | v1.26 | 2026-11-13 | kimtaesung98 | 사용자 결정 반영: 로그인은 관리자 발급 코드 또는 Google(Q-010, 이름만 계정 없앰), DB 라이브러리 승인, F-029 역할 계층(최고 관리자·요양사·어르신·보호자, 위에서 아래로 만들기·부여), F-030 게스트 체험·사용량 제한. F-026~028 승인. §7 역할·코드·담당·보호자·감사·사용량, API-019~022, Q-011·Q-012 |
+| v1.31 | 2026-11-13 | kimtaesung98 | 단계 7-④ 서버: F-028 대화 열기·끝내기·`conversationId`·기억 보기·지우기, AC2·F-029 AC3 체크, API-017·018 요약 |
 | v1.30 | 2026-11-13 | kimtaesung98 | 단계 7-③ 서버: F-027 AC1~AC3 구현(프리셋 카탈로그·Persona v1 검증·`/api/presets`·`/api/personas`), `?userId=` 대리 범위, 409 응답에 서버 값 |
 | v1.29 | 2026-11-13 | kimtaesung98 | F-025 6-④ 정리(사용자 "남은일을 마무리 짓자, 코드를 걷어내고"): AC5 체크. F-012·F-017·F-022·API-005·006 삭제 기록, F-024 상세 7(실패하면 알리고 글 채팅), 외부 서비스·개인정보에서 ElevenLabs·기기 음성 정리 |
 | v1.28 | 2026-11-13 | kimtaesung98 | 단계 7-② 구현: API-010~022 요약, F-026·F-029·F-030 자동 수용 기준 체크, 게스트·음성 상한 셈법, `REQUIRE_LOGIN`(앱 로그인 전까지 꺼짐) |

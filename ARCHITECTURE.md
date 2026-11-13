@@ -14,7 +14,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v1.19 |
+| 문서 버전 | v1.20 |
 | 상태 | 검토 중 — 현재 MVP 기록은 확정, 목표 아키텍처 ADR-005~015 승인 |
 | 작성자 | kimtaesung98 |
 | 최종 수정일 | 2026-11-13 |
@@ -166,7 +166,7 @@ flowchart LR
 | provider | `/server/internal/provider` | `Provider` 인터페이스, `Chunk`, 사용자용 오류 | chat |
 | provider/anthropic | `/server/internal/provider/anthropic` | Claude 어댑터 (SDK 사용) | provider, chat |
 | provider/mock | `/server/internal/provider/mock` | 모의 제공자 | provider, chat |
-| httpapi | `/server/internal/httpapi` | 라우팅, 요청 파싱, SSE 쓰기, 정적 파일. 실시간 음성 임시 키(API-007)는 `RealtimeSessions` 인터페이스로 (F-024). 계정·로그인·관리 API와 AI 경로 보호(`auth.go`, F-026·F-029·F-030), 페르소나 API(`personas.go`, F-027 — 누구 것인지는 `account.PersonaOwner`) | chat, provider, account, usage, store |
+| httpapi | `/server/internal/httpapi` | 라우팅, 요청 파싱, SSE 쓰기, 정적 파일. 실시간 음성 임시 키(API-007)는 `RealtimeSessions` 인터페이스로 (F-024). 계정·로그인·관리 API와 AI 경로 보호(`auth.go`, F-026·F-029·F-030), 페르소나 API(`personas.go`, F-027 — 누구 것인지는 `account.PersonaOwner`), 대화·요약·기억(`conversations.go`, F-028 — 원문은 처리만) | chat, provider, account, usage, store |
 | openai | `/server/internal/openai` | OpenAI Realtime 임시 키 발급 어댑터 (표준 라이브러리만, 키는 밖으로 안 나감) — F-024, ADR-026 | (없음) |
 | store (F-026) | `/server/internal/store` | `Store` 인터페이스와 도메인 행 타입(User·Session·Profile·Persona·Conversation·Summary·LongTermMemory). 모든 메서드가 `userID`를 받는다 | chat |
 | store/sqlite (F-026) | `/server/internal/store/sqlite` | SQLite 구현, 마이그레이션(`embed`) — ADR-028 | store, chat |
@@ -547,6 +547,7 @@ flowchart LR
 | v1.13 | 2026-11-13 | kimtaesung98 | 전향(사용자 요청): ADR-026 OpenAI GPT Realtime(ADR-025 대체)·ADR-027 Flutter 웹 PWA(ADR-022 대체) 제안, §2.1·§2.2·§10 단계 6, R-A15·R-A16 |
 | v1.14 | 2026-11-13 | kimtaesung98 | 서비스화 제안(F-026~028): ADR-028 SQLite(`modernc.org/sqlite`, 제안 허용 목록), ADR-029 게스트 계정·서버 세션, ADR-030 페르소나 형식 v1·서버 프리셋 카탈로그(ADR-024 ④ 재검토), ADR-031 대화·요약·기억 서버 처리(ADR-024 대체 예정). 모듈 `store`·`store/sqlite`·`account`(목표), `DATA_DIR`, §10 단계 7, R-A17 |
 | v1.15 | 2026-11-13 | kimtaesung98 | 사용자 결정: ADR-028 승인(DB 라이브러리), ADR-029 개정(관리자 발급 코드 · 연결된 Google, 이름만 계정 없앰), ADR-030·031 승인, ADR-032 역할 계층, ADR-033 사용량 상한·게스트. 모듈 `usage`, 환경변수 `GOOGLE_CLIENT_ID`·`GUEST_*`·상한, R-A17 개정·R-A18 |
+| v1.20 | 2026-11-13 | kimtaesung98 | 단계 7-④ 서버: 마이그레이션 003(`conversations`·`summaries`·`long_term_memory`), httpapi `conversations.go`. 새 모듈·라이브러리 없음 |
 | v1.19 | 2026-11-13 | kimtaesung98 | 단계 7-③ 서버: `chat` 프리셋 카탈로그·Persona v1, 마이그레이션 002(`personas`), httpapi `personas.go`. 새 모듈·라이브러리 없음 |
 | v1.17 | 2026-11-13 | kimtaesung98 | 단계 7-② 완료: `usage` 모듈, httpapi `auth.go`(→ account·usage·store), `cmd/chatd` 계정 조립·`admin bootstrap`, 환경변수 `REQUIRE_LOGIN`·`BOOTSTRAP_ADMIN_*`·`CLIENT_IP_HEADER` |
 | v1.16 | 2026-11-13 | kimtaesung98 | 사용자 방향: ADR-031 원문 기기 보관, ADR-034 어르신 페르소나(기본 설정 + learned), ADR-035 배포 유형(노치원 먼저), `CARE_SETTING`. 단계 7-② 첫 코드: `internal/store`·`store/sqlite`·`account` |

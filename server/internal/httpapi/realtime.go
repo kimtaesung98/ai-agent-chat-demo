@@ -27,6 +27,9 @@ func (s *server) handleVoiceSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, verr.Code, verr.Message)
 		return
 	}
+	if !s.conversationPrompt(w, r, body, &v.Persona, &v.Memory, &v.LongTerm) { // F-028
+		return
+	}
 	sec, err := s.realtime.ClientSecret(r.Context(), v.Instructions())
 	if err != nil {
 		s.log.Warn("realtime session error") // 원문에 키·주소가 섞일 수 있어 남기지 않는다

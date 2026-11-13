@@ -220,6 +220,9 @@ func (s *server) handleChat(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, verr.Code, verr.Message)
 		return
 	}
+	if !s.conversationPrompt(w, r, body, &req.Persona, &req.Memory, &req.LongTerm) { // F-028: conversationId면 DB 값
+		return
+	}
 	msgs := chat.TrimToRecentTurns(req.Messages, chat.MaxTurns) // F-002 AC2
 
 	h := w.Header()
