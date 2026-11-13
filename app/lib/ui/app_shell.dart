@@ -11,6 +11,7 @@ import '../chat/server_settings.dart';
 import '../chat/start_settings.dart';
 import '../voice/voice_controller.dart';
 import 'chat_page.dart';
+import 'install_hint.dart';
 import 'login_page.dart';
 import 'onboarding_page.dart';
 
@@ -24,6 +25,7 @@ class AppShell extends StatelessWidget {
     this.start,
     this.display,
     this.mockGoogle = false,
+    this.installer,
   });
 
   final AuthController auth;
@@ -33,6 +35,7 @@ class AppShell extends StatelessWidget {
   final StartSettings? start;
   final DisplaySettings? display;
   final bool mockGoogle;
+  final Installer? installer;
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +59,7 @@ class AppShell extends StatelessWidget {
           start: start,
           auth: auth,
           display: display,
+          installer: installer,
         );
       },
     );

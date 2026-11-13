@@ -11,6 +11,8 @@ import 'chat/start_settings.dart';
 import 'storage/app_storage.dart';
 import 'storage/prefs_store.dart';
 import 'ui/app_shell.dart';
+import 'ui/install_hint.dart';
+import 'ui/installer.dart';
 import 'ui/chat_page.dart';
 import 'ui/theme.dart';
 import 'voice/agent_voice_controller.dart';
@@ -66,6 +68,7 @@ Future<void> main() async {
       auth: auth,
       display: loadDisplay(store),
       mockGoogle: true,
+      installer: createInstaller(),
     ),
   );
 }
@@ -80,6 +83,7 @@ class ChatApp extends StatelessWidget {
     this.auth,
     this.display,
     this.mockGoogle = false,
+    this.installer,
   });
 
   final ChatController controller;
@@ -100,12 +104,15 @@ class ChatApp extends StatelessWidget {
   /// Google 로그인이 모의인지 — 로그인 화면에 알린다.
   final bool mockGoogle;
 
+  /// 웹앱 설치 안내 (F-025). 없으면 안내하지 않는다.
+  final Installer? installer;
+
   @override
   Widget build(BuildContext context) {
     final display = this.display;
     final auth = this.auth;
     Widget app() => MaterialApp(
-      title: 'AI Agent Chat',
+      title: 'AI 말벗',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
@@ -121,7 +128,14 @@ class ChatApp extends StatelessWidget {
               );
             },
       home: auth == null
-          ? ChatPage(controller: controller, voice: voice, server: server, start: start, display: display)
+          ? ChatPage(
+              controller: controller,
+              voice: voice,
+              server: server,
+              start: start,
+              display: display,
+              installer: installer,
+            )
           : AppShell(
               auth: auth,
               controller: controller,
@@ -130,6 +144,7 @@ class ChatApp extends StatelessWidget {
               start: start,
               display: display,
               mockGoogle: mockGoogle,
+              installer: installer,
             ),
     );
     if (display == null) return app();
