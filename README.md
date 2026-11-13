@@ -137,7 +137,7 @@ flowchart LR
 | F-023 | 앱 화면 기반 · 로그인 화면 | 🔄 In Progress | `/app` | 2026-11-12 | 사용자 "로그인 화면 UI 제작, 이외 기능 UI도 web 수준에서 기획·제작해 네이티브 앱 기반으로". 화면 기획 `docs/SCREEN_PLAN.md`. S-004 로그인(Google 모의 · 이름만 적고 시작), S-005 첫 실행 대화 상대 고르기, S-006 설정(서랍의 시작 방식·서버 주소를 옮김, 글자 크기·로그아웃), S-007 지난 대화 기억. AC1~AC6 단위·위젯·저장 테스트(`flutter test` 197개), 모의 모드 웹 빌드 캡처. **AC7 실제 폰 확인(사용자) 남음, 진짜 Google 로그인은 F-008** |
 | F-017 | 모바일 네이티브 앱 (Android·iOS) | ❌ Blocked | `/app` | 2026-11-13 | **대체됨 → F-025 PWA** (사용자 전향, 2026-11-13). 이전: 사용자 "모바일 진행"(SPEC §1.4 비목표 해제). AC2~AC5·AC7 자동 테스트 통과(`flutter test` 108개: 서버 주소·앱 안 주소 설정·저장, dart:io 스트리밍·중단, 매니페스트·Info.plist), AC1 Android APK 클라우드 빌드·CI `android` 작업. **iOS 빌드(Mac)·AC6 실제 폰 확인(사용자) 남음** |
 | F-024 | 실시간 음성 대화 (OpenAI GPT Realtime) | 🔄 In Progress | `/app`, `/server` | 2026-11-13 | 단계 6-①: 서버 API-007(`internal/openai`, 지시문 담은 임시 키) + 웹 `web/realtime.js`(WebRTC) + `OpenAiRealtimeAgent`. AC1~AC6 자동 테스트(`go test ./...` 계약 포함 · `flutter test` 218개). 웹 빌드 + 가짜 OpenAI로 브라우저에서 세션 → 임시 키로 SDP 요청 → 실패 시 기기 음성까지 확인. 남은 것: 실제 키로 iPhone·Android 확인(AC7, 사용자 — `docs/OPENAI_REALTIME_SETUP.md`) |
-| F-025 | 웹앱 (PWA) | ⏳ Pending | `/app` | 2026-11-13 | 사용자 "웹, 즉 pwa" + 결정 카드 "Flutter 웹 그대로". SPEC 상세·AC 초안, ADR-027 제안. 사용자 검토 뒤 착수 |
+| F-025 | 웹앱 (PWA) | 🔄 In Progress | `/app` | 2026-11-13 | 단계 6-③: 매니페스트("AI 말벗", 새 아이콘·maskable·iOS 아이콘), `web/sw.js`(화면 파일만, 네트워크 먼저, /api 제외), Flutter 기본 SW 끔, `web/pwa.js` + `InstallBanner`(Android 설치 창·iPhone 공유 안내), Wake Lock 미지원 안내. AC1~AC4 자동 테스트(`flutter test` 226개), 모바일 에뮬레이션에서 설치 가능(Chrome 설치 오류 0)·SW 캐시 확인. 남은 것: 정리(AC5, 6-④), 폰 설치 확인(AC6, 사용자) |
 
 ---
 

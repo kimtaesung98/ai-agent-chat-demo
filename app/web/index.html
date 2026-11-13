@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -18,18 +18,21 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="말로 편하게 이야기 나누는 나만의 AI 말벗">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1F4FD8">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="ai_agent_chat">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="AI 말벗">
+  <link rel="apple-touch-icon" href="icons/Icon-apple-180.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>ai_agent_chat</title>
+  <title>AI 말벗</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
@@ -43,6 +46,8 @@
   -->
   <!-- OpenAI Realtime WebRTC (F-024) — lib/voice/openai_realtime_agent.dart가 부른다 -->
   <script src="realtime.js"></script>
+  <!-- 웹앱 설치·서비스 워커 (F-025) — lib/ui/installer_web.dart가 부른다 -->
+  <script src="pwa.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

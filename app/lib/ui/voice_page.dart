@@ -13,20 +13,31 @@ import 'theme.dart';
 import 'voice_wave.dart';
 
 /// 음성 대화 화면을 열고, 음성 모드가 꺼져 있으면 바로 듣기 시작한다 (F-018 AC1).
-Future<void> openVoicePage(BuildContext context, {required ChatController chat, required VoiceSession voice}) {
+Future<void> openVoicePage(
+  BuildContext context, {
+  required ChatController chat,
+  required VoiceSession voice,
+  bool wakeLock = true,
+}) {
   if (!voice.active) voice.start();
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => VoicePage(chat: chat, voice: voice),
+      builder: (_) => VoicePage(chat: chat, voice: voice, wakeLock: wakeLock),
     ),
   );
 }
 
 class VoicePage extends StatefulWidget {
-  const VoicePage({super.key, required this.chat, required this.voice});
+  const VoicePage({super.key, required this.chat, required this.voice, this.wakeLock = true});
 
   final ChatController chat;
   final VoiceSession voice;
+
+  /// 이 브라우저가 화면 꺼짐 막기를 지원하는지 (F-025 AC4). 아니면 한 번 안내한다.
+  final bool wakeLock;
+
+  /// 화면 꺼짐 막기를 지원하지 않을 때 보이는 안내.
+  static const noWakeLock = '이 브라우저는 화면 꺼짐을 막지 못해요. 대화하는 동안 화면을 켜 두세요.';
 
   @override
   State<VoicePage> createState() => _VoicePageState();
@@ -46,6 +57,13 @@ class _VoicePageState extends State<VoicePage> with SingleTickerProviderStateMix
     super.initState();
     setKeepAwake(true); // 이 화면에 있는 동안은 화면이 꺼지지 않는다 — 늘 듣기 위해 (F-018 AC8)
     _lifecycle;
+    if (!widget.wakeLock) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.maybeOf(context)
+            ?.showSnackBar(const SnackBar(content: Text(VoicePage.noWakeLock), duration: Duration(seconds: 6)));
+      });
+    }
   }
 
   @override

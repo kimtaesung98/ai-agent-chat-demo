@@ -11,6 +11,7 @@ import '../chat/persona_controller.dart';
 import '../chat/server_settings.dart';
 import '../chat/start_settings.dart';
 import '../voice/voice_controller.dart';
+import 'install_hint.dart';
 import 'persona_editor.dart';
 import 'persona_widgets.dart';
 import 'settings_page.dart';
@@ -18,7 +19,16 @@ import 'theme.dart';
 import 'voice_page.dart';
 
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key, required this.controller, this.voice, this.server, this.start, this.auth, this.display});
+  const ChatPage({
+    super.key,
+    required this.controller,
+    this.voice,
+    this.server,
+    this.start,
+    this.auth,
+    this.display,
+    this.installer,
+  });
 
   final ChatController controller;
 
@@ -36,6 +46,9 @@ class ChatPage extends StatefulWidget {
 
   /// 글자 크기 (F-023).
   final DisplaySettings? display;
+
+  /// 웹앱 설치 안내·화면 꺼짐 막기 지원 여부 (F-025). 없으면 안내하지 않는다.
+  final Installer? installer;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -69,7 +82,8 @@ class _ChatPageState extends State<ChatPage> {
     if (voice != null && (widget.start?.voiceOnStart ?? false)) {
       // 첫 프레임 뒤에 연다 — 채팅 화면이 뒤에 있어야 "글자로 보기"·"대화 끝내기"로 돌아온다 (F-021 AC1)
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) openVoicePage(context, chat: _chat, voice: voice);
+        if (!mounted) return;
+        openVoicePage(context, chat: _chat, voice: voice, wakeLock: widget.installer?.wakeLockSupported ?? true);
       });
     }
   }
@@ -198,7 +212,12 @@ class _ChatPageState extends State<ChatPage> {
                   IconButton(
                     key: const Key('open-voice-page'),
                     tooltip: '음성으로 대화하기',
-                    onPressed: () => openVoicePage(context, chat: _chat, voice: voice),
+                    onPressed: () => openVoicePage(
+                      context,
+                      chat: _chat,
+                      voice: voice,
+                      wakeLock: widget.installer?.wakeLockSupported ?? true,
+                    ),
                     icon: const Icon(Icons.record_voice_over_outlined),
                   ),
                 if (personas == null)
@@ -229,6 +248,7 @@ class _ChatPageState extends State<ChatPage> {
                   constraints: const BoxConstraints(maxWidth: 760),
                   child: Column(
                     children: [
+                      if (widget.installer case final i?) InstallBanner(installer: i),
                       Expanded(child: _log(c)),
                       if (_voice case final voice?) _VoiceBar(voice: voice),
                       _composer(c),
