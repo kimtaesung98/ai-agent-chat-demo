@@ -166,6 +166,75 @@ void main() {
     expect(api.requests, hasLength(1));
   });
 
+  group('F-012 AC9 자기 답을 다시 듣지 않는다 (R-A09)', () {
+    late DateTime now;
+
+    setUp(() {
+      voice.dispose();
+      now = DateTime(2026, 11, 13, 18);
+      voice = VoiceController(chat, engine, clock: () => now);
+    });
+
+    Future<void> answer(String text) async {
+      await say('날씨 알려 줘');
+      await delta(text);
+      await done();
+    }
+
+    test('읽는 중 들린 답 조각이 다 읽은 뒤 확정돼도 질문으로 보내지 않는다', () async {
+      await voice.start();
+      await answer('오늘은 맑고 따뜻해요.');
+      engine.hear(const HeardPartial('오늘은 막고'));
+      await pump();
+      expect(voice.state, VoiceState.speaking, reason: '에코는 끼어들기가 아니다');
+      await speakAll();
+      expect(voice.state, VoiceState.listening);
+      now = now.add(const Duration(seconds: 2));
+      engine.hear(const HeardFinal('오늘은 막고 따뜻해요'));
+      await pump();
+      expect(api.requests, hasLength(1), reason: '자기 답을 다시 보내지 않는다');
+      expect(voice.partial, '');
+      expect(engine.listening, isTrue);
+    });
+
+    test('다 읽은 직후 들린 답은 거르고, 이어서 한 사용자 말만 보낸다', () async {
+      await voice.start();
+      await answer('오늘은 맑고 따뜻해요.');
+      await speakAll();
+      now = now.add(const Duration(milliseconds: 500));
+      engine.hear(const HeardPartial('따뜻해요'));
+      await pump();
+      expect(voice.partial, '', reason: '답 꼬리는 미리 보기에도 보이지 않는다');
+      engine.hear(const HeardFinal('따뜻해요 그럼 내일은 어때'));
+      await pump();
+      expect(api.requests, hasLength(2));
+      expect(api.requests.last.last.content, '그럼 내일은 어때');
+    });
+
+    test('읽는 중 말로 끼어들면 섞여 들린 답을 빼고 사용자 말만 보낸다', () async {
+      await voice.start();
+      await say('설명해 줘');
+      await delta('오늘은 맑고 따뜻해요. 내');
+      engine.hear(const HeardPartial('오늘은 맑고 따뜻해요 그런데 내일은 어때'));
+      await pump();
+      expect(voice.state, VoiceState.listening, reason: '사용자 말이 섞여 있으면 바로 끼어든다');
+      expect(api.cancels, 1);
+      expect(voice.partial, '그런데 내일은 어때');
+      engine.hear(const HeardFinal('오늘은 맑고 따뜻해요 그런데 내일은 어때'));
+      await pump();
+      expect(api.requests.last.last.content, '그런데 내일은 어때');
+    });
+
+    test('한참 뒤에 답의 낱말을 따라 말하면 그대로 보낸다', () async {
+      await voice.start();
+      await answer('오늘은 맑고 따뜻해요.');
+      await speakAll();
+      now = now.add(const Duration(seconds: 5));
+      await say('맑고 따뜻하네요');
+      expect(api.requests.last.last.content, '맑고 따뜻하네요');
+    });
+  });
+
   test('F-012 서버 오류는 사용자용 문장을 읽어 주고 다시 듣는다', () async {
     await voice.start();
     await say('안녕');
