@@ -138,11 +138,12 @@ flowchart LR
 | F-017 | 모바일 네이티브 앱 (Android·iOS) | ❌ Blocked | `/app` | 2026-11-13 | **대체됨 → F-025 PWA** (사용자 전향, 2026-11-13). 이전: 사용자 "모바일 진행"(SPEC §1.4 비목표 해제). AC2~AC5·AC7 자동 테스트 통과(`flutter test` 108개: 서버 주소·앱 안 주소 설정·저장, dart:io 스트리밍·중단, 매니페스트·Info.plist), AC1 Android APK 클라우드 빌드·CI `android` 작업. **iOS 빌드(Mac)·AC6 실제 폰 확인(사용자) 남음** |
 | F-024 | 실시간 음성 대화 (OpenAI GPT Realtime) | 🔄 In Progress | `/app`, `/server` | 2026-11-13 | 단계 6-①: 서버 API-007(`internal/openai`, 지시문 담은 임시 키) + 웹 `web/realtime.js`(WebRTC) + `OpenAiRealtimeAgent`. AC1~AC6 자동 테스트(`go test ./...` 계약 포함 · `flutter test` 218개). 웹 빌드 + 가짜 OpenAI로 브라우저에서 세션 → 임시 키로 SDP 요청 → 실패 시 기기 음성까지 확인. 남은 것: 실제 키로 iPhone·Android 확인(AC7, 사용자 — `docs/OPENAI_REALTIME_SETUP.md`) |
 | F-025 | 웹앱 (PWA) | 🔄 In Progress | `/app` | 2026-11-13 | 단계 6-③: 매니페스트("AI 말벗", 새 아이콘·maskable·iOS 아이콘), `web/sw.js`(화면 파일만, 네트워크 먼저, /api 제외), Flutter 기본 SW 끔, `web/pwa.js` + `InstallBanner`(Android 설치 창·iPhone 공유 안내), Wake Lock 미지원 안내. AC1~AC4 자동 테스트(`flutter test` 226개), 모바일 에뮬레이션에서 설치 가능(Chrome 설치 오류 0)·SW 캐시 확인. 남은 것: 정리(AC5, 6-④), 폰 설치 확인(AC6, 사용자) |
-| F-026 | 사용자 계정 · 로그인 · 서버 데이터 저장소 | 🔄 In Progress | `/server`, `/app` | 2026-11-13 | 승인 — 로그인은 관리자 발급 코드 또는 연결된 Google(Q-010), SQLite `modernc.org/sqlite`(ADR-028 승인), ADR-029 개정. 다음: 단계 7-② 서버 코드 |
+| F-026 | 사용자 계정 · 로그인 · 서버 데이터 저장소 | 🔄 In Progress | `/server`, `/app` | 2026-11-13 | 승인 — 로그인은 관리자 발급 코드 또는 연결된 Google(Q-010), SQLite `modernc.org/sqlite` v1.59.0(ADR-028). 7-② 일부: `internal/store`·`store/sqlite`(마이그레이션)·`account`(코드·Google·세션·역할 계층) + Go 테스트 통과. 남은 것: HTTP API 연결·`usage`·계약 테스트·`chatd admin bootstrap` |
 | F-027 | 페르소나 형식 v1 (앞뒤 공통 계약) | ⏳ Pending | `/server`, `/app` | 2026-11-13 | 승인 (PR #30) — 사용자 "백엔드에 맞물리게 프론트의 페르소나 형식을 명료화". SPEC §7.2 Persona v1, API-015·016, ADR-030(프리셋 카탈로그는 서버) |
 | F-028 | 대화 · 요약 · 기억의 서버 처리 | ⏳ Pending | `/server`, `/app` | 2026-11-13 | 승인 (PR #30) — API-017·018, ADR-031(ADR-024 대체 예정). 원문은 Q-009 추천안(30일)으로 |
-| F-029 | 역할 계층 · 권한 부여 | ⏳ Pending | `/server`, `/app` | 2026-11-13 | 승인 — 사용자 "최고 관리자(개발자·원장) > 요양사 > 어르신·보호자, 상위가 하위를 추가·권한 부여". ADR-032, 보는 범위 Q-011 추천안 |
+| F-029 | 역할 계층 · 권한 부여 | 🔄 In Progress | `/server`, `/app` | 2026-11-13 | 승인 — 사용자 "최고 관리자(개발자·원장) > 요양사 > 어르신·보호자, 상위가 하위를 추가·권한 부여". ADR-032, 보는 범위 Q-011 추천안 |
 | F-030 | 게스트 체험 · 사용량 제한 | ⏳ Pending | `/server`, `/app` | 2026-11-13 | 승인 — 사용자 "게스트가 많은 토큰을 발생시켜 누수를 일으키면 안 돼". ADR-033, 게스트 기본 꺼짐 |
+| F-031 | 어르신 페르소나 (기본 설정 + 대화로 강화) | ⏳ Pending | `/server`, `/app` | 2026-11-13 | 승인 — 방향. 사용자 "원문은 모바일에 지속 보관, 이를 바탕으로 노인의 페르소나 강화, 보호자·요양사는 기초 통합 설정, 노치원 먼저". ADR-034·035, 노치원 기획서(Q-014) 뒤 세부 |
 
 ---
 
@@ -150,7 +151,7 @@ flowchart LR
 
 <!-- SPEC §16 Q-004 결정 (2026-11-04): 남은 MVP 기능과 음성 대화는 Go + Flutter 전환 뒤에 만든다 -->
 
-00. **서비스화 (2026-11-13 승인)**: F-026~F-030 — ARCHITECTURE §10 단계 7. ① 문서(완료) → ② 서버 저장소·계정·코드/Google 로그인·역할 계층·사용량 상한 → ③ 페르소나 v1 → ④ 대화·기억 서버 처리 → ⑤ 앱 전환·기기 데이터 옮기기 → ⑥ 정리 → `/server`, `/app`
+00. **서비스화 (2026-11-13 승인)**: F-026~F-031 (노치원 먼저) — ARCHITECTURE §10 단계 7. ① 문서(완료) → ② 서버 저장소·계정·코드/Google 로그인·역할 계층·사용량 상한 → ③ 페르소나 v1 → ④ 대화·기억 서버 처리 → ⑤ 앱 전환·기기 데이터 옮기기 → ⑥ 정리 → `/server`, `/app`
 0. **전향 (2026-11-13)**: F-024 OpenAI Realtime + F-025 PWA — ARCHITECTURE §10 단계 6 순서: ① 서버 API-007 + 가짜 OpenAI 계약 테스트 + 최소 음성 화면 → 실제 iPhone 확인 ② 음성 화면 연결·요약 ③ PWA 마무리 ④ ElevenLabs·기기 음성·네이티브 제거. Q-008(글 채팅·요약을 Claude로 둘지) 사용자 결정 → `/server`, `/app`
 0-1. F-019 마무리 — 실제 Claude 모드에서 미소와 대화 → 대화 끝내기 → 다음 대화가 이어지는지(AC8, 사용자). 다음 후보: 오래된 요약을 묶어 장기 기억으로 압축, 앱 시작을 음성 대화로(어르신용) → `/app`, `/server`
 1. ~~F-017 모바일 앱~~ — F-025로 대체
