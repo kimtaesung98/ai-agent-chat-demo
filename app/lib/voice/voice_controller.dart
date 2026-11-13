@@ -65,7 +65,13 @@ abstract interface class VoiceSession implements Listenable {
 }
 
 class VoiceController extends ChangeNotifier implements VoiceSession {
-  VoiceController(this._chat, this._engine, {this.retryDelay = const Duration(seconds: 1)}) {
+  VoiceController(
+    this._chat,
+    this._engine, {
+    this.retryDelay = const Duration(seconds: 1),
+    this.echoTail = const Duration(seconds: 3),
+    DateTime Function()? clock,
+  }) : _now = clock ?? DateTime.now {
     _heardSub = _engine.heard.listen(_onHeard);
     _chat.addListener(_onChat);
   }
@@ -73,6 +79,11 @@ class VoiceController extends ChangeNotifier implements VoiceSession {
   /// 인식이 끊겼을 때(네트워크·엔진 오류·마이크 잠깐 없음) 처음 다시 듣기까지 기다리는 시간 (F-018 AC6).
   /// 연달아 끊기면 1 · 2 · 4 · 8 · 16배로 늘리되 포기하지 않는다 — 음성 모드는 늘 듣는 것이 목표다.
   final Duration retryDelay;
+
+  /// 읽기를 마치거나 끊은 뒤 이만큼 안에 말이 시작되면, 들은 것에 스피커 소리가 섞였을 수 있다고 보고 걸러 낸다 (R-A09).
+  /// 그 뒤에 시작된 말은 답에 있던 낱말을 따라 말해도 그대로 보낸다.
+  final Duration echoTail;
+  final DateTime Function() _now;
 
   Duration get _backoff => retryDelay * (1 << (_retries - 1).clamp(0, 4));
 
@@ -94,6 +105,8 @@ class VoiceController extends ChangeNotifier implements VoiceSession {
   var _disposed = false;
   var _retries = 0;
   var _suspended = false; // 앱이 뒤로 갔다 — 돌아오면 다시 듣는다 (F-018 AC9)
+  DateTime? _spokeUntil; // 마지막으로 읽기를 마치거나 끊은 때
+  DateTime? _utterStart; // 지금 듣고 있는 말이 처음 들린 때 (확정·끝나면 비움)
 
   @override
   VoiceState get state => _state;
@@ -177,6 +190,7 @@ class VoiceController extends ChangeNotifier implements VoiceSession {
     _answer = null; // 먼저 비워야 _chat.stop()의 알림이 다시 듣기를 시작하지 않는다
     if (answer != null && _chat.busy) _chat.stop();
     _partial = '';
+    _utterStart = null;
     _suspended = false;
     _state = VoiceState.off;
     _notify();
@@ -188,25 +202,33 @@ class VoiceController extends ChangeNotifier implements VoiceSession {
       _retries = 0;
       if (_notice == VoiceMessages.reconnecting) _notice = null;
     }
+    if (h is HeardPartial || h is HeardFinal) _utterStart ??= _now();
     switch (h) {
       case HeardPartial(:final text):
+        final own = _echoRisk ? _withoutEcho(text) : text;
         if (_state != VoiceState.listening) {
-          if (_isEcho(text)) return; // 스피커 소리를 다시 들은 것 (R-A09)
+          if (own.isEmpty) return; // 스피커 소리를 다시 들은 것 (R-A09)
           _bargeIn(listen: false);
         }
-        _partial = text;
+        _partial = own;
         _notify();
       case HeardFinal(:final text):
-        if (_state != VoiceState.listening) {
-          if (_isEcho(text)) {
-            _listen();
-            return;
+        final own = _echoRisk ? _withoutEcho(text) : text;
+        _utterStart = null;
+        if (own.isEmpty) {
+          // 스피커 소리만 들었다 — 자기 답을 질문으로 다시 보내지 않는다 (R-A09)
+          if (_partial.isNotEmpty) {
+            _partial = '';
+            _notify();
           }
-          _bargeIn(listen: false);
+          _listen();
+          return;
         }
+        if (_state != VoiceState.listening) _bargeIn(listen: false);
         _partial = '';
-        _send(text);
+        _send(own);
       case ListenEnded():
+        _utterStart = null;
         _listen(); // 음성 모드인 동안은 계속 듣는다 (읽는 중에도 — 끼어들기)
       case ListenFailed(:final reason) when reason != ListenFailure.notAllowed:
         // 끊긴 것은 손대지 않아도 다시 듣는다 — 포기하지 않는다 (F-018 AC6). 권한 거부만은 사용자가 풀어야 한다
@@ -325,6 +347,7 @@ class VoiceController extends ChangeNotifier implements VoiceSession {
   }
 
   void _backToListening() {
+    if (_spoken.isNotEmpty) _spokeUntil = _now();
     _answer = null;
     _sentence = '';
     _state = VoiceState.listening;
@@ -344,6 +367,7 @@ class VoiceController extends ChangeNotifier implements VoiceSession {
   }
 
   void _silence() {
+    if (_spoken.isNotEmpty) _spokeUntil = _now();
     _gen++;
     _sentence = '';
     _queue.clear();
@@ -351,18 +375,33 @@ class VoiceController extends ChangeNotifier implements VoiceSession {
     _engine.cancelSpeech();
   }
 
-  /// 들은 문장이 방금 읽은 답과 비슷하면 스피커 소리가 마이크로 들어온 것으로 본다 (R-A09).
-  bool _isEcho(String heard) {
+  /// 들은 것에 스피커 소리가 섞였을 수 있는지: 생각·읽는 중이거나, 읽기를 마치거나 끊은 직후에 시작된 말.
+  bool get _echoRisk {
+    if (_state != VoiceState.listening) return true;
+    final until = _spokeUntil, start = _utterStart;
+    return until != null && start != null && start.isBefore(until.add(echoTail));
+  }
+
+  /// 들은 문장에서 방금 읽은 답(스피커 소리가 마이크로 들어온 것)을 빼고 사용자가 한 말만 남긴다 (R-A09).
+  /// 남은 것이 없거나 잡음 수준이면 빈 문자열 — 자기 답을 질문으로 받아 되풀이하지 않는다.
+  /// 기기 음성 엔진은 소리로 에코를 지우지 못해(OS 인식기가 스피커 소리까지 듣는다) 글자로 거른다.
+  String _withoutEcho(String heard) {
     final h = _normalize(heard);
-    if (h.length < 2) return true; // 한 글자는 잡음으로 본다
+    if (h.length < 2) return _state == VoiceState.listening ? heard : ''; // 읽는 중 한 글자는 잡음으로 본다
     final spoken = _normalize(_spoken.join());
-    if (spoken.isEmpty) return false;
-    if (spoken.contains(h)) return true;
-    final hb = _bigrams(h);
-    if (hb.isEmpty) return false;
+    if (spoken.isEmpty) return heard;
+    if (_looksLike(h, spoken)) return '';
+    // 답 뒤에 사용자가 덧붙인 말이 섞여 있으면 그 낱말만 남긴다 (iOS는 한 세션에 들은 것을 이어 붙여 준다)
     final sb = _bigrams(spoken);
-    final common = hb.where(sb.contains).length;
-    return common / hb.length >= 0.6;
+    final kept = [
+      for (final word in heard.trim().split(RegExp(r'\s+')))
+        if (!_wordFromSpoken(_normalize(word), spoken, sb)) word,
+    ];
+    final rest = kept.join(' ');
+    final r = _normalize(rest);
+    // 남은 것이 짧고 대부분이 답이면, 잘못 알아들은 답 조각으로 본다
+    if (r.length < 2 || r.length / h.length < 0.3) return '';
+    return rest;
   }
 
   void _notify() {
@@ -380,6 +419,26 @@ class VoiceController extends ChangeNotifier implements VoiceSession {
       ..stopListening();
     super.dispose();
   }
+}
+
+/// 들은 것 전체가 읽은 답의 일부이거나, 낱자 둘씩 묶음의 60% 이상이 답에 있으면 답을 다시 들은 것이다.
+bool _looksLike(String h, String spoken) {
+  if (spoken.contains(h)) return true;
+  final hb = _bigrams(h);
+  if (hb.isEmpty) return false;
+  final sb = _bigrams(spoken);
+  return hb.where(sb.contains).length / hb.length >= 0.6;
+}
+
+/// 낱말 하나가 읽은 답에서 온 것인지: 그대로 있거나, 낱자 둘씩 묶음 또는 글자의 절반 이상이 답에 있음
+/// (스피커 소리는 한두 글자씩 잘못 알아듣는다 — "맑고" → "막고").
+bool _wordFromSpoken(String w, String spoken, Set<String> sb) {
+  if (w.isEmpty) return true;
+  if (spoken.contains(w)) return true;
+  final wb = _bigrams(w);
+  if (wb.isNotEmpty && wb.where(sb.contains).length / wb.length >= 0.5) return true;
+  final chars = w.runes.toList();
+  return chars.length >= 2 && chars.where((c) => spoken.contains(String.fromCharCode(c))).length / chars.length >= 0.5;
 }
 
 final _nonWord = RegExp(r'[^\p{L}\p{N}]', unicode: true);
