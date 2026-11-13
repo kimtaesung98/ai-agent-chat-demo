@@ -14,7 +14,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v1.17 |
+| 문서 버전 | v1.18 |
 | 상태 | 검토 중 — 현재 MVP 기록은 확정, 목표 아키텍처 ADR-005~015 승인 |
 | 작성자 | kimtaesung98 |
 | 최종 수정일 | 2026-11-13 |
@@ -166,12 +166,12 @@ flowchart LR
 | provider | `/server/internal/provider` | `Provider` 인터페이스, `Chunk`, 사용자용 오류 | chat |
 | provider/anthropic | `/server/internal/provider/anthropic` | Claude 어댑터 (SDK 사용) | provider, chat |
 | provider/mock | `/server/internal/provider/mock` | 모의 제공자 | provider, chat |
-| httpapi | `/server/internal/httpapi` | 라우팅, 요청 파싱, SSE 쓰기, 정적 파일. 실시간 음성 임시 키(API-007)는 `RealtimeSessions` 인터페이스로 (F-024) | chat, provider |
+| httpapi | `/server/internal/httpapi` | 라우팅, 요청 파싱, SSE 쓰기, 정적 파일. 실시간 음성 임시 키(API-007)는 `RealtimeSessions` 인터페이스로 (F-024). 계정·로그인·관리 API와 AI 경로 보호(`auth.go`, F-026·F-029·F-030) | chat, provider, account, usage, store |
 | openai | `/server/internal/openai` | OpenAI Realtime 임시 키 발급 어댑터 (표준 라이브러리만, 키는 밖으로 안 나감) — F-024, ADR-026 | (없음) |
-| store (목표, F-026) | `/server/internal/store` | `Store` 인터페이스와 도메인 행 타입(User·Session·Profile·Persona·Conversation·Summary·LongTermMemory). 모든 메서드가 `userID`를 받는다 | chat |
-| store/sqlite (목표, F-026) | `/server/internal/store/sqlite` | SQLite 구현, 마이그레이션(`embed`) — ADR-028 | store, chat |
-| account (목표, F-026·F-029) | `/server/internal/account` | 로그인 코드·Google ID 토큰 확인·세션 만들기·확인·만료, 역할 계층 권한 검사 `Can` — ADR-029·032 | store |
-| usage (목표, F-030) | `/server/internal/usage` | 사용량 상한 확인·증가(게스트·사용자·전체), 게스트 세션 — ADR-033 | store |
+| store (F-026) | `/server/internal/store` | `Store` 인터페이스와 도메인 행 타입(User·Session·Profile·Persona·Conversation·Summary·LongTermMemory). 모든 메서드가 `userID`를 받는다 | chat |
+| store/sqlite (F-026) | `/server/internal/store/sqlite` | SQLite 구현, 마이그레이션(`embed`) — ADR-028 | store, chat |
+| account (F-026·F-029) | `/server/internal/account` | 로그인 코드·Google ID 토큰 확인·세션 만들기·확인·만료, 역할 계층 권한 검사 `Can` — ADR-029·032 | store |
+| usage (F-030) | `/server/internal/usage` | 사용량 상한 확인·증가(게스트·사용자·전체), 게스트 세션 — ADR-033 | store |
 | contract | `/server/contract` | HTTP 수준 계약 테스트 (어느 서버에나 실행) | (표준 라이브러리만) |
 | archtest | `/server/internal/archtest` | §3.3 의존 규칙 검사 테스트 (모듈 맵에 없는 패키지도 실패) | (표준 라이브러리만) |
 | app/api | `/app/lib/api` | `/api/chat`·API-003·004·007 호출, SSE 파싱 (웹 `fetch_client` · 테스트 VM `package:http` 분기) | (없음) |
@@ -393,6 +393,9 @@ flowchart LR
 | `GOOGLE_CLIENT_ID` | N | (없음 → Google 로그인 꺼짐) | N | Google ID 토큰의 `aud` 확인 (ADR-029) | Go (F-026, 목표) |
 | `CARE_SETTING` | N | `daycare` | N | 배포 유형 — `daycare`(노치원)·`nursing_home`·`home_alone` (ADR-035) | Go (F-031, 목표) |
 | `GUEST_MODE` | N | `off` | N | `on`이면 게스트 체험 (ADR-033) | Go (F-030, 목표) |
+| `REQUIRE_LOGIN` | N | `off` | N | `on`이면 실제 모드에서 세션 없는 AI 경로(API-001·003·004·007)를 닫는다. 앱 로그인 화면(단계 7-⑤) 뒤 켬 (ADR-033) | Go (F-030) |
+| `BOOTSTRAP_ADMIN_CODE` · `BOOTSTRAP_ADMIN_NAME` | N | (없음) · `최고 관리자` | **Y** · N | 최고 관리자가 없을 때 이 10자리 코드로 첫 최고 관리자를 만든다(계약 테스트·처음 설치). 보통은 `chatd admin bootstrap -name 원장` | Go (F-026) |
+| `CLIENT_IP_HEADER` | N | (없음 → 연결 주소) | N | 프록시가 넣는 진짜 IP 헤더(예 `CF-Connecting-IP`) — IP별 상한에 씀 | Go (F-030) |
 | `GUEST_TURNS` · `GUEST_PER_IP_HOURLY` · `GUEST_DAILY_TOTAL` | N | `10` · `3` · `300` | N | 게스트 상한 | Go (F-030, 목표) |
 | `USER_DAILY_TURNS` · `ADMIN_DAILY_TURNS` · `VOICE_DAILY_MINUTES` · `DAILY_GLOBAL_LIMIT` | N | `300` · `500` · `60` · `5000` | N | 로그인 사용자·서버 전체 상한 | Go (F-030, 목표) |
 | `API_BASE_URL` | N | (비움 = 같은 출처) | N | 개발 때 다른 주소의 `chatd`를 부를 때만 **빌드 시** `--dart-define`으로 주입. 키는 절대 주입 금지 | Flutter |
@@ -483,7 +486,7 @@ Node MVP → Go + Flutter. 단계 1~4 완료 (2026-11-10). **각 단계는 따�
 | 3 | **Flutter 웹 클라이언트** — `app/` 구현 (S-001 화면 동등 기능) | F-001·F-002 화면 수용 기준을 위젯·단위 테스트로 통과, 웹에서 실시간 스트리밍 확인, Go 서버가 웹 빌드 제공 | ADR-006, 009, 010, 011 |
 | 4 | **Node MVP 제거** — `src/`, `public/`, `package.json`, Node 테스트 삭제 | 단계 1~3 완료 기준 유지, 루트 README·폴더 README·DFD를 새 구조로 갱신, ADR-001 "대체됨" | ADR-001 |
 | 6 | **전향: OpenAI Realtime + PWA** = F-024·F-025 (2026-11-13 등록, 사용자 요청). ① 서버 API-007 + 가짜 OpenAI 계약 테스트 + 최소 음성 화면 → iPhone 실측 ② 음성 화면 연결(자막·파형·끼어들기·끝내기 → 요약) ③ PWA 마무리(매니페스트·서비스 워커·설치 안내·Wake Lock) ④ ElevenLabs·기기 음성·네이티브 제거, 문서·DFD (①~④ 완료, 남은 것: 폰 확인) | F-024·F-025 수용 기준, 실제 iPhone 홈 화면 앱에서 음성 대화 | ADR-026, 027 |
-| 7 | **서비스화: 사용자별 서버 데이터** = F-026~F-030 (2026-11-13 승인). ① 문서(SPEC §7·API-010~022, ADR-028~033) ② 서버 `store`·`account`·`usage` (**`store`·`store/sqlite`·`account` 완료, 2026-11-13** — HTTP 연결·`usage` 남음): 코드·Google 로그인·세션·`chatd admin bootstrap`·역할 계층·관리 API·사용량 상한·게스트 + 격리·권한 계약 테스트 ③ 페르소나 형식 v1·프리셋 카탈로그·`/api/personas` ④ 대화·요약·기억 서버 처리(`/api/conversations`, `conversationId`) + 어르신 페르소나 `learned`(F-031) ⑤ 앱: 서버 저장소로 전환 + 기기 데이터 옮기기(`/api/import`) + 기기 원문 보관(IndexedDB) + 로그인·관리·기본 통합 설정 화면(노치원) ⑥ 옛 경로 정리(앱의 API-003·004 호출, `personas.v1`·`memory.v1`) | 단계마다 `go test ./...`·`flutter test` 통과, 계약 테스트는 메모리 DB로 네트워크 없이. ⑤ 뒤 iPhone PWA에서 F-026 AC8 | ADR-028~033 |
+| 7 | **서비스화: 사용자별 서버 데이터** = F-026~F-030 (2026-11-13 승인). ① 문서(SPEC §7·API-010~022, ADR-028~033) ② 서버 `store`·`account`·`usage` (**완료, 2026-11-13** — `REQUIRE_LOGIN`은 앱 로그인 화면 전까지 꺼짐): 코드·Google 로그인·세션·`chatd admin bootstrap`·역할 계층·관리 API·사용량 상한·게스트 + 격리·권한 계약 테스트 ③ 페르소나 형식 v1·프리셋 카탈로그·`/api/personas` ④ 대화·요약·기억 서버 처리(`/api/conversations`, `conversationId`) + 어르신 페르소나 `learned`(F-031) ⑤ 앱: 서버 저장소로 전환 + 기기 데이터 옮기기(`/api/import`) + 기기 원문 보관(IndexedDB) + 로그인·관리·기본 통합 설정 화면(노치원) ⑥ 옛 경로 정리(앱의 API-003·004 호출, `personas.v1`·`memory.v1`) | 단계마다 `go test ./...`·`flutter test` 통과, 계약 테스트는 메모리 DB로 네트워크 없이. ⑤ 뒤 iPhone PWA에서 F-026 AC8 | ADR-028~033 |
 | 5 | **모바일 빌드** — iOS·Android = F-017 (2026-11-11 등록, 사용자가 SPEC §1.4 비목표 해제) | 같은 코드로 빌드, `API_BASE_URL` 주입, 실제 기기에서 스트리밍 확인 | ADR-006, 022 |
 
 **남은 MVP 기능(F-003·F-004)과 음성 대화는 전환 뒤에 만듭니다** (SPEC §16 Q-004 결정). F-003은 단계 3에서 구현합니다.
@@ -544,8 +547,9 @@ flowchart LR
 | v1.13 | 2026-11-13 | kimtaesung98 | 전향(사용자 요청): ADR-026 OpenAI GPT Realtime(ADR-025 대체)·ADR-027 Flutter 웹 PWA(ADR-022 대체) 제안, §2.1·§2.2·§10 단계 6, R-A15·R-A16 |
 | v1.14 | 2026-11-13 | kimtaesung98 | 서비스화 제안(F-026~028): ADR-028 SQLite(`modernc.org/sqlite`, 제안 허용 목록), ADR-029 게스트 계정·서버 세션, ADR-030 페르소나 형식 v1·서버 프리셋 카탈로그(ADR-024 ④ 재검토), ADR-031 대화·요약·기억 서버 처리(ADR-024 대체 예정). 모듈 `store`·`store/sqlite`·`account`(목표), `DATA_DIR`, §10 단계 7, R-A17 |
 | v1.15 | 2026-11-13 | kimtaesung98 | 사용자 결정: ADR-028 승인(DB 라이브러리), ADR-029 개정(관리자 발급 코드 · 연결된 Google, 이름만 계정 없앰), ADR-030·031 승인, ADR-032 역할 계층, ADR-033 사용량 상한·게스트. 모듈 `usage`, 환경변수 `GOOGLE_CLIENT_ID`·`GUEST_*`·상한, R-A17 개정·R-A18 |
+| v1.17 | 2026-11-13 | kimtaesung98 | 단계 7-② 완료: `usage` 모듈, httpapi `auth.go`(→ account·usage·store), `cmd/chatd` 계정 조립·`admin bootstrap`, 환경변수 `REQUIRE_LOGIN`·`BOOTSTRAP_ADMIN_*`·`CLIENT_IP_HEADER` |
 | v1.16 | 2026-11-13 | kimtaesung98 | 사용자 방향: ADR-031 원문 기기 보관, ADR-034 어르신 페르소나(기본 설정 + learned), ADR-035 배포 유형(노치원 먼저), `CARE_SETTING`. 단계 7-② 첫 코드: `internal/store`·`store/sqlite`·`account` |
-| v1.17 | 2026-11-13 | kimtaesung98 | 6-④ 정리(사용자 "남은일을 마무리 짓자, 코드를 걷어내고"): ADR-026·027 적용, ADR-014 대체됨. §2.1·§2.2에서 `speech_to_text`·`flutter_tts`·`elevenlabs_agents` 제거, §3.1 구성도(OpenAI Realtime, 모바일 앱 없음), §3.2 모듈 맵(`elevenlabs` 제거·`openai` 확정), §3.3 의존 규칙, §5.3 음성 시나리오를 Realtime으로, §6.3 `ELEVENLABS_*` 제거·`API_BASE_URL` |
+| v1.18 | 2026-11-13 | kimtaesung98 | 6-④ 정리(사용자 "남은일을 마무리 짓자, 코드를 걷어내고"): ADR-026·027 적용, ADR-014 대체됨. §2.1·§2.2에서 `speech_to_text`·`flutter_tts`·`elevenlabs_agents` 제거, §3.1 구성도(OpenAI Realtime, 모바일 앱 없음), §3.2 모듈 맵(`elevenlabs` 제거·`openai` 확정), §3.3 의존 규칙, §5.3 음성 시나리오를 Realtime으로, §6.3 `ELEVENLABS_*` 제거·`API_BASE_URL` |
 | v1.12 | 2026-11-12 | kimtaesung98 | F-022: ADR-025(ElevenLabs Agents 실시간 음성, 우리 서버 Custom LLM), `internal/elevenlabs` 모듈, `elevenlabs_agents` 허용, §6.3 환경변수, R-A14 |
 | v1.11 | 2026-11-11 | kimtaesung98 | F-020: ADR-024에 장기 기억(API-004 `/api/consolidate`, API-001 `longTerm`) 추가 |
 | v1.10 | 2026-11-11 | kimtaesung98 | F-019: ADR-024(대화 요약 기억 — 앱 기기 저장, 서버 요약 API-003, 페르소나 지시 `base`·`instructions` 두 층), §4.1·§4.2 인터페이스 갱신 |

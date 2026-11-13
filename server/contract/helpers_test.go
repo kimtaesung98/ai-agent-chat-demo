@@ -40,6 +40,7 @@ func run(m *testing.M) int {
 		defer stop()
 		*baseURL = url
 		fmt.Println("contract: 모의 모드 chatd를 띄웠어요", url)
+		localChatd = true
 	}
 	// F-009 AC3: 모의 모드가 아니면 채팅 요청을 보내기 전에 멈춘다 (실제 Claude 호출 방지)
 	if err := requireMockMode(); err != nil {
@@ -97,7 +98,8 @@ func startChatd() (string, func(), error) {
 	fakeAI := startFakeOpenAI()
 	cmd.Env = append(env, fmt.Sprintf("PORT=%d", port), "STATIC_DIR="+static,
 		"OPENAI_API_KEY="+fakeOpenAIKey, "OPENAI_API_BASE="+fakeAI.URL)
-	cmd.Stderr = os.Stderr // 요청 로그(stdout)는 버린다
+	cmd.Env = append(cmd.Env, accountEnv...) // F-026·F-030 (accounts_test.go)
+	cmd.Stderr = os.Stderr                   // 요청 로그(stdout)는 버린다
 	if err := cmd.Start(); err != nil {
 		cleanup()
 		return "", nil, err

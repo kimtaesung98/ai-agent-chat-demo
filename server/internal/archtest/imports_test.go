@@ -17,7 +17,7 @@ const sdk = "github.com/anthropics/anthropic-sdk-go"
 // allowed는 패키지(module 기준 상대 경로)마다 import해도 되는 모듈 내부 패키지다.
 // 여기 없는 패키지는 검사에 실패한다 → 새 패키지를 만들면 ARCHITECTURE.md §3.2·§3.3과 이 표를 같이 고친다.
 var allowed = map[string][]string{
-	"cmd/chatd":                   {"internal/config", "internal/httpapi", "internal/provider", "internal/provider/anthropic", "internal/provider/mock", "internal/openai"},
+	"cmd/chatd":                   {"internal/config", "internal/httpapi", "internal/provider", "internal/provider/anthropic", "internal/provider/mock", "internal/openai", "internal/account", "internal/usage", "internal/store/sqlite"},
 	"contract":                    {},
 	"internal/archtest":           {},
 	"internal/chat":               {},
@@ -26,10 +26,11 @@ var allowed = map[string][]string{
 	"internal/provider":           {"internal/chat"},
 	"internal/provider/mock":      {"internal/chat", "internal/provider"},
 	"internal/provider/anthropic": {"internal/chat", "internal/provider"},
-	"internal/httpapi":            {"internal/chat", "internal/provider"},
+	"internal/httpapi":            {"internal/chat", "internal/provider", "internal/account", "internal/usage", "internal/store"},
 	"internal/store":              {},
 	"internal/store/sqlite":       {"internal/store"},
 	"internal/account":            {"internal/store"},
+	"internal/usage":              {"internal/store"},
 }
 
 func TestImportRules(t *testing.T) {
