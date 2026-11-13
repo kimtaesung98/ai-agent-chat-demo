@@ -109,6 +109,23 @@ type UsageDelta struct {
 }
 
 // Store는 서버 DB다. 모든 메서드는 동시에 불러도 안전하다.
+// Persona는 사람마다 가진 대화 상대다 (F-027, SPEC.md §7.2 Persona v1).
+// kind "preset"의 기본 지시는 저장하지 않는다 — 카탈로그(chat 패키지)에서 찾는다.
+type Persona struct {
+	ID           string
+	UserID       string
+	Kind         string // preset · custom
+	PresetID     string
+	Name         string
+	Role         string
+	Tones        []string
+	Instructions string
+	Revision     int
+	ClientID     string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type Store interface {
 	Close() error
 
@@ -148,4 +165,68 @@ type Store interface {
 	AddUsage(ctx context.Context, deltas []UsageDelta) error
 	// DeleteUsageBefore는 bucket < before인 행을 지운다 (버킷 문자열은 사전 순 = 시간 순).
 	DeleteUsageBefore(ctx context.Context, before string) (int, error)
+
+	// 페르소나 (F-027). 모두 user_id로 거른다 — 남의 id면 ErrNotFound.
+	// CreatePersona는 그 사람 페르소나가 max개 이상이면 ErrQuota, 같은 clientId가 있으면 ErrConflict.
+	CreatePersona(ctx context.Context, p Persona, max int) error
+	ListPersonas(ctx context.Context, userID string) ([]Persona, error)
+	GetPersona(ctx context.Context, userID, id string) (Persona, error)
+	// UpdatePersona는 저장된 revision이 p.Revision-1일 때만 바꾼다. 다르면 ErrConflict.
+	UpdatePersona(ctx context.Context, p Persona) error
+	DeletePersona(ctx context.Context, userID, id string) error
+	// SeedPersonas는 그 계정에 아직 한 번도 넣지 않았을 때만 ps를 넣고 true (한 트랜잭션).
+	SeedPersonas(ctx context.Context, userID string, ps []Persona) (bool, error)
+
+	// 대화·요약·장기 기억 (F-028). 원문은 없다. 모두 user_id로 거른다.
+	CreateConversation(ctx context.Context, c Conversation) error
+	GetConversation(ctx context.Context, userID, id string) (Conversation, error)
+	UpdateConversation(ctx context.Context, c Conversation) error // 상태·끝난 시각·턴 수
+	AddConversationTurn(ctx context.Context, userID, id string) error
+	// PutSummary는 같은 대화의 요약이 있으면 바꾼다 (id·folded는 그대로).
+	PutSummary(ctx context.Context, s Summary) (Summary, error)
+	// ListSummaries는 그 페르소나의 요약을 오래된 것부터.
+	ListSummaries(ctx context.Context, userID, personaID string) ([]Summary, error)
+	DeleteSummary(ctx context.Context, userID, id string) error
+	DeleteSummaries(ctx context.Context, userID string, ids []string) error
+	// FoldInto는 ids 요약을 묶였다고 표시하고 장기 기억을 lt로 바꾼다 (한 트랜잭션).
+	FoldInto(ctx context.Context, lt LongTermMemory, ids []string) error
+	GetLongTerm(ctx context.Context, userID, personaID string) (LongTermMemory, error)
+	// DeletePersonaMemory는 그 페르소나의 요약·장기 기억을 모두 지운다.
+	DeletePersonaMemory(ctx context.Context, userID, personaID string) error
+}
+
+// Conversation은 서버가 연 대화 하나다 (F-028). 원문은 앱이 기기에 둔다.
+type Conversation struct {
+	ID        string
+	UserID    string
+	PersonaID string
+	Channel   string // text · voice
+	Status    string // open · ended · summarized
+	StartedAt time.Time
+	EndedAt   time.Time // 열려 있으면 0
+	Turns     int
+}
+
+// Summary는 끝난 대화 하나의 요약이다 (F-028, 앱 SessionSummary와 같은 모양).
+type Summary struct {
+	ID             string
+	UserID         string
+	PersonaID      string
+	ConversationID string
+	EndedAt        time.Time
+	Summary        string
+	Facts          []string
+	FollowUps      []string
+	Turns          int
+	Folded         bool // 장기 기억에 묶였는지
+}
+
+// LongTermMemory는 그 페르소나의 오래된 요약을 묶은 것이다 (F-020·F-028).
+type LongTermMemory struct {
+	PersonaID   string
+	UserID      string
+	Summary     string
+	Facts       []string
+	CoversUntil time.Time
+	UpdatedAt   time.Time
 }

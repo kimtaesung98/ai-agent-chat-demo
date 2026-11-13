@@ -58,7 +58,7 @@ const (
 
 // WithAccounts는 계정 기능을 켠다.
 func WithAccounts(acc *account.Service, lim *usage.Limiter, o AuthOptions) Option {
-	return func(s *server) { s.accounts, s.limiter, s.authOpts = acc, lim, o }
+	return func(s *server) { s.accounts, s.limiter, s.authOpts, s.store = acc, lim, o, acc.Store() }
 }
 
 type principalKey struct{}
@@ -89,6 +89,18 @@ func (s *server) withAccounts(next http.Handler) http.Handler {
 	mux.HandleFunc("POST /api/admin/care", s.handleCare)
 	mux.HandleFunc("POST /api/admin/guardians", s.handleGuardians)
 	mux.HandleFunc("GET /api/admin/audit", s.handleAudit)
+	mux.HandleFunc("GET /api/presets", s.handlePresets)
+	mux.HandleFunc("GET /api/personas", s.handleListPersonas)
+	mux.HandleFunc("POST /api/personas", s.handleCreatePersona)
+	mux.HandleFunc("POST /api/personas/presets", s.handleRestorePresets)
+	mux.HandleFunc("GET /api/personas/{id}", s.handleGetPersona)
+	mux.HandleFunc("PUT /api/personas/{id}", s.handleUpdatePersona)
+	mux.HandleFunc("DELETE /api/personas/{id}", s.handleDeletePersona)
+	mux.HandleFunc("GET /api/personas/{id}/memory", s.handlePersonaMemory)
+	mux.HandleFunc("DELETE /api/personas/{id}/memory", s.handleDeletePersonaMemory)
+	mux.HandleFunc("DELETE /api/summaries/{id}", s.handleDeleteSummary)
+	mux.HandleFunc("POST /api/conversations", s.handleOpenConversation)
+	mux.HandleFunc("POST /api/conversations/{id}/end", s.handleEndConversation)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
@@ -112,8 +124,8 @@ func (s *server) withAccounts(next http.Handler) http.Handler {
 		}
 		r = r.WithContext(ctx)
 		switch {
-		case p == "/api/auth/options" || p == "/api/me" || strings.HasPrefix(p, "/api/auth/") || strings.HasPrefix(p, "/api/me/") || strings.HasPrefix(p, "/api/admin/"):
-			if r.Method == http.MethodPost || r.Method == http.MethodPatch {
+		case accountRoute(p):
+			if r.Method == http.MethodPost || r.Method == http.MethodPatch || r.Method == http.MethodPut {
 				if ct := r.Header.Get("Content-Type"); ct != "" && !strings.HasPrefix(ct, "application/json") {
 					writeError(w, http.StatusUnsupportedMediaType, "INVALID_INPUT", msgNeedJSON)
 					return
@@ -128,6 +140,19 @@ func (s *server) withAccounts(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		}
 	})
+}
+
+// accountRoute는 계정·개인 데이터 API 경로다 (이 미들웨어의 mux가 처리).
+func accountRoute(p string) bool {
+	if p == "/api/me" || p == "/api/presets" || p == "/api/personas" || p == "/api/conversations" {
+		return true
+	}
+	for _, pre := range []string{"/api/auth/", "/api/me/", "/api/admin/", "/api/personas/", "/api/conversations/", "/api/summaries/"} {
+		if strings.HasPrefix(p, pre) {
+			return true
+		}
+	}
+	return false
 }
 
 // sameOrigin은 Origin 헤더가 있으면 이 서버 주소와 같은지 본다 (없으면 같은 출처 요청으로 본다 — 브라우저는 교차 출처 POST에 Origin을 붙인다).
