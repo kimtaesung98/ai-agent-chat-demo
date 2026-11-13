@@ -24,6 +24,13 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "admin" { // chatd admin bootstrap -name 원장 (F-026 AC7)
+		if err := adminCommand(os.Args[2:], os.Getenv, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	if err := run(log); err != nil {
 		log.Error("서버를 시작할 수 없어요", "error", err.Error())
@@ -40,10 +47,19 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	acfg, err := config.LoadAccounts(os.Getenv)
+	if err != nil {
+		return err
+	}
+	accountsOpt, closeAccounts, err := openAccounts(context.Background(), acfg, cfg.MockMode(), log)
+	if err != nil {
+		return err
+	}
+	defer closeAccounts()
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           httpapi.New(p, cfg.StaticDir, log, voiceOptions(cfg)...),
+		Handler:           httpapi.New(p, cfg.StaticDir, log, append(voiceOptions(cfg), accountsOpt)...),
 		ReadHeaderTimeout: 10 * time.Second,
 		// WriteTimeout은 두지 않는다: SSE 응답이 길어질 수 있음
 	}

@@ -15,8 +15,10 @@ import (
 	"path"
 	"strings"
 
+	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/account"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/chat"
 	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/provider"
+	"github.com/kimtaesung98/ai-agent-chat-demo/server/internal/usage"
 )
 
 // MaxBodyBytes는 POST /api/chat 본문 한도다.
@@ -47,6 +49,11 @@ type server struct {
 	tokens    TokenSource      // nil이면 실시간 음성 대화 없음 (F-022)
 	llmSecret string           // 비면 /v1/chat/completions 꺼짐 (F-022)
 	realtime  RealtimeSessions // nil이면 OpenAI 실시간 음성 없음 (F-024)
+
+	// 계정 기능 (F-026·F-029·F-030, auth.go). accounts가 nil이면 꺼짐
+	accounts *account.Service
+	limiter  *usage.Limiter
+	authOpts AuthOptions
 }
 
 // RealtimeSecret은 브라우저가 OpenAI Realtime에 WebRTC로 붙을 때 쓰는 임시 키다 (F-024, API-007).
@@ -107,7 +114,11 @@ func New(p provider.Provider, staticDir string, log *slog.Logger, opts ...Option
 		}
 		s.handleStatic(w, r)
 	})
-	return withLogging(log, withRecover(log, mux))
+	var h http.Handler = mux
+	if s.accounts != nil {
+		h = s.withAccounts(mux)
+	}
+	return withLogging(log, withRecover(log, h))
 }
 
 func only(method, msg string, h http.HandlerFunc) http.HandlerFunc {
