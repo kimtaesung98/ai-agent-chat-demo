@@ -17,12 +17,11 @@ const sdk = "github.com/anthropics/anthropic-sdk-go"
 // allowed는 패키지(module 기준 상대 경로)마다 import해도 되는 모듈 내부 패키지다.
 // 여기 없는 패키지는 검사에 실패한다 → 새 패키지를 만들면 ARCHITECTURE.md §3.2·§3.3과 이 표를 같이 고친다.
 var allowed = map[string][]string{
-	"cmd/chatd":                   {"internal/config", "internal/httpapi", "internal/provider", "internal/provider/anthropic", "internal/provider/mock", "internal/elevenlabs", "internal/openai", "internal/account", "internal/usage", "internal/store/sqlite"},
+	"cmd/chatd":                   {"internal/config", "internal/httpapi", "internal/provider", "internal/provider/anthropic", "internal/provider/mock", "internal/openai", "internal/account", "internal/usage", "internal/store/sqlite"},
 	"contract":                    {},
 	"internal/archtest":           {},
 	"internal/chat":               {},
 	"internal/config":             {},
-	"internal/elevenlabs":         {},
 	"internal/openai":             {},
 	"internal/provider":           {"internal/chat"},
 	"internal/provider/mock":      {"internal/chat", "internal/provider"},
@@ -102,7 +101,7 @@ func TestImportRules(t *testing.T) {
 	})
 
 	t.Run("F-009 계약 테스트와 chat 도메인은 표준 라이브러리만 쓴다", func(t *testing.T) {
-		for _, pkg := range []string{"contract", "internal/chat", "internal/config", "internal/elevenlabs"} {
+		for _, pkg := range []string{"contract", "internal/chat", "internal/config", "internal/openai"} {
 			for _, p := range imports[pkg] {
 				if first, _, _ := strings.Cut(p, "/"); strings.Contains(first, ".") {
 					t.Errorf("%s가 외부 모듈 %s를 import해요", pkg, p)

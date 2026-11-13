@@ -49,22 +49,19 @@ final class ChatFailed extends ChatEvent {
   final String message;
 }
 
-/// 실시간 음성 토큰을 받지 못함 (F-022, API-005). 앱은 기기 음성(F-012)으로 대화한다.
+/// 실시간 음성 임시 키를 받지 못함 (F-024, API-007). 앱은 한 번 알리고 글 대화로 계속한다.
 class VoiceTokenFailed implements Exception {
   const VoiceTokenFailed();
 }
 
 /// GET /api/config 결과 (SPEC.md API-002).
 class ServerConfig {
-  const ServerConfig({required this.provider, required this.model, this.voiceAgent = false, this.voiceProvider = ''});
+  const ServerConfig({required this.provider, required this.model, this.voiceAgent = false});
   final String provider;
   final String model;
 
-  /// 서버가 실시간 음성 대화(ElevenLabs Agents) 토큰을 줄 수 있는지 (F-022, API-002 `voiceAgent`).
+  /// 서버가 실시간 음성(OpenAI Realtime) 임시 키를 줄 수 있는지 (F-024, API-002 `voiceAgent` == `openai`).
   final bool voiceAgent;
-
-  /// 실시간 음성 서비스 — API-002 `voiceAgent` 값 그대로(`openai`·`elevenlabs`). 꺼져 있으면 빈 문자열 (F-024).
-  final String voiceProvider;
 
   bool get isMock => provider == 'mock';
 }

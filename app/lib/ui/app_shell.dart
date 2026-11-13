@@ -7,9 +7,8 @@ import 'package:flutter/material.dart';
 import '../chat/auth_controller.dart';
 import '../chat/chat_controller.dart';
 import '../chat/display_settings.dart';
-import '../chat/server_settings.dart';
 import '../chat/start_settings.dart';
-import '../voice/voice_controller.dart';
+import '../voice/voice_session.dart';
 import 'chat_page.dart';
 import 'install_hint.dart';
 import 'login_page.dart';
@@ -21,7 +20,6 @@ class AppShell extends StatelessWidget {
     required this.auth,
     required this.controller,
     this.voice,
-    this.server,
     this.start,
     this.display,
     this.mockGoogle = false,
@@ -31,7 +29,6 @@ class AppShell extends StatelessWidget {
   final AuthController auth;
   final ChatController controller;
   final VoiceSession? voice;
-  final ServerSettings? server;
   final StartSettings? start;
   final DisplaySettings? display;
   final bool mockGoogle;
@@ -55,7 +52,6 @@ class AppShell extends StatelessWidget {
         return ChatPage(
           controller: controller,
           voice: voice,
-          server: server,
           start: start,
           auth: auth,
           display: display,

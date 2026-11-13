@@ -98,5 +98,6 @@ cat <<OUT
 
 비밀값은 직접 넣으세요 (값이 화면 기록에 남지 않게 read -s 사용):
   read -rs K && aws ssm put-parameter --region $REGION --name /chatd/anthropic-api-key --type SecureString --value "\$K" --overwrite; unset K
+  read -rs O && aws ssm put-parameter --region $REGION --name /chatd/openai-api-key --type SecureString --value "\$O" --overwrite; unset O   # 실시간 음성(F-024), 선택
   read -rs T && aws ssm put-parameter --region $REGION --name /chatd/cloudflare-tunnel-token --type SecureString --value "\$T" --overwrite; unset T
 OUT

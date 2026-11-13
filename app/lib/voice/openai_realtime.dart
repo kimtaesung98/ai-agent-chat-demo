@@ -25,9 +25,6 @@ class OpenAiRealtimeAgent implements RealtimeAgent {
   var _gen = 0; // 연결마다 늘려, 끊은 연결의 늦은 사건을 버린다
 
   @override
-  String get kind => 'openai';
-
-  @override
   Stream<AgentEvent> get events => _events.stream;
 
   @override
@@ -68,11 +65,7 @@ class OpenAiRealtimeAgent implements RealtimeAgent {
   }
 
   @override
-  Future<void> start({
-    required String token,
-    required Map<String, Object?> context,
-    required Map<String, String> variables,
-  }) {
+  Future<void> start({required String token, required Map<String, Object?> context}) {
     final gen = ++_gen;
     final history = context['history'];
     final greet = history is! List || history.isEmpty; // 처음 연결이면 먼저 인사, 다시 연결이면 이어서

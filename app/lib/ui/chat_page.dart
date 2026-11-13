@@ -8,9 +8,8 @@ import '../chat/auth_controller.dart';
 import '../chat/chat_controller.dart';
 import '../chat/display_settings.dart';
 import '../chat/persona_controller.dart';
-import '../chat/server_settings.dart';
 import '../chat/start_settings.dart';
-import '../voice/voice_controller.dart';
+import '../voice/voice_session.dart';
 import 'install_hint.dart';
 import 'persona_editor.dart';
 import 'persona_widgets.dart';
@@ -23,7 +22,6 @@ class ChatPage extends StatefulWidget {
     super.key,
     required this.controller,
     this.voice,
-    this.server,
     this.start,
     this.auth,
     this.display,
@@ -32,11 +30,8 @@ class ChatPage extends StatefulWidget {
 
   final ChatController controller;
 
-  /// 음성 대화 (F-012). 없으면 마이크 버튼을 그리지 않는다.
+  /// 음성 대화 (F-024). 없으면 마이크 버튼을 그리지 않는다.
   final VoiceSession? voice;
-
-  /// 모바일 앱의 서버 주소 설정 (F-017 AC7). 웹은 null.
-  final ServerSettings? server;
 
   /// 앱 시작 설정 (F-021). 켜 있으면 첫 화면에서 바로 음성 대화 화면을 연다.
   final StartSettings? start;
@@ -177,7 +172,6 @@ class _ChatPageState extends State<ChatPage> {
       auth: widget.auth,
       start: widget.start,
       display: widget.display,
-      server: widget.server,
     );
   }
 
@@ -186,7 +180,7 @@ class _ChatPageState extends State<ChatPage> {
     final c = ChatColors.of(context);
     final personas = _personas;
     return ListenableBuilder(
-      listenable: Listenable.merge([_chat, ?_voice, ?personas, ?widget.server]),
+      listenable: Listenable.merge([_chat, ?_voice, ?personas]),
       builder: (context, _) => LayoutBuilder(
         builder: (context, box) {
           final wide = personas != null && box.maxWidth >= sidebarBreakpoint;
@@ -384,7 +378,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 }
 
-/// 마이크 버튼: 켜기 · 끄기 · 읽는 중 끼어들기 (F-012 AC5).
+/// 마이크 버튼: 켜기 · 끄기 (F-024). 끼어들기는 말로 한다 — 실시간 모델이 알아서 멈춘다.
 class _MicButton extends StatelessWidget {
   const _MicButton({required this.voice});
   final VoiceSession voice;
@@ -394,8 +388,7 @@ class _MicButton extends StatelessWidget {
     final c = ChatColors.of(context);
     final (icon, tip) = switch (voice.state) {
       VoiceState.off => (Icons.mic_none, '음성 대화 시작'),
-      VoiceState.listening => (Icons.mic, '음성 대화 끄기'),
-      VoiceState.thinking || VoiceState.speaking => (Icons.front_hand_outlined, '끼어들기 — 읽기를 멈추고 듣기'),
+      VoiceState.listening || VoiceState.thinking || VoiceState.speaking => (Icons.mic, '음성 대화 끄기'),
     };
     return SizedBox(
       height: 48,
@@ -416,7 +409,7 @@ class _MicButton extends StatelessWidget {
   }
 }
 
-/// 음성 상태와 인식 중인 문장, 안내 (F-012 상세 동작 1·2·7).
+/// 음성 상태와 인식 중인 문장, 안내 (F-024 상세 4·7).
 class _VoiceBar extends StatelessWidget {
   const _VoiceBar({required this.voice});
   final VoiceSession voice;
@@ -438,7 +431,7 @@ class _VoiceBar extends StatelessWidget {
       VoiceState.off => null,
       VoiceState.listening => voice.partial.isEmpty ? '듣는 중… 말씀하세요' : voice.partial,
       VoiceState.thinking => '생각 중…',
-      VoiceState.speaking => '말하는 중 — 말하거나 손 버튼을 누르면 끼어들어요',
+      VoiceState.speaking => '말하는 중 — 말씀하시면 멈추고 들어요',
     };
     if (label == null) return const SizedBox.shrink();
     return Padding(

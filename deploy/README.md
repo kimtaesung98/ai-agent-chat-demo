@@ -49,7 +49,7 @@ flowchart LR
 - IAM 정책은 필요한 동작·리소스만 (최소 권한)
 
 **금지**
-- AWS 액세스 키, `ANTHROPIC_API_KEY`, 터널 토큰을 파일·로그·출력·이미지에 넣기 — 비밀값은 SSM Parameter Store에만
+- AWS 액세스 키, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, 터널 토큰을 파일·로그·출력·이미지에 넣기 — 비밀값은 SSM Parameter Store에만
 - 보안 그룹에 인바운드 규칙 추가 (F-014 AC3). 들어오는 길은 Cloudflare Tunnel 하나
 - 사용자 승인 없이 AWS·Cloudflare 리소스를 만들거나 지우기, 배포 워크플로 실행
 
@@ -68,7 +68,7 @@ flowchart LR
 3. **Cloudflare 도메인** — Cloudflare에 도메인을 추가(Free 요금제)하고, 도메인 등록 업체에서 네임서버를 Cloudflare가 알려 준 것으로 바꿉니다.
 4. **Cloudflare Tunnel** — Zero Trust → Networks → Tunnels → Create a tunnel(Cloudflared), 이름 `chatd`. 설치 화면에 나오는 토큰을 복사해 2번이 출력한 `read -rs T && aws ssm put-parameter … /chatd/cloudflare-tunnel-token …` 명령으로 넣습니다. Public hostname: 예) `chat.<도메인>` → Service `HTTP` · `chatd:3000`.
 5. **Cloudflare Access** — Zero Trust → Access → Applications → Add → Self-hosted, 도메인 `chat.<도메인>`. 정책 Allow · Include: Emails(허용할 이메일들). 로그인 방법은 One-time PIN(기본)이면 충분합니다.
-6. **Claude API 키** — 2번이 출력한 `… /chatd/anthropic-api-key …` 명령으로 넣습니다. 넣지 않으면 모의 모드로 뜹니다.
+6. **Claude API 키** — 2번이 출력한 `… /chatd/anthropic-api-key …` 명령으로 넣습니다. 넣지 않으면 모의 모드로 뜹니다. 실시간 음성(F-024)을 쓰려면 `… /chatd/openai-api-key …` 명령으로 OpenAI 키도 넣습니다 (없으면 글 대화만, 발급은 `docs/OPENAI_REALTIME_SETUP.md`).
 7. **GitHub 설정** — 저장소 Settings → Environments에 `production`을 만들고(필요하면 승인자 지정), Settings → Secrets and variables → Actions → Variables에 2번이 출력한 `AWS_REGION`, `AWS_DEPLOY_ROLE_ARN`, `ECR_REPOSITORY_URI`, `EC2_INSTANCE_ID`를 넣습니다. 모두 비밀값이 아닙니다.
 8. **배포** — Actions → Deploy → Run workflow. 끝나면 `chat.<도메인>`에 접속합니다.
 

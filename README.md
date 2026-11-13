@@ -32,9 +32,7 @@ cd ../app && flutter analyze && flutter test   # Flutter 분석·테스트
 | `ANTHROPIC_API_KEY` | (없음) | 있으면 Claude 모드, 없으면 모의 모드 |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Claude 모드에서 쓸 모델 |
 | `STATIC_DIR` | `./web` | 화면 파일 폴더 (보통 `../app/build/web`) |
-| `ELEVENLABS_API_KEY` · `ELEVENLABS_AGENT_ID` | (없음) | 있으면 앱 음성 대화가 ElevenLabs Agents 실시간 음성 (F-022). 설정 방법: [`docs/ELEVENLABS_SETUP.md`](./docs/ELEVENLABS_SETUP.md) |
-| `ELEVENLABS_LLM_SECRET` | (없음) | ElevenLabs가 Custom LLM(`/v1/chat/completions`)을 부를 때의 Bearer 비밀값 (16자 이상) |
-| `OPENAI_API_KEY` | (없음) | 있으면 웹 음성 대화가 OpenAI GPT Realtime (F-024). 설정·폰 확인: [`docs/OPENAI_REALTIME_SETUP.md`](./docs/OPENAI_REALTIME_SETUP.md) |
+| `OPENAI_API_KEY` | (없음) | 있으면 음성 대화가 OpenAI GPT Realtime (F-024), 없으면 음성 버튼은 안내만 하고 글 채팅만. 설정·폰 확인: [`docs/OPENAI_REALTIME_SETUP.md`](./docs/OPENAI_REALTIME_SETUP.md) |
 | `OPENAI_REALTIME_MODEL` · `OPENAI_REALTIME_VOICE` | `gpt-realtime` · `marin` | 실시간 모델·목소리 |
 | `DATA_DIR` | (없음 → 메모리 DB) | 계정·데이터 DB 폴더 (`chatd.db`) — F-026 |
 | `GOOGLE_CLIENT_ID` · `GUEST_MODE` · `REQUIRE_LOGIN` | (없음) · `off` · `off` | Google 로그인 · 게스트 체험 · 로그인 없는 AI 막기 (F-026·F-030, ARCHITECTURE §6.3에 상한 값) |
@@ -49,13 +47,13 @@ cd ../app && flutter analyze && flutter test   # Flutter 분석·테스트
 ```mermaid
 flowchart LR
     User([방문자<br>브라우저]) -->|"메시지 · 목소리 · 대화 내역 · 페르소나"| System["AI Agent Chat<br>(Level 0)"]
-    System -->|"응답 조각 (SSE) · 읽어 주는 소리"| User
+    System -->|"응답 조각 (SSE) · 화면(PWA) · 임시 키"| User
     Operator([운영자]) -->|"환경변수<br>API 키 · 모델"| System
     System -->|"Messages API 요청<br>stream: true"| Claude[[Claude API]]
     Claude -->|"스트리밍 이벤트"| System
-    User <-->|"실시간 음성 (WebRTC)"| Eleven[[ElevenLabs Agents]]
-    System -->|"대화 토큰 요청"| Eleven
-    Eleven -->|"Custom LLM 요청<br>/v1/chat/completions"| System
+    User <-->|"실시간 음성 (WebRTC, 임시 키)"| OpenAI[[OpenAI Realtime]]
+    System -->|"임시 키 요청<br>지시문(페르소나·기억·내역)"| OpenAI
+    OpenAI -->|"임시 키"| System
 ```
 
 ---
@@ -65,10 +63,10 @@ flowchart LR
 > 원본: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §2 — 버전·상태·허용 라이브러리·선택 이유는 거기에만 적습니다.
 
 - 서버: Go (`chatd`, 표준 라이브러리 + 공식 Anthropic Go SDK)
-- 클라이언트: Flutter (웹 우선, 같은 코드로 모바일은 ARCHITECTURE.md §10 단계 5)
+- 클라이언트: Flutter 웹, 폰 홈 화면에 설치하는 PWA (F-025, ADR-027 — 네이티브 Android·iOS 빌드 없음)
 - 처음 Node.js MVP는 F-013에서 제거 (ADR-001 대체됨)
-- 음성: ElevenLabs Agents 실시간 음성 (`elevenlabs_agents`, 앱 — F-022). 안 되면 `speech_to_text` · `flutter_tts` (기기 음성 엔진, 키 없음)
-- 외부 서비스: Claude API (Messages API, 스트리밍), ElevenLabs Agents (WebRTC 음성 · 우리 서버를 Custom LLM으로 부름)
+- 음성: OpenAI GPT Realtime — 브라우저 WebRTC 직접, 서버는 지시문을 담은 임시 키만 발급 (F-024, ADR-026). 새 패키지 없음
+- 외부 서비스: Claude API (글 채팅·요약·장기 기억, 스트리밍), OpenAI Realtime (실시간 음성)
 
 ---
 
@@ -105,8 +103,8 @@ flowchart LR
 
 | 폴더 | DFD 레벨 | 담당 기능 ID | 설명 |
 |------|----------|--------------|------|
-| `/server` | Level 1 | F-001 ~ F-004 서버, F-009, F-010, F-013 · F-005 · F-012 · F-019 · F-022 서버 | Go 서버 `chatd` (API-001·002, Flutter 웹 빌드 제공, 페르소나·음성 프롬프트) · HTTP 계약 테스트(`contract/`) |
-| `/app` | Level 1 | F-011, F-001 ~ F-005 화면, F-012, F-017, F-018, F-019, F-022 | Flutter 클라이언트 (S-001·S-002·S-003) — 웹 · Android·iOS 앱 (`android/`·`ios/`) · 음성 대화 · 음성 전용 화면 |
+| `/server` | Level 1 | F-001 ~ F-004 서버, F-009, F-010, F-013 · F-005 · F-012 · F-019 · F-024 서버 | Go 서버 `chatd` (API-001~004·007, Flutter 웹 빌드 제공, 페르소나·음성 프롬프트, Realtime 임시 키) · HTTP 계약 테스트(`contract/`) |
+| `/app` | Level 1 | F-011, F-001 ~ F-005 화면, F-018, F-019, F-023, F-024, F-025 | Flutter 웹 클라이언트·PWA (S-001~S-007) — 실시간 음성(WebRTC) · 음성 전용 화면 |
 | `/deploy` | Level 1 | F-014 | AWS·Cloudflare 배포: EC2 설정 스크립트(`provision.sh`), 컨테이너 실행(`run-chatd.sh`), IAM 정책. 이미지는 루트 `Dockerfile`, 실행은 `deploy.yml` |
 
 ---
@@ -137,11 +135,11 @@ flowchart LR
 | F-021 | 켜면 바로 음성 대화 | 🔄 In Progress | `/app` | 2026-11-11 | 사용자 "추천대로 진행"(다음 계획 2). 서랍 스위치 → 앱을 열면 음성 대화 화면으로 시작, 기기 저장 `start.voice`. AC1~AC3 위젯·저장 테스트(`flutter test` 164개). **AC4 실제 폰 확인(사용자) 남음** |
 | F-020 | 장기 기억 (기억 압축) | 🔄 In Progress | `/app`, `/server` | 2026-11-11 | 사용자 "추천대로 진행"(다음 계획 1). 최근 5개 밖으로 밀린 요약을 API-004 `/api/consolidate`로 페르소나별 장기 기억에 묶어 `longTerm`으로 싣기, 편집 화면 표시·지우기. AC1~AC4 Go·계약·Flutter 테스트(`flutter test` 159개). **AC5 실제 Claude 확인(사용자) 남음** |
 | F-019 | 페르소나 지시 두 층 · 대화 요약 기억 | 🔄 In Progress | `/app`, `/server` | 2026-11-11 | 사용자 "추가 지시를 탑재 기본 + 사용자 요구로 나누고, 대화 세션이 끝나면 요약해 다음 세션의 기반으로". `persona.base`(탑재 페르소나 고정)·`instructions`(내 요구 사항), API-003 `/api/summary`, API-001 `memory`(최근 5개), 기기 저장 `memory.v1`, 편집 화면 기억 보기·지우기. AC1~AC7 Go 단위·계약 테스트, `flutter test` 152개, 모의 모드 웹 빌드로 요약 → 다음 요청 `memory` 확인. **AC8 실제 Claude 모드 확인(사용자) 남음** |
-| F-022 | 실시간 음성 대화 (ElevenLabs Agents) | ❌ Blocked | `/app`, `/server` | 2026-11-13 | **대체됨 → F-024** (사용자 전향, 2026-11-13). 코드는 F-024 정리 단계에서 지움. 이전: 사용자 "ElevenLabs Agents를 이용", Claude 연결은 "우리 서버 Custom LLM" 선택(ADR-025). 서버 API-005 토큰 발급(`internal/elevenlabs`)·API-006 OpenAI 호환 `/v1/chat/completions`(Bearer), 앱 `elevenlabs_agents`(`RealtimeAgent`)·`AgentVoiceController`(안 되면 기기 음성, 끊기면 다시 연결). AC1~AC7 Go 단위·httpapi·계약(가짜 ElevenLabs)·Flutter 테스트. **AC8 ElevenLabs 에이전트 만들기·실제 폰 확인(사용자, `docs/ELEVENLABS_SETUP.md`) 남음** |
+| F-022 | 실시간 음성 대화 (ElevenLabs Agents) | ❌ Blocked | `/app`, `/server` | 2026-11-13 | **대체됨 → F-024** (사용자 전향, 2026-11-13). 코드는 6-④에서 지움(2026-11-13). 이전: 사용자 "ElevenLabs Agents를 이용", Claude 연결은 "우리 서버 Custom LLM" 선택(ADR-025). 서버 API-005 토큰 발급(`internal/elevenlabs`)·API-006 OpenAI 호환 `/v1/chat/completions`(Bearer), 앱 `elevenlabs_agents`(`RealtimeAgent`)·`AgentVoiceController`(안 되면 기기 음성, 끊기면 다시 연결). AC1~AC7 Go 단위·httpapi·계약(가짜 ElevenLabs)·Flutter 테스트. **AC8 ElevenLabs 에이전트 만들기·실제 폰 확인(사용자, `docs/ELEVENLABS_SETUP.md`) 남음** |
 | F-023 | 앱 화면 기반 · 로그인 화면 | 🔄 In Progress | `/app` | 2026-11-12 | 사용자 "로그인 화면 UI 제작, 이외 기능 UI도 web 수준에서 기획·제작해 네이티브 앱 기반으로". 화면 기획 `docs/SCREEN_PLAN.md`. S-004 로그인(Google 모의 · 이름만 적고 시작), S-005 첫 실행 대화 상대 고르기, S-006 설정(서랍의 시작 방식·서버 주소를 옮김, 글자 크기·로그아웃), S-007 지난 대화 기억. AC1~AC6 단위·위젯·저장 테스트(`flutter test` 197개), 모의 모드 웹 빌드 캡처. **AC7 실제 폰 확인(사용자) 남음, 진짜 Google 로그인은 F-008** |
-| F-017 | 모바일 네이티브 앱 (Android·iOS) | ❌ Blocked | `/app` | 2026-11-13 | **대체됨 → F-025 PWA** (사용자 전향, 2026-11-13). 이전: 사용자 "모바일 진행"(SPEC §1.4 비목표 해제). AC2~AC5·AC7 자동 테스트 통과(`flutter test` 108개: 서버 주소·앱 안 주소 설정·저장, dart:io 스트리밍·중단, 매니페스트·Info.plist), AC1 Android APK 클라우드 빌드·CI `android` 작업. **iOS 빌드(Mac)·AC6 실제 폰 확인(사용자) 남음** |
-| F-024 | 실시간 음성 대화 (OpenAI GPT Realtime) | 🔄 In Progress | `/app`, `/server` | 2026-11-13 | 단계 6-①: 서버 API-007(`internal/openai`, 지시문 담은 임시 키) + 웹 `web/realtime.js`(WebRTC) + `OpenAiRealtimeAgent`. AC1~AC6 자동 테스트(`go test ./...` 계약 포함 · `flutter test` 218개). 웹 빌드 + 가짜 OpenAI로 브라우저에서 세션 → 임시 키로 SDP 요청 → 실패 시 기기 음성까지 확인. 남은 것: 실제 키로 iPhone·Android 확인(AC7, 사용자 — `docs/OPENAI_REALTIME_SETUP.md`) |
-| F-025 | 웹앱 (PWA) | 🔄 In Progress | `/app` | 2026-11-13 | 단계 6-③: 매니페스트("AI 말벗", 새 아이콘·maskable·iOS 아이콘), `web/sw.js`(화면 파일만, 네트워크 먼저, /api 제외), Flutter 기본 SW 끔, `web/pwa.js` + `InstallBanner`(Android 설치 창·iPhone 공유 안내), Wake Lock 미지원 안내. AC1~AC4 자동 테스트(`flutter test` 226개), 모바일 에뮬레이션에서 설치 가능(Chrome 설치 오류 0)·SW 캐시 확인. 남은 것: 정리(AC5, 6-④), 폰 설치 확인(AC6, 사용자) |
+| F-017 | 모바일 네이티브 앱 (Android·iOS) | ❌ Blocked | `/app` | 2026-11-13 | **대체됨 → F-025 PWA** (사용자 전향, 2026-11-13). `android/`·`ios/`·CI `android` 작업은 6-④에서 지움. 이전: 사용자 "모바일 진행"(SPEC §1.4 비목표 해제). AC2~AC5·AC7 자동 테스트 통과(`flutter test` 108개: 서버 주소·앱 안 주소 설정·저장, dart:io 스트리밍·중단, 매니페스트·Info.plist), AC1 Android APK 클라우드 빌드·CI `android` 작업. **iOS 빌드(Mac)·AC6 실제 폰 확인(사용자) 남음** |
+| F-024 | 실시간 음성 대화 (OpenAI GPT Realtime) | 🔄 In Progress | `/app`, `/server` | 2026-11-13 | 단계 6-①: 서버 API-007(`internal/openai`, 지시문 담은 임시 키) + 웹 `web/realtime.js`(WebRTC) + `OpenAiRealtimeAgent`. AC1~AC6 자동 테스트(`go test ./...` 계약 포함 · `flutter test` 218개). 웹 빌드 + 가짜 OpenAI로 브라우저에서 세션 → 임시 키로 SDP 요청 확인. 사용자가 실제 키로 웹 확인("원하는 수준의 상호작용"). 6-④: 기기 음성으로 빠지던 것을 "한 번 알리고 글 채팅"으로 바꾸고 ElevenLabs·기기 음성 제거(`go test ./...`, `flutter test` 168개). 남은 것: 실제 키로 iPhone·Android 확인(AC7, 사용자 — `docs/OPENAI_REALTIME_SETUP.md`) |
+| F-025 | 웹앱 (PWA) | 🔄 In Progress | `/app` | 2026-11-13 | 단계 6-③: 매니페스트("AI 말벗", 새 아이콘·maskable·iOS 아이콘), `web/sw.js`(화면 파일만, 네트워크 먼저, /api 제외), Flutter 기본 SW 끔, `web/pwa.js` + `InstallBanner`(Android 설치 창·iPhone 공유 안내), Wake Lock 미지원 안내. AC1~AC4 자동 테스트(`flutter test` 226개), 모바일 에뮬레이션에서 설치 가능(Chrome 설치 오류 0)·SW 캐시 확인. 6-④ 정리(AC5): `android/`·`ios/`, `speech_to_text`·`flutter_tts`·`elevenlabs_agents`, 네이티브 화면 꺼짐 채널, 서버 주소 설정 화면 제거, CI `android` 작업 제거. 남은 것: 폰 설치 확인(AC6, 사용자) |
 | F-026 | 사용자 계정 · 로그인 · 서버 데이터 저장소 | 🔄 In Progress | `/server`, `/app` | 2026-11-13 | 7-② 서버 완료: SQLite 저장소, 코드·Google 로그인, 세션, `chatd admin bootstrap`, API-010~014·019~022. AC1~AC7·AC9 자동 테스트(Go 단위·httpapi·계약). 남은 것: 앱 로그인 화면·기기 데이터 옮기기(AC8), 실제 확인(AC10) |
 | F-027 | 페르소나 형식 v1 (앞뒤 공통 계약) | ⏳ Pending | `/server`, `/app` | 2026-11-13 | 승인 (PR #30) — 사용자 "백엔드에 맞물리게 프론트의 페르소나 형식을 명료화". SPEC §7.2 Persona v1, API-015·016, ADR-030(프리셋 카탈로그는 서버) |
 | F-028 | 대화 · 요약 · 기억의 서버 처리 | ⏳ Pending | `/server`, `/app` | 2026-11-13 | 승인 (PR #30) — API-017·018, ADR-031(ADR-024 대체 예정). 원문은 Q-009 추천안(30일)으로 |
@@ -156,11 +154,11 @@ flowchart LR
 <!-- SPEC §16 Q-004 결정 (2026-11-04): 남은 MVP 기능과 음성 대화는 Go + Flutter 전환 뒤에 만든다 -->
 
 00. **서비스화 (2026-11-13 승인)**: F-026~F-031 (노치원 먼저) — ARCHITECTURE §10 단계 7. ① 문서(완료) → ② 서버 저장소·계정·코드/Google 로그인·역할 계층·사용량 상한 → ③ 페르소나 v1 → ④ 대화·기억 서버 처리 → ⑤ 앱 전환·기기 데이터 옮기기 → ⑥ 정리 → `/server`, `/app`
-0. **전향 (2026-11-13)**: F-024 OpenAI Realtime + F-025 PWA — ARCHITECTURE §10 단계 6 순서: ① 서버 API-007 + 가짜 OpenAI 계약 테스트 + 최소 음성 화면 → 실제 iPhone 확인 ② 음성 화면 연결·요약 ③ PWA 마무리 ④ ElevenLabs·기기 음성·네이티브 제거. Q-008(글 채팅·요약을 Claude로 둘지) 사용자 결정 → `/server`, `/app`
+0. **전향 (2026-11-13)**: F-024 OpenAI Realtime + F-025 PWA — ARCHITECTURE §10 단계 6 순서: ① 서버 API-007 + 가짜 OpenAI 계약 테스트 + 최소 음성 화면 → 실제 iPhone 확인 ② 음성 화면 연결·요약 ③ PWA 마무리 ④ ElevenLabs·기기 음성·네이티브 제거(완료). 남은 것: 폰 확인(F-024 AC7·F-025 AC6). Q-008(글 채팅·요약을 Claude로 둘지) 사용자 결정 → `/server`, `/app`
 0-1. F-019 마무리 — 실제 Claude 모드에서 미소와 대화 → 대화 끝내기 → 다음 대화가 이어지는지(AC8, 사용자). 다음 후보: 오래된 요약을 묶어 장기 기억으로 압축, 앱 시작을 음성 대화로(어르신용) → `/app`, `/server`
 1. ~~F-017 모바일 앱~~ — F-025로 대체
 2. F-005 페르소나 마무리 — 실제 Claude 모드에서 말투 확인(AC8, 사용자). 저장 유지(Q-005)는 결정·구현됨 → `/app`
 3. MVP HTML 디자인을 Flutter 화면에 반영 — 음성 전용 화면은 F-018로 구현(실제 폰 확인 AC8 남음). 다음은 첫 실행(페르소나 고르기) 등 디자인에 있고 앱에 없는 것부터 SPEC 제안 → `/app`
-4. F-012 음성 대화 마무리 — 실제 마이크로 Chrome·Edge·폰 확인(AC8, 사용자), 필요하면 끝맺음 시간·에코 조정 → `/app`
+4. ~~F-012 기기 음성 마무리~~ — F-024 실시간 음성으로 대체(기기 음성 엔진 제거)
 5. F-014 클라우드 배포 — **정지** (사용자, 2026-11-11). 재개 때 `deploy/README.md` 순서대로 → AC2~AC5. 앱에서 배포 주소를 쓰려면 R-A12 결정 → `/deploy`. 그 뒤 F-015 Polly → F-016 Transcribe
 6. F-006 도구 사용 · F-007 대화 기록 저장 (Phase 2). F-008 Google 로그인은 Phase 3 (Q-006)

@@ -1,12 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'api/chat_api.dart';
-import 'api/server_address.dart';
 import 'chat/auth_controller.dart';
 import 'chat/chat_controller.dart';
 import 'chat/display_settings.dart';
-import 'chat/server_settings.dart';
 import 'chat/start_settings.dart';
 import 'storage/app_storage.dart';
 import 'storage/prefs_store.dart';
@@ -16,22 +13,10 @@ import 'ui/installer.dart';
 import 'ui/chat_page.dart';
 import 'ui/theme.dart';
 import 'voice/agent_voice_controller.dart';
-import 'voice/plugin_voice_engine.dart';
 import 'voice/realtime_agent_factory.dart';
-import 'voice/voice_controller.dart';
 
-/// 서버 주소. 웹은 비워 두면 같은 출처 (ADR-011). 모바일은 빌드할 때 주입 — 키는 절대 넣지 않는다.
-/// 모바일에서 비워 두면 에뮬레이터·시뮬레이터에서 개발 컴퓨터의 `chatd`를 부른다 (F-017).
+/// 서버 주소. 비워 두면 같은 출처 (ADR-011) — 개발 때 다른 주소의 `chatd`를 부를 때만 빌드할 때 넣는다. 키는 절대 넣지 않는다.
 const apiBaseUrl = String.fromEnvironment('API_BASE_URL');
-
-AppPlatform get _platform {
-  if (kIsWeb) return AppPlatform.web;
-  return switch (defaultTargetPlatform) {
-    TargetPlatform.android => AppPlatform.android,
-    TargetPlatform.iOS => AppPlatform.ios,
-    _ => AppPlatform.other,
-  };
-}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,29 +26,16 @@ Future<void> main() async {
   } catch (_) {
     store = MemoryStore(); // 기기 저장소를 열지 못해도 앱은 뜬다 — 이번 실행만 기억
   }
-  // 웹은 같은 출처라 주소 설정이 없다. 모바일은 빌드 때 주소가 기본, 앱에서 바꿀 수 있다 (F-017 AC7)
-  final fallback = resolveServerAddress(configured: apiBaseUrl, platform: _platform);
-  final server = kIsWeb ? null : loadServer(store, fallback: fallback);
-  final api = HttpChatApi(baseUrl: server?.address ?? fallback);
+  final api = HttpChatApi(baseUrl: apiBaseUrl.trim());
   final controller = ChatController(api, personas: loadPersonas(store), memory: loadMemory(store))..loadConfig();
-  server?.addListener(() {
-    api.baseUrl = server.address;
-    controller.loadConfig(); // 새 서버의 모드(모의·Claude)를 다시 읽는다
-  });
-  // 실시간 음성(웹: OpenAI Realtime F-024, 앱: ElevenLabs F-022)이 되면 그것으로, 아니면 기기 음성(F-012)으로 대화한다
-  final voice = AgentVoiceController(
-    controller,
-    (context) => controller.config?.voiceProvider == 'openai' ? api.voiceSession(context) : api.voiceToken(),
-    VoiceController(controller, PluginVoiceEngine()),
-    agent: createRealtimeAgent(),
-  );
+  // 실시간 음성은 OpenAI Realtime (F-024). 안 되면 한 번 알리고 글 대화로 계속한다
+  final voice = AgentVoiceController(controller, api.voiceSession, agent: createRealtimeAgent());
   // 로그인 (F-023): 지금은 모의 Google 로그인 — 진짜 Google 로그인·서버 세션은 F-008
   final auth = loadAuth(store, google: const MockGoogleSignIn());
   runApp(
     ChatApp(
       controller: controller,
       voice: voice,
-      server: server,
       start: loadStart(store),
       auth: auth,
       display: loadDisplay(store),
@@ -78,7 +50,6 @@ class ChatApp extends StatelessWidget {
     super.key,
     required this.controller,
     this.voice,
-    this.server,
     this.start,
     this.auth,
     this.display,
@@ -88,9 +59,6 @@ class ChatApp extends StatelessWidget {
 
   final ChatController controller;
   final VoiceSession? voice;
-
-  /// 모바일 앱의 서버 주소 설정. 웹은 null.
-  final ServerSettings? server;
 
   /// 앱 시작 설정 (F-021). 없으면 설정 칸을 그리지 않는다.
   final StartSettings? start;
@@ -128,19 +96,11 @@ class ChatApp extends StatelessWidget {
               );
             },
       home: auth == null
-          ? ChatPage(
-              controller: controller,
-              voice: voice,
-              server: server,
-              start: start,
-              display: display,
-              installer: installer,
-            )
+          ? ChatPage(controller: controller, voice: voice, start: start, display: display, installer: installer)
           : AppShell(
               auth: auth,
               controller: controller,
               voice: voice,
-              server: server,
               start: start,
               display: display,
               mockGoogle: mockGoogle,

@@ -42,8 +42,7 @@ void main() {
   });
 
   test('F-024 AC4 임시 키로만 연결하고, 처음 연결이면 먼저 인사하며 다시 연결이면 이어서 한다', () async {
-    expect(agent.kind, 'openai');
-    await agent.start(token: 'ek_1', context: {'history': []}, variables: const {});
+    await agent.start(token: 'ek_1', context: {'history': []});
     await agent.start(
       token: 'ek_2',
       context: {
@@ -51,13 +50,12 @@ void main() {
           {'role': 'user', 'content': '안녕'},
         ],
       },
-      variables: const {},
     );
     expect(bridge.starts.map((s) => (s.secret, s.greet)), [('ek_1', true), ('ek_2', false)]);
   });
 
   test('F-024 AC5 전사·상태 사건을 AgentEvent로 바꾸고, 소리 크기를 파형 값으로 준다', () async {
-    await agent.start(token: 'ek', context: const {}, variables: const {});
+    await agent.start(token: 'ek', context: const {});
     final on = bridge.onEvent!;
     on('connected', '');
     on('user_speaking', '');
@@ -84,7 +82,7 @@ void main() {
   });
 
   test('F-024 AC6 끊김·마이크 거부·오류를 알리고, 앱이 끊으면 늦게 온 사건은 버린다', () async {
-    await agent.start(token: 'ek', context: const {}, variables: const {});
+    await agent.start(token: 'ek', context: const {});
     final on = bridge.onEvent!;
     on('mic_denied', '');
     on('error', '');
