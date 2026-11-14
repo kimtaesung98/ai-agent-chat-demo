@@ -193,6 +193,20 @@ type Store interface {
 	GetLongTerm(ctx context.Context, userID, personaID string) (LongTermMemory, error)
 	// DeletePersonaMemory는 그 페르소나의 요약·장기 기억을 모두 지운다.
 	DeletePersonaMemory(ctx context.Context, userID, personaID string) error
+
+	// 프로필 (F-026, API-013). 없으면 ErrNotFound.
+	GetProfile(ctx context.Context, userID string) (Profile, error)
+	PutProfile(ctx context.Context, p Profile) error
+}
+
+// Profile은 사람마다 하나인 "나에 대해"·화면 설정이다 (SPEC.md §7.2 Profile). 이름은 User.Name.
+type Profile struct {
+	UserID        string
+	About         string
+	TextSize      string // normal · large · xlarge
+	VoiceOnStart  bool
+	LastPersonaID string
+	UpdatedAt     time.Time
 }
 
 // Conversation은 서버가 연 대화 하나다 (F-028). 원문은 앱이 기기에 둔다.

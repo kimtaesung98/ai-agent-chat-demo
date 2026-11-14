@@ -81,6 +81,9 @@ func (s *server) withAccounts(next http.Handler) http.Handler {
 	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
 	mux.HandleFunc("GET /api/me", s.handleMe)
 	mux.HandleFunc("POST /api/me/google", s.handleLinkGoogle)
+	mux.HandleFunc("GET /api/me/profile", s.handleGetProfile)
+	mux.HandleFunc("PUT /api/me/profile", s.handlePutProfile)
+	mux.HandleFunc("POST /api/import", s.handleImport)
 	mux.HandleFunc("GET /api/admin/users", s.handleListUsers)
 	mux.HandleFunc("POST /api/admin/users", s.handleCreateUser)
 	mux.HandleFunc("PATCH /api/admin/users/{id}", s.handleUpdateUser)
@@ -144,7 +147,7 @@ func (s *server) withAccounts(next http.Handler) http.Handler {
 
 // accountRoute는 계정·개인 데이터 API 경로다 (이 미들웨어의 mux가 처리).
 func accountRoute(p string) bool {
-	if p == "/api/me" || p == "/api/presets" || p == "/api/personas" || p == "/api/conversations" {
+	if p == "/api/me" || p == "/api/presets" || p == "/api/personas" || p == "/api/conversations" || p == "/api/import" {
 		return true
 	}
 	for _, pre := range []string{"/api/auth/", "/api/me/", "/api/admin/", "/api/personas/", "/api/conversations/", "/api/summaries/"} {
