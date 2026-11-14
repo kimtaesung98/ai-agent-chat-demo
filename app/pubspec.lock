@@ -61,10 +61,10 @@ packages:
     dependency: transitive
     description:
       name: fetch_api
-      sha256: "24cbd5616f3d4008c335c197bb90bfa0eb43b9e55c6de5c60d1f805092636034"
+      sha256: "636fda7fcd46344696ff8c6a24e5a968b996d588244c7b257f07575497731a5e"
       url: "https://pub.dev"
     source: hosted
-    version: "2.3.1"
+    version: "2.3.2"
   fetch_client:
     dependency: "direct main"
     description:

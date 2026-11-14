@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -118,7 +119,12 @@ void main() {
 
   test('F-011 클라이언트에서 Claude API를 직접 부르지 않는다 (원칙 2)', () {
     for (final f in Directory('lib').listSync(recursive: true).whereType<File>()) {
-      expect(f.readAsStringSync().contains('api.anthropic.com'), isFalse, reason: f.path);
+      // .DS_Store 같은 글자가 아닌 파일도 있을 수 있어 바이트로 읽는다
+      expect(
+        utf8.decode(f.readAsBytesSync(), allowMalformed: true).contains('api.anthropic.com'),
+        isFalse,
+        reason: f.path,
+      );
     }
   });
 
