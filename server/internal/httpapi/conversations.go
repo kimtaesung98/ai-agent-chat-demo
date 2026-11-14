@@ -122,7 +122,12 @@ func (s *server) conversationPrompt(w http.ResponseWriter, r *http.Request, body
 		s.storeError(w, err)
 		return false
 	}
-	cp, ok := PersonaPrompt(p, "")
+	prof, err := s.profileOf(ctx, user.ID)
+	if err != nil {
+		s.storeError(w, err)
+		return false
+	}
+	cp, ok := PersonaPrompt(p, prof.About) // F-028 AC1: 프로필의 "나에 대해"
 	if !ok {
 		writeError(w, http.StatusBadRequest, "INVALID_INPUT", "대화 상대를 찾을 수 없어요.")
 		return false

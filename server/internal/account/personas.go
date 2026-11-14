@@ -57,3 +57,20 @@ func (s *Service) PersonaOwner(ctx context.Context, actor User, ownerID string, 
 
 // Store는 계정과 같은 저장소다 — 페르소나·대화 같은 개인 데이터 API가 쓴다 (권한 확인은 이 Service로).
 func (s *Service) Store() store.Store { return s.store }
+
+// Rename은 자기 이름을 바꾼다 (프로필 displayName, API-013). 1~20자.
+func (s *Service) Rename(ctx context.Context, actor User, name string) (User, error) {
+	n, ok := cleanName(name)
+	if !ok {
+		return User{}, ErrInvalid
+	}
+	u, err := s.store.GetUser(ctx, actor.ID)
+	if err != nil {
+		return User{}, err
+	}
+	if u.Name == n {
+		return u, nil
+	}
+	u.Name = n
+	return u, s.store.UpdateUser(ctx, u)
+}

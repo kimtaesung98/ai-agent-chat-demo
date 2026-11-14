@@ -465,9 +465,13 @@ func (d *DB) GetPersona(ctx context.Context, userID, id string) (store.Persona, 
 }
 
 func (d *DB) UpdatePersona(ctx context.Context, p store.Persona) error {
-	res, err := d.db.ExecContext(ctx, `UPDATE personas SET kind = ?, preset_id = ?, name = ?, role = ?, tones = ?, instructions = ?, revision = ?, updated_at = ?
+	res, err := d.db.ExecContext(ctx, `UPDATE personas SET kind = ?, preset_id = ?, name = ?, role = ?, tones = ?, instructions = ?, revision = ?, updated_at = ?,
+		client_id = COALESCE(?, client_id)
 		WHERE user_id = ? AND id = ? AND revision = ?`,
-		p.Kind, p.PresetID, p.Name, p.Role, tonesJSON(p.Tones), p.Instructions, p.Revision, ts(p.UpdatedAt), p.UserID, p.ID, p.Revision-1)
+		p.Kind, p.PresetID, p.Name, p.Role, tonesJSON(p.Tones), p.Instructions, p.Revision, ts(p.UpdatedAt), nullable(p.ClientID), p.UserID, p.ID, p.Revision-1)
+	if isUnique(err) {
+		return store.ErrConflict
+	}
 	if err != nil {
 		return err
 	}
@@ -658,4 +662,26 @@ func (d *DB) DeletePersonaMemory(ctx context.Context, userID, personaID string) 
 		}
 	}
 	return tx.Commit()
+}
+
+// --- 프로필 (F-026) ---
+
+func (d *DB) GetProfile(ctx context.Context, userID string) (store.Profile, error) {
+	var p store.Profile
+	var updated string
+	err := d.db.QueryRowContext(ctx, `SELECT user_id, about, text_size, voice_on_start, last_persona_id, updated_at FROM profiles WHERE user_id = ?`, userID).
+		Scan(&p.UserID, &p.About, &p.TextSize, &p.VoiceOnStart, &p.LastPersonaID, &updated)
+	if errors.Is(err, sql.ErrNoRows) {
+		return p, store.ErrNotFound
+	}
+	p.UpdatedAt = parseTS(updated)
+	return p, err
+}
+
+func (d *DB) PutProfile(ctx context.Context, p store.Profile) error {
+	_, err := d.db.ExecContext(ctx, `INSERT INTO profiles (user_id, about, text_size, voice_on_start, last_persona_id, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT (user_id) DO UPDATE SET about = excluded.about, text_size = excluded.text_size, voice_on_start = excluded.voice_on_start,
+			last_persona_id = excluded.last_persona_id, updated_at = excluded.updated_at`,
+		p.UserID, p.About, p.TextSize, p.VoiceOnStart, p.LastPersonaID, ts(p.UpdatedAt))
+	return err
 }
