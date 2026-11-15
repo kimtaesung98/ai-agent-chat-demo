@@ -34,6 +34,7 @@ type AuthOptions struct {
 	RequireSession bool   // 세션 없는 AI 경로를 닫는다 — 실제 모드. 모의 모드는 열어 둔다
 	ClientIPHeader string // 프록시가 넣는 진짜 IP 헤더 (비면 연결 주소)
 	CareSetting    string // 배포 유형 (ADR-035) — 앱에 알림
+	GoogleClientID string // Google 로그인 버튼(Google Identity Services)에 넘길 클라이언트 ID — 비밀값 아님, 앱에 알림
 }
 
 // 게스트 글 채팅 제한 (F-030 상세 동작 1·2).
@@ -341,7 +342,12 @@ func userJSON(u store.User, admin bool) map[string]any {
 // --- 로그인 ---
 
 func (s *server) handleAuthOptions(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"code": true, "google": s.accounts.GoogleEnabled(), "guest": s.authOpts.GuestMode, "careSetting": s.authOpts.CareSetting})
+	google := s.accounts.GoogleEnabled() && s.authOpts.GoogleClientID != ""
+	m := map[string]any{"code": true, "google": google, "guest": s.authOpts.GuestMode, "careSetting": s.authOpts.CareSetting}
+	if google {
+		m["googleClientId"] = s.authOpts.GoogleClientID
+	}
+	writeJSON(w, http.StatusOK, m)
 }
 
 func (s *server) handleLoginCode(w http.ResponseWriter, r *http.Request) {

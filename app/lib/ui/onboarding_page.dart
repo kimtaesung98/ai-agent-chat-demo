@@ -31,9 +31,10 @@ class OnboardingPage extends StatefulWidget {
 }
 
 class _OnboardingPageState extends State<OnboardingPage> {
-  late String _picked = widget.personas.personas.any((p) => p.id == recommendedPersonaId)
-      ? recommendedPersonaId
-      : widget.personas.selected.id;
+  late String _picked = widget.personas.personas.where(_isRecommended).firstOrNull?.id ?? widget.personas.selected.id;
+
+  /// 서버 페르소나는 id가 `per_…`라 프리셋 id로 본다 (F-027).
+  static bool _isRecommended(Persona p) => p.id == recommendedPersonaId || p.presetId == recommendedPersonaId;
 
   void _begin({required bool voice}) {
     widget.personas.select(_picked);
@@ -77,7 +78,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                         _PersonaCard(
                           persona: p,
                           picked: p.id == _picked,
-                          recommended: p.id == recommendedPersonaId,
+                          recommended: _isRecommended(p),
                           onTap: () => setState(() => _picked = p.id),
                         ),
                     ],

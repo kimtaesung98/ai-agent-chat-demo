@@ -12,7 +12,7 @@ type Accounts struct {
 	DataDir            string // 비면 메모리 DB
 	GoogleClientID     string // 비면 Google 로그인 꺼짐
 	GuestMode          bool
-	RequireLogin       bool   // 실제 모드에서 세션 없는 AI 경로를 닫는다. 앱 로그인 화면(단계 7-⑤) 전까지 기본 꺼짐
+	RequireLogin       bool   // 실제 모드에서 세션 없는 AI 경로를 닫는다. 기본 켜짐(단계 7-⑤ 앱 로그인 화면), REQUIRE_LOGIN=off로만 끈다
 	BootstrapAdminCode string // 있으면 최고 관리자가 없을 때 이 코드로 첫 최고 관리자를 만든다
 	BootstrapAdminName string
 	ClientIPHeader     string // 프록시가 넣는 진짜 IP 헤더 (예 CF-Connecting-IP). 비면 연결 주소
@@ -44,9 +44,9 @@ func LoadAccounts(getenv func(string) string) (Accounts, error) {
 	default:
 		return Accounts{}, fmt.Errorf("GUEST_MODE는 on 또는 off여야 해요 (받은 값: %q)", g)
 	}
-	switch g := strings.ToLower(get("REQUIRE_LOGIN")); g {
-	case "", "off", "false", "0":
-	case "on", "true", "1":
+	switch g := strings.ToLower(get("REQUIRE_LOGIN")); g { // 앱 로그인 화면(단계 7-⑤)이 생겨 기본은 켜짐
+	case "off", "false", "0":
+	case "", "on", "true", "1":
 		a.RequireLogin = true
 	default:
 		return Accounts{}, fmt.Errorf("REQUIRE_LOGIN은 on 또는 off여야 해요 (받은 값: %q)", g)

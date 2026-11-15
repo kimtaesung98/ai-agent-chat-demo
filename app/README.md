@@ -114,7 +114,8 @@ flowchart LR
 **실행** (`app/`에서)
 - 테스트: `flutter test` · 분석: `flutter analyze`
 - 웹 빌드: `flutter build web --no-web-resources-cdn`
-- 서버로 보기: `cd ../server && STATIC_DIR=../app/build/web go run ./cmd/chatd` → http://localhost:3000
+- 서버로 보기: `cd ../server && BOOTSTRAP_ADMIN_CODE=K7QM4XPH2R STATIC_DIR=../app/build/web go run ./cmd/chatd` → http://localhost:3000 에서 코드 `K7QM-4XPH-2R`로 로그인 (F-026, 메모리 DB라 끄면 사라짐)
+- 로그인 뒤 데이터 흐름 (단계 7-⑤): `AuthController`(코드·Google → 서버 쿠키 세션) → `ServerSync`(프로필·페르소나를 받아 `PersonaController`·`MemoryController`·`ChatController`를 서버에 붙임, 기기 데이터 한 번 옮기기) → 채팅은 `conversationId`만 보내고 끝낼 때 `/end`. 로그인한 동안 페르소나·기억은 기기에 쓰지 않는다
 
 **폰에서 보기** (F-025 — 마이크는 HTTPS 또는 `localhost`에서만 됨)
 - 실시간 음성: 서버에 `OPENAI_API_KEY`를 넣고 띄움 (`docs/OPENAI_REALTIME_SETUP.md`). 없으면 음성 버튼은 안내만 하고 글 채팅은 그대로

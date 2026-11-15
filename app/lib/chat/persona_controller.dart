@@ -5,6 +5,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import '../api/account_api.dart';
 import '../api/chat_api.dart';
 
 export '../api/models.dart' show Persona;
@@ -63,6 +64,14 @@ const toneSuggestions = ['차분하게', '친근하게', '존댓말', '반말', 
 /// 탑재 페르소나인지 — 기본 지시를 바꿀 수 없다 (F-019 AC2).
 bool isBuiltInPersona(String id) => defaultPersonas.any((p) => p.id == id);
 
+/// 탑재 프리셋에서 온 페르소나인지 (기기 탑재 id 또는 서버 `kind: preset`, F-027 AC5) — 기본 지시는 읽기만.
+bool isPresetPersona(Persona p) => p.presetId.isNotEmpty || isBuiltInPersona(p.id);
+
+/// 페르소나 저장 안내 문장 (F-027 AC5).
+abstract final class PersonaMessages {
+  static const conflict = '다른 기기에서 먼저 고쳐서 최신 내용으로 바꿨어요. 다시 고쳐 주세요.';
+}
+
 /// 저장된 탑재 페르소나의 기본 지시를 앱의 것으로 맞춘다 (F-019 AC2). 앱을 고치면 기본 지시도 따라 바뀐다.
 /// 예전(F-019 전)에는 기본 지시가 `instructions`에 있었다 — 손대지 않았으면 비우고, 고쳤으면 사용자 요구 사항으로 남긴다.
 Persona _withFixedBase(Persona p, List<Persona> builtIns) {
@@ -119,6 +128,50 @@ class PersonaController extends ChangeNotifier {
   String _about = '';
   var _seq = 0;
 
+  /// 로그인한 서버 계정 (F-027). 있으면 저장이 서버로 간다.
+  AccountApi? _server;
+  bool get serverBacked => _server != null;
+
+  /// 기기 페르소나 — 서버에서 뗄 때 되돌린다.
+  List<Persona>? _deviceList;
+  String? _deviceSelected;
+  String _deviceAbout = '';
+
+  /// 서버의 페르소나·프로필로 바꾼다 (로그인 뒤 F-027·F-026). [list]가 비면 바꾸지 않는다.
+  void attachServer(AccountApi api, List<Persona> list, {String about = '', String selectedId = ''}) {
+    if (list.isEmpty) return;
+    if (_server == null) {
+      _deviceList = [..._personas];
+      _deviceSelected = _selectedId;
+      _deviceAbout = _about;
+    }
+    _server = api;
+    _personas
+      ..clear()
+      ..addAll(list);
+    _selectedId = list.any((p) => p.id == selectedId) ? selectedId : _recommended(list).id;
+    _about = about.length > Persona.maxAbout ? about.substring(0, Persona.maxAbout) : about;
+    notifyListeners();
+  }
+
+  /// 서버에서 뗀다 (로그아웃). 화면에 남의 페르소나가 남지 않게 기기 값으로 되돌린다.
+  void detachServer() {
+    if (_server == null) return;
+    _server = null;
+    final device = _deviceList ?? defaultPersonas;
+    _personas
+      ..clear()
+      ..addAll(device);
+    _selectedId = device.any((p) => p.id == _deviceSelected) ? _deviceSelected! : device.first.id;
+    _about = _deviceAbout;
+    _deviceList = null;
+    notifyListeners();
+  }
+
+  /// 처음 고를 페르소나: 노인복지사 미소가 있으면 그것 (S-005와 같은 추천).
+  static Persona _recommended(List<Persona> list) =>
+      list.firstWhere((p) => p.presetId == 'elder-care' || p.id == 'elder-care', orElse: () => list.first);
+
   List<Persona> get personas => List.unmodifiable(_personas);
   Persona get selected => _personas.firstWhere((p) => p.id == _selectedId);
 
@@ -140,15 +193,57 @@ class PersonaController extends ChangeNotifier {
   Persona blank() => Persona(id: 'custom-${DateTime.now().microsecondsSinceEpoch}-${_seq++}', name: '');
 
   /// 저장한다. 목록에 있으면 바꾸고, 없으면 추가하고 선택한다. 탑재 페르소나의 기본 지시는 바뀌지 않는다 (F-019 AC2).
-  void save(Persona persona) {
-    persona = _withFixedBase(persona, defaultPersonas);
+  /// 서버 계정이면 화면에 먼저 반영하고 서버에 `POST`·`PUT`한다 (F-027 AC5). 실패하면 이전 값으로 돌리고 안내 문장을,
+  /// 다른 기기에서 먼저 고쳤으면(409) 서버 값으로 바꾸고 안내 문장을 돌려준다. 성공·기기 저장이면 null.
+  Future<String?> save(Persona persona) async {
+    if (_server == null) persona = _withFixedBase(persona, defaultPersonas);
     final i = _personas.indexWhere((p) => p.id == persona.id);
+    final before = i >= 0 ? _personas[i] : null;
+    final selectedBefore = _selectedId;
     if (i >= 0) {
       _personas[i] = persona;
     } else {
       _personas.add(persona);
       _selectedId = persona.id;
     }
+    notifyListeners();
+    final server = _server;
+    if (server == null) return null;
+    try {
+      final saved = before == null ? await server.createPersona(persona) : await server.updatePersona(persona);
+      _replace(persona.id, saved);
+      return null;
+    } on AccountApiError catch (e) {
+      final latest = e.conflict ? Persona.fromV1Json(e.body?['persona']) : null;
+      if (latest != null) {
+        _replace(persona.id, latest);
+        return PersonaMessages.conflict;
+      }
+      _revert(persona.id, before, selectedBefore);
+      return e.message;
+    } catch (_) {
+      _revert(persona.id, before, selectedBefore);
+      return ClientMessages.request;
+    }
+  }
+
+  void _replace(String id, Persona saved) {
+    final i = _personas.indexWhere((p) => p.id == id);
+    if (i < 0) return;
+    _personas[i] = saved;
+    if (_selectedId == id) _selectedId = saved.id;
+    notifyListeners();
+  }
+
+  void _revert(String id, Persona? before, String selectedBefore) {
+    final i = _personas.indexWhere((p) => p.id == id);
+    if (i < 0) return;
+    if (before == null) {
+      _personas.removeAt(i);
+    } else {
+      _personas[i] = before;
+    }
+    _selectedId = _personas.any((p) => p.id == selectedBefore) ? selectedBefore : _personas.first.id;
     notifyListeners();
   }
 

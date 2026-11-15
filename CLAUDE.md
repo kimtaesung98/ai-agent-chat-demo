@@ -76,7 +76,7 @@ AGENT_BOOTSTRAP.md 존재?
 
 <!-- 프로젝트마다 꼭 지켜야 할 규칙 3~7개만. 상세 규칙은 각 폴더 README.md Agent Control에 둡니다 -->
 
-- 실행: `app/`에서 `flutter build web --no-web-resources-cdn` → `server/`에서 `STATIC_DIR=../app/build/web go run ./cmd/chatd` (키 없으면 모의 모드)
+- 실행: `app/`에서 `flutter build web --no-web-resources-cdn` → `server/`에서 `BOOTSTRAP_ADMIN_CODE=K7QM4XPH2R STATIC_DIR=../app/build/web go run ./cmd/chatd` (키 없으면 모의 모드). 앱은 로그인 코드로 들어간다 — 이 코드는 메모리 DB 시연용, 파일 DB는 `DATA_DIR` + `chatd admin bootstrap`
 - 테스트 (네트워크 없이 통과해야 함): `server/`에서 `go test ./...` (단위 + 계약 테스트 — 모의 모드 `chatd`를 직접 띄움, Go 1.25+) · `app/`에서 `flutter analyze` · `flutter test`
 - 배포 (F-014): 루트 `Dockerfile`(웹 빌드를 먼저 만든 뒤 `docker build`), AWS·Cloudflare 설정은 `deploy/README.md`. 비밀값은 SSM Parameter Store에만, AWS·Cloudflare 리소스 생성·배포 실행은 사용자 승인 후
 - 스택은 Go 서버 + Flutter 클라이언트 (ADR-005·006). Node MVP는 F-013에서 제거 (ADR-001 대체됨). C/C++·cgo 사용 안 함 (ADR-007)

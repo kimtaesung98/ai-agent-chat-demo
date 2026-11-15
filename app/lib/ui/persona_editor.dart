@@ -43,7 +43,7 @@ class _PersonaEditorPageState extends State<PersonaEditorPage> {
   late final _instructions = TextEditingController(text: widget.initial.instructions);
 
   /// 탑재 페르소나는 기본 지시를 바꿀 수 없다 (F-019 AC2).
-  late final _builtIn = isBuiltInPersona(widget.initial.id);
+  late final _builtIn = isPresetPersona(widget.initial);
   late final List<String> _tones = [...widget.initial.tones];
 
   @override
@@ -300,10 +300,31 @@ class _FixedBase extends StatelessWidget {
 }
 
 /// 이 페르소나와 나눈 지난 대화 요약 목록. 하나씩 또는 모두 지울 수 있다 (F-019 AC6).
-class MemoryList extends StatelessWidget {
+/// 로그인한 서버 계정이면 열 때 서버 값을 받아 온다 (F-028 AC4).
+class MemoryList extends StatefulWidget {
   const MemoryList({super.key, required this.memory, required this.personaId});
   final MemoryController memory;
   final String personaId;
+
+  @override
+  State<MemoryList> createState() => _MemoryListState();
+}
+
+class _MemoryListState extends State<MemoryList> {
+  MemoryController get memory => widget.memory;
+  String get personaId => widget.personaId;
+
+  @override
+  void initState() {
+    super.initState();
+    memory.refresh(personaId);
+  }
+
+  @override
+  void didUpdateWidget(MemoryList old) {
+    super.didUpdateWidget(old);
+    if (old.personaId != personaId) memory.refresh(personaId);
+  }
 
   @override
   Widget build(BuildContext context) {

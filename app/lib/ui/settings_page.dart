@@ -47,7 +47,7 @@ class SettingsPage extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('로그아웃할까요?'),
-        content: const Text('페르소나와 지난 대화 기억은 이 기기에 그대로 남아요.'),
+        content: const Text('대화 상대와 지난 대화 기억은 내 계정에 그대로 남아요. 다음에 코드나 Google로 다시 들어오면 돼요.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('아니요')),
           FilledButton(
@@ -101,13 +101,16 @@ class SettingsPage extends StatelessWidget {
                             child: Text(account.initial, style: const TextStyle(fontSize: 20)),
                           ),
                           title: Text(account.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                          subtitle: Text(switch (account.kind) {
-                            AccountKind.google => [
-                              'Google 계정${account.mock ? ' (모의)' : ''}',
-                              if (account.email.isNotEmpty) account.email,
+                          subtitle: Text(
+                            [
+                              account.roleLabel,
+                              switch (account.kind) {
+                                AccountKind.google => 'Google 계정으로 로그인',
+                                AccountKind.code => '로그인 코드로 로그인',
+                              },
+                              if (account.googleLinked && account.kind != AccountKind.google) 'Google 연결됨',
                             ].join(' · '),
-                            AccountKind.guest => '이 기기에서만 쓰는 이름',
-                          }),
+                          ),
                         ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),

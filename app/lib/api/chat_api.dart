@@ -18,12 +18,14 @@ abstract interface class ChatApi {
   /// 구독을 취소하면 요청이 중단된다 (F-003). [mode]가 voice면 말하기용 답을 요청한다 (F-012).
   /// [persona]가 있으면 그 페르소나와 내 프로필로 답하게 한다 (F-005).
   /// [memory]는 지난 대화 요약, 오래된 것부터 (F-019, API-001 `memory`).
+  /// [conversationId]가 있으면(F-028, 로그인한 서버 대화) 서버가 DB의 페르소나·기억을 붙이므로 [persona]·[memory]·[longTerm]은 보내지 않는다.
   Stream<ChatEvent> stream(
     List<Message> messages, {
     ChatMode mode = ChatMode.text,
     PersonaRequest? persona,
     List<SessionSummary> memory = const [],
     LongTermMemory? longTerm,
+    String? conversationId,
   });
 
   /// 오래된 요약 [sessions](오래된 것부터)를 이전 [longTerm]과 묶어 장기 기억을 만든다 (F-020, API-004).
@@ -171,8 +173,10 @@ class HttpChatApi implements ChatApi {
     PersonaRequest? persona,
     List<SessionSummary> memory = const [],
     LongTermMemory? longTerm,
+    String? conversationId,
   }) {
     final client = _newClient();
+    final local = conversationId == null;
     final abort = Completer<void>();
     late final StreamController<ChatEvent> out;
     var cancelled = false;
@@ -184,9 +188,10 @@ class HttpChatApi implements ChatApi {
           ..body = jsonEncode({
             'messages': messages.map((m) => m.toJson()).toList(),
             if (mode == ChatMode.voice) 'mode': 'voice', // 기본(text)은 보내지 않는다 — 기존 요청과 같음
-            if (persona != null) 'persona': persona.toJson(), // F-005
-            if (memory.isNotEmpty) 'memory': memory.map((m) => m.toRequestJson()).toList(), // F-019
-            if (longTerm != null) 'longTerm': longTerm.toRequestJson(), // F-020
+            'conversationId': ?conversationId, // F-028 — 서버가 페르소나·기억을 붙인다
+            if (local && persona != null) 'persona': persona.toJson(), // F-005
+            if (local && memory.isNotEmpty) 'memory': memory.map((m) => m.toRequestJson()).toList(), // F-019
+            if (local && longTerm != null) 'longTerm': longTerm.toRequestJson(), // F-020
           });
 
         final http.StreamedResponse res;

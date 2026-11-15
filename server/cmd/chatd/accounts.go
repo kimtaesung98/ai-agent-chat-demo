@@ -74,10 +74,10 @@ func openAccounts(ctx context.Context, a config.Accounts, mock bool, log *slog.L
 	require := a.RequireLogin && !mock // 모의 모드는 언제나 열어 둔다 (테스트·시연)
 	log.Info("계정: 켜짐", "store", where, "google", a.GoogleClientID != "", "guest", a.GuestMode, "care_setting", a.CareSetting, "ai_requires_session", require)
 	if !mock && !a.RequireLogin {
-		log.Warn("REQUIRE_LOGIN이 꺼져 있어 로그인 없이도 AI를 쓸 수 있어요 — 앱 로그인 화면이 나오면 켜 주세요 (F-030)")
+		log.Warn("REQUIRE_LOGIN=off라 로그인 없이도 AI를 쓸 수 있어요 — 공개 주소에서는 켜 두세요 (F-030)")
 	}
 
-	opt := httpapi.WithAccounts(acc, lim, httpapi.AuthOptions{GuestMode: a.GuestMode, RequireSession: require, ClientIPHeader: a.ClientIPHeader, CareSetting: a.CareSetting})
+	opt := httpapi.WithAccounts(acc, lim, httpapi.AuthOptions{GuestMode: a.GuestMode, RequireSession: require, ClientIPHeader: a.ClientIPHeader, CareSetting: a.CareSetting, GoogleClientID: a.GoogleClientID})
 	return opt, func() { close(stop); db.Close() }, nil
 }
 
