@@ -5,6 +5,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import '../api/account_api.dart';
 import '../api/models.dart';
 
 export '../api/models.dart' show LongTermMemory, SessionSummary, dayString;
@@ -39,6 +40,58 @@ class MemoryController extends ChangeNotifier {
     'sessions': [for (final s in _all) s.toStoreJson()],
     'longTerm': [for (final l in _longTerm.values) l.toStoreJson()],
   };
+
+  /// 로그인한 서버 계정 (F-028). 있으면 기억은 서버 값을 보여 주고, 지우기도 서버에 보낸다.
+  AccountApi? _server;
+  bool get serverBacked => _server != null;
+
+  /// 기기 기억 — 서버에서 뗄 때 되돌린다.
+  ({List<SessionSummary> all, Map<String, LongTermMemory> longTerm})? _device;
+
+  /// 서버 계정에 붙인다. 기억은 [refresh]로 페르소나마다 받아 온다.
+  void attachServer(AccountApi api) {
+    if (_server == null) _device = (all: [..._all], longTerm: {..._longTerm});
+    _server = api;
+    _all.clear();
+    _longTerm.clear();
+    notifyListeners();
+  }
+
+  /// 서버에서 뗀다 (로그아웃). 기기 기억으로 되돌린다.
+  void detachServer() {
+    if (_server == null) return;
+    _server = null;
+    _all
+      ..clear()
+      ..addAll(_device?.all ?? const []);
+    _longTerm
+      ..clear()
+      ..addAll(_device?.longTerm ?? const {});
+    _device = null;
+    notifyListeners();
+  }
+
+  /// [personaId]의 기억을 서버에서 다시 받는다 (F-028 AC4). 기기 모드면 아무것도 하지 않는다. 실패하면 있는 것을 그대로 둔다.
+  Future<void> refresh(String personaId) async {
+    final server = _server;
+    if (server == null) return;
+    try {
+      final got = await server.memory(personaId);
+      if (!identical(server, _server)) return;
+      _all
+        ..removeWhere((s) => s.personaId == personaId)
+        ..addAll(got.summaries)
+        ..sort(_byEnd);
+      if (got.longTerm case final l?) {
+        _longTerm[personaId] = l;
+      } else {
+        _longTerm.remove(personaId);
+      }
+      notifyListeners();
+    } catch (_) {
+      debugPrint('기억 불러오기 실패');
+    }
+  }
 
   /// 페르소나마다 기기에 남기는 요약 수. 넘치면 오래된 것부터 지운다.
   static const keepPerPersona = 20;
@@ -105,6 +158,7 @@ class MemoryController extends ChangeNotifier {
     final before = _all.length;
     _all.removeWhere((e) => e.id == id);
     if (_all.length != before) notifyListeners();
+    _server?.deleteSummary(id).catchError((Object _) => debugPrint('요약 지우기 실패'));
   }
 
   /// [personaId]의 기억(요약·장기 기억)을 모두 지운다.
@@ -113,6 +167,7 @@ class MemoryController extends ChangeNotifier {
     _all.removeWhere((e) => e.personaId == personaId);
     final hadLongTerm = _longTerm.remove(personaId) != null;
     if (_all.length != before || hadLongTerm) notifyListeners();
+    _server?.clearMemory(personaId).catchError((Object _) => debugPrint('기억 지우기 실패'));
   }
 
   void _trim() {

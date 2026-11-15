@@ -77,10 +77,18 @@ class Persona {
     this.tones = const [],
     this.base = '',
     this.instructions = '',
+    this.presetId = '',
+    this.revision = 0,
   });
 
-  /// 화면에서만 쓰는 구분자. 서버에는 보내지 않는다.
+  /// 구분자. 기기 페르소나는 화면용 id(`planner`·`custom-…`), 서버 페르소나(F-027)는 서버 id(`per_…`).
   final String id;
+
+  /// 서버 페르소나의 탑재 프리셋 id (F-027 `kind: preset`). 비면 사용자 페르소나(`custom`)이거나 기기 페르소나.
+  final String presetId;
+
+  /// 서버 페르소나의 판 (F-027 상세 동작 4). 0이면 아직 서버에 없음.
+  final int revision;
   final String name;
   final String role;
   final List<String> tones;
@@ -141,15 +149,68 @@ class Persona {
     );
   }
 
-  Persona copyWith({String? id, String? name, String? role, List<String>? tones, String? base, String? instructions}) =>
-      Persona(
-        id: id ?? this.id,
-        name: name ?? this.name,
-        role: role ?? this.role,
-        tones: tones ?? this.tones,
-        base: base ?? this.base,
-        instructions: instructions ?? this.instructions,
-      );
+  Persona copyWith({
+    String? id,
+    String? name,
+    String? role,
+    List<String>? tones,
+    String? base,
+    String? instructions,
+    String? presetId,
+    int? revision,
+  }) => Persona(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    role: role ?? this.role,
+    tones: tones ?? this.tones,
+    base: base ?? this.base,
+    instructions: instructions ?? this.instructions,
+    presetId: presetId ?? this.presetId,
+    revision: revision ?? this.revision,
+  );
+
+  /// 페르소나 형식 v1 판 (F-027, SPEC §7.2).
+  static const v1Schema = 1;
+
+  /// 서버 페르소나 형식 v1을 읽는다 (F-027 AC4). 모르는 필드는 버린다. `preset`이면 [base]는 서버가 붙인 카탈로그 값(읽기만),
+  /// `custom`이면 서버의 `instructions`가 페르소나 지시 전체라 [base]에 둔다.
+  static Persona? fromV1Json(Object? json) {
+    if (json is! Map || json['schema'] != v1Schema) return null;
+    final id = json['id'], name = json['name'], kind = json['kind'];
+    if (id is! String || id.isEmpty || name is! String || name.trim().isEmpty) return null;
+    final preset = kind == 'preset';
+    final presetId = json['presetId'];
+    if (preset && (presetId is! String || presetId.isEmpty)) return null;
+    if (!preset && kind != 'custom') return null;
+    final p = fromStoreJson({
+      ...json,
+      'base': preset ? json['base'] : json['instructions'],
+      'instructions': preset ? json['instructions'] : '',
+    });
+    if (p == null) return null;
+    final revision = json['revision'];
+    return p.copyWith(presetId: preset ? presetId as String : '', revision: revision is int ? revision : 0);
+  }
+
+  /// 서버로 보내는 형식 v1 (F-027). `id`·`base`는 보내지 않는다(서버가 정함). `custom`은 기본 지시와 요구 사항을 한 지시로 합친다.
+  /// [clientId]는 기기 데이터 옮기기용(API-014).
+  Map<String, Object> toV1Json({String? clientId}) {
+    final preset = presetId.isNotEmpty;
+    final text = preset
+        ? instructions.trim()
+        : [base.trim(), instructions.trim()].where((t) => t.isNotEmpty).join('\n');
+    return {
+      'schema': v1Schema,
+      'kind': preset ? 'preset' : 'custom',
+      if (preset) 'presetId': presetId,
+      'name': name.trim(),
+      if (role.trim().isNotEmpty) 'role': role.trim(),
+      if (tones.isNotEmpty) 'tones': tones,
+      if (text.isNotEmpty) 'instructions': text.length > maxInstructions ? text.substring(0, maxInstructions) : text,
+      if (revision > 0) 'revision': revision,
+      'clientId': ?clientId,
+    };
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -159,10 +220,12 @@ class Persona {
       other.role == role &&
       other.base == base &&
       other.instructions == instructions &&
+      other.presetId == presetId &&
+      other.revision == revision &&
       _listEquals(other.tones, tones);
 
   @override
-  int get hashCode => Object.hash(id, name, role, base, instructions, Object.hashAll(tones));
+  int get hashCode => Object.hash(id, name, role, base, instructions, presetId, revision, Object.hashAll(tones));
 
   @override
   String toString() => 'Persona($id, $name)';
@@ -260,6 +323,19 @@ class SessionSummary {
       followUps: _list(json['followUps'], maxFollowUps),
       turns: turns,
     );
+  }
+
+  /// 서버가 돌려준 요약(API-017·018, `id`·`endedAt`·`turns` 포함)을 읽는다 (F-028).
+  static SessionSummary? fromServerJson(Object? json, {required String personaId}) {
+    if (json is! Map) return null;
+    final id = json['id'], endedAt = json['endedAt'], turns = json['turns'];
+    final pid = json['personaId'] is String && (json['personaId'] as String).isNotEmpty
+        ? json['personaId'] as String
+        : personaId;
+    if (id is! String || id.isEmpty || pid.isEmpty || endedAt is! String) return null;
+    final at = DateTime.tryParse(endedAt);
+    if (at == null) return null;
+    return fromApiJson(json, id: id, personaId: pid, endedAt: at, turns: turns is int ? turns : 0);
   }
 
   /// API-001 `memory` 항목.

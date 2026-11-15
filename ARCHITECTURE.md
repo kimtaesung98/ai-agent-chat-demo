@@ -14,7 +14,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v1.21 |
+| 문서 버전 | v1.22 |
 | 상태 | 검토 중 — 현재 MVP 기록은 확정, 목표 아키텍처 ADR-005~015 승인 |
 | 작성자 | kimtaesung98 |
 | 최종 수정일 | 2026-11-13 |
@@ -106,7 +106,7 @@
 | Go 테스트 (목표) | `testing`, `net/http/httptest` | 단위·계약 테스트 | 표준 라이브러리 |
 | Flutter (목표) | `flutter` SDK, `package:http` | UI, HTTP | |
 | Flutter (목표) | `fetch_client` | 웹 스트리밍 응답 | 웹 빌드에서만 사용 (조건부 import) |
-| Flutter (F-008, **보류**) | `google_sign_in` (+ 웹 구현 `google_sign_in_web`) | Google 로그인 → ID 토큰 | ADR-017 승인 전에는 추가하지 않음. 승인되면 `app/lib/auth/google_auth.dart`에서만 import |
+| ~~Flutter (F-008, 보류)~~ | ~~`google_sign_in`~~ | ~~Google 로그인 → ID 토큰~~ | ADR-036(승인)으로 대체 — 패키지 없이 `app/web/google.js` + `ui/google_sign_in_web.dart` |
 | Go (F-015·F-016, 승인) | `aws-sdk-go-v2` (`config`, `service/polly`, `service/transcribestreaming`) | Polly·Transcribe 호출 | 해당 단계에서 추가. `internal/speech` 안에서만 import — ADR-020·021 |
 | Go (F-016, 승인) | WebSocket 라이브러리 1개 (착수 때 선정, 순수 Go) | `/api/stt` 중계 | `httpapi`의 `/api/stt` 처리에서만 — ADR-021 |
 | Flutter (F-016, 승인) | `record`, WebSocket 패키지 | 마이크 PCM 스트림, `/api/stt` 연결 | `voice/` 안에서만 — ADR-021 |
@@ -174,8 +174,8 @@ flowchart LR
 | usage (F-030) | `/server/internal/usage` | 사용량 상한 확인·증가(게스트·사용자·전체), 게스트 세션 — ADR-033 | store |
 | contract | `/server/contract` | HTTP 수준 계약 테스트 (어느 서버에나 실행) | (표준 라이브러리만) |
 | archtest | `/server/internal/archtest` | §3.3 의존 규칙 검사 테스트 (모듈 맵에 없는 패키지도 실패) | (표준 라이브러리만) |
-| app/api | `/app/lib/api` | `/api/chat`·API-003·004·007 호출, SSE 파싱 (웹 `fetch_client` · 테스트 VM `package:http` 분기) | (없음) |
-| app/chat | `/app/lib/chat` | `ChatController` (`ChangeNotifier`): 내역·바쁨 상태. `PersonaController`: 페르소나 목록·선택·내 프로필 (F-005). `MemoryController`·`AuthController`·설정 | api |
+| app/api | `/app/lib/api` | `/api/chat`·API-003·004·007 호출, SSE 파싱 (웹 `fetch_client` · 테스트 VM `package:http` 분기). 계정·개인 데이터 API-010~018 호출 `account_api.dart` (F-026~F-028, 세션은 서버 쿠키) | (없음) |
+| app/chat | `/app/lib/chat` | `ChatController` (`ChangeNotifier`): 내역·바쁨 상태. `PersonaController`: 페르소나 목록·선택·내 프로필 (F-005). `MemoryController`·`AuthController`(코드·Google 로그인)·설정. `ServerSync`: 로그인 뒤 서버 프로필·페르소나로 컨트롤러를 맞추고 옮기기 (F-026, 단계 7-⑤) | api |
 | app/voice | `/app/lib/voice` | `VoiceSession`(화면이 쓰는 모양), `RealtimeAgent` 인터페이스와 OpenAI Realtime 구현(`openai_realtime.dart` + 웹 다리), `AgentVoiceController`(임시 키 → 연결, 다시 연결, 안 되면 알리고 끔) — F-024 | chat, api 모델 |
 | app/storage | `/app/lib/storage` | 기기 저장: `KeyValueStore` 인터페이스, `PrefsStore`(`shared_preferences`), 페르소나·기억·설정 불러오기·저장 (Q-005, ADR-023) | chat |
 | app/ui | `/app/lib/ui` | 위젯: 대화 목록, 입력창, 모드 배지, 마이크 버튼, 페르소나 사이드바·편집 화면(F-005) | chat, voice |
@@ -389,11 +389,11 @@ flowchart LR
 | `OPENAI_REALTIME_MODEL` · `OPENAI_REALTIME_VOICE` | N | `gpt-realtime` · `marin` | N | 실시간 모델·목소리 | Go (F-024) |
 | `OPENAI_TRANSCRIBE_MODEL` | N | `gpt-4o-transcribe` | N | 자막용 입력 전사 모델 | Go (F-024) |
 | `OPENAI_API_BASE` | N | `https://api.openai.com` | N | 테스트용 가짜 서버 주소 | Go (F-024) |
-| `DATA_DIR` | N | (없음 → 메모리 DB, 재시작하면 사라짐) | N | 서버 DB 폴더 — `chatd.db`를 둔다 (ADR-028) | Go (F-026, 목표) |
-| `GOOGLE_CLIENT_ID` | N | (없음 → Google 로그인 꺼짐) | N | Google ID 토큰의 `aud` 확인 (ADR-029) | Go (F-026, 목표) |
+| `DATA_DIR` | N | (없음 → 메모리 DB, 재시작하면 사라짐) | N | 서버 DB 폴더 — `chatd.db`를 둔다 (ADR-028). 운영은 EC2 `/var/lib/chatd` → 컨테이너 `/data`, 배포 전·매일 `chatd admin backup` → S3 (F-014 AC6) | Go (F-026) |
+| `GOOGLE_CLIENT_ID` | N | (없음 → Google 로그인 꺼짐) | N | Google ID 토큰의 `aud` 확인 (ADR-029). `/api/auth/options`의 `googleClientId`로 앱 Google 버튼(Google Identity Services, `app/web/google.js`)에도 알린다. 운영은 SSM `/chatd/google-client-id` | Go (F-026) |
 | `CARE_SETTING` | N | `daycare` | N | 배포 유형 — `daycare`(노치원)·`nursing_home`·`home_alone` (ADR-035) | Go (F-031, 목표) |
 | `GUEST_MODE` | N | `off` | N | `on`이면 게스트 체험 (ADR-033) | Go (F-030, 목표) |
-| `REQUIRE_LOGIN` | N | `off` | N | `on`이면 실제 모드에서 세션 없는 AI 경로(API-001·003·004·007)를 닫는다. 앱 로그인 화면(단계 7-⑤) 뒤 켬 (ADR-033) | Go (F-030) |
+| `REQUIRE_LOGIN` | N | **`on`** (2026-11-15, 단계 7-⑤ 앱 로그인 화면) | N | 실제 모드에서 세션 없는 AI 경로(API-001·003·004·007)를 닫는다. `off`로만 끈다. 모의 모드는 언제나 열림 (ADR-033) | Go (F-030) |
 | `BOOTSTRAP_ADMIN_CODE` · `BOOTSTRAP_ADMIN_NAME` | N | (없음) · `최고 관리자` | **Y** · N | 최고 관리자가 없을 때 이 10자리 코드로 첫 최고 관리자를 만든다(계약 테스트·처음 설치). 보통은 `chatd admin bootstrap -name 원장` | Go (F-026) |
 | `CLIENT_IP_HEADER` | N | (없음 → 연결 주소) | N | 프록시가 넣는 진짜 IP 헤더(예 `CF-Connecting-IP`) — IP별 상한에 씀 | Go (F-030) |
 | `GUEST_TURNS` · `GUEST_PER_IP_HOURLY` · `GUEST_DAILY_TOTAL` | N | `10` · `3` · `300` | N | 게스트 상한 | Go (F-030, 목표) |
@@ -472,6 +472,7 @@ flowchart LR
 | ADR-033 | **AI 사용량은 요청 전에 DB 상한으로 막는다** (F-030): `usage_daily`(주체·서울 날짜)에 질문 수·음성 초·추정 토큰을 세고, 제공자를 부르기 **전에** 한 트랜잭션으로 확인·증가한다. 상한은 게스트 세션·IP별 게스트 만들기·역할별 사용자·서버 전체 네 겹. 게스트는 `GUEST_MODE=on`일 때만, DB 계정 없이 24시간 세션, 글 채팅만(질문 10번·답 400토큰·6턴). 음성 임시 키는 남은 분만큼 세션 길이를 줄여 발급. 서버 DB가 켜지면 세션 없는 AI 경로(API-001·003·004·007)를 닫는다(모의 모드는 열어 둠). 새 모듈 `internal/usage`(`store` 인터페이스만) | ① 게스트 없음 ② IP 기반 메모리 속도 제한만 ③ 제공자 쪽 지출 한도만(Anthropic·OpenAI 콘솔) ④ 실제 토큰 수로 사후 차감 | 사용자 요구("게스트가 많은 토큰을 발생시켜 누수를 일으키면 안 돼"). ②는 재시작하면 풀리고 IP를 바꾸면 뚫림 — 그래도 게스트 만들기에는 IP 제한을 함께 둔다. ③은 마지막 안전망으로 같이 쓰라고 운영 문서에 적되, 넘으면 모든 사용자가 멈춤. ④는 동시 요청으로 상한을 넘길 수 있음 — 미리 세고, 정확한 토큰은 나중에 기록만 | 승인 (사용자 요청, 2026-11-13) | 2026-11-13 |
 | ADR-034 | **어르신 페르소나 = 사람이 정하는 기본 설정 + 서버가 대화에서 쌓는 `learned`** (F-031): 관리자·보호자는 정해진 몇 칸(호칭·대화 상대·관심사·피할 이야기·일과·건강 한 줄)만 고르고, 자유 지시문은 쓰지 않는다. 대화를 끝낼 때 서버가 요약과 같은 제공자 호출 하나로 `learned` 후보를 뽑아 규칙(확인 횟수·오래됨·지움 표시)으로 합친다. 프롬프트 틀은 `chat`이 쥔다(ADR-016). 원문은 기기 IndexedDB에 계속 보관하고 서버는 받은 원문을 처리만 한다 — 알고리즘 판(`algoVersion`)이 오르면 기기 원문을 다시 올려 새로 만든다 | ① 관리자가 자유 지시문을 직접 씀(지금 F-027 편집기) ② 서버가 원문을 오래 보관하고 다시 처리 ③ 임베딩·벡터 DB | 사용자 방향("설정 수준은 높지 않게, 데이터가 쌓이며 알고리즘 페르소나가 완성", "원문은 모바일에 지속 보관"). ①은 요양사·보호자에게 어렵고 결과가 들쭉날쭉. ②는 서버에 민감한 원문이 쌓임. ③은 지금 규모에 무거움 — `learned`가 커지면 다시 본다. 단점: 폰을 잃으면 원문이 사라짐(Q-013), 기기 원문 저장은 IndexedDB가 필요(웹 `dart:js_interop`, 새 패키지 없이 — 앱 단계에서 확인) | 승인 — 방향 (사용자, 2026-11-13). 세부는 노치원 기획서(Q-014) 뒤 | 2026-11-13 |
 | ADR-035 | **배포 유형 `CARE_SETTING`** (`daycare`·`nursing_home`·`home_alone`): 서버 하나가 한 유형으로 돈다. 유형별 값(추천 프리셋·기본 설정 칸·일과 틀·대화 상대 기본 지시 보충)은 `chat` 패키지 안 Go 값으로 두고, 앱은 `GET /api/config`로 받는다. 이번에는 `daycare`(노치원)만 채운다 | ① 유형마다 앱·서버를 따로 ② DB에 유형 설정 화면 | 사용자 계획(노치원 먼저, 요양원·자택 홀로 확장). 코드 하나로 값만 갈아 끼우면 확장이 싸다. ②는 운영 화면이 늘어 지금은 과함. 여러 유형을 한 서버에서 쓰려면 R-A18(기관)과 함께 | 승인 — 방향 (사용자, 2026-11-13) | 2026-11-13 |
+| ADR-036 | **앱 Google 로그인 창은 Google Identity Services(GIS) 스크립트를 `dart:js_interop`으로** (F-026 상세 동작 3, ADR-017의 앱 쪽 바꿈): `app/web/google.js`가 처음 누를 때만 `accounts.google.com/gsi/client`를 받아 공식 Google 버튼을 띄우고 ID 토큰을 돌려준다. 앱은 그 토큰을 `POST /api/auth/google`로만 보낸다(저장 안 함). 클라이언트 ID(비밀값 아님)는 `/api/auth/options`가 알려 주고, 없으면 버튼을 숨긴다. 새 패키지 없음 | ① `google_sign_in`(+`google_sign_in_web`) 패키지 — ADR-017 원안, 보류 상태 ② 서버 OAuth 리다이렉트 흐름 | 앱이 웹 PWA뿐이라(ADR-027, 네이티브 없음) ①의 장점(네이티브 공용)이 사라졌고, 웹 구현도 결국 GIS를 감싼다. JS 다리는 F-024 `realtime.js`와 같은 방식. 단점: Google 버튼 모양·동작을 GIS가 정한다, 외부 스크립트 하나 | 승인 (사용자, 2026-11-15 — "승인 (지금 PR 그대로)"). ADR-017의 `google_sign_in` 패키지 안은 대체됨 | 2026-11-15 |
 ---
 
 ## 10. 진화 계획
@@ -547,6 +548,7 @@ flowchart LR
 | v1.13 | 2026-11-13 | kimtaesung98 | 전향(사용자 요청): ADR-026 OpenAI GPT Realtime(ADR-025 대체)·ADR-027 Flutter 웹 PWA(ADR-022 대체) 제안, §2.1·§2.2·§10 단계 6, R-A15·R-A16 |
 | v1.14 | 2026-11-13 | kimtaesung98 | 서비스화 제안(F-026~028): ADR-028 SQLite(`modernc.org/sqlite`, 제안 허용 목록), ADR-029 게스트 계정·서버 세션, ADR-030 페르소나 형식 v1·서버 프리셋 카탈로그(ADR-024 ④ 재검토), ADR-031 대화·요약·기억 서버 처리(ADR-024 대체 예정). 모듈 `store`·`store/sqlite`·`account`(목표), `DATA_DIR`, §10 단계 7, R-A17 |
 | v1.15 | 2026-11-13 | kimtaesung98 | 사용자 결정: ADR-028 승인(DB 라이브러리), ADR-029 개정(관리자 발급 코드 · 연결된 Google, 이름만 계정 없앰), ADR-030·031 승인, ADR-032 역할 계층, ADR-033 사용량 상한·게스트. 모듈 `usage`, 환경변수 `GOOGLE_CLIENT_ID`·`GUEST_*`·상한, R-A17 개정·R-A18 |
+| v1.22 | 2026-11-15 | kimtaesung98 | 단계 7-⑤ 앱: `api/account_api.dart`, `chat/server_sync.dart`, Google 창 `web/google.js` + `ui/google_sign_in_web.dart`(새 패키지 없이 `dart:js_interop`, `google_sign_in` 패키지는 계속 보류). `REQUIRE_LOGIN` 기본 on. 배포: 계정 DB 볼륨·`chatd admin backup`·S3 백업 버킷 |
 | v1.21 | 2026-11-14 | kimtaesung98 | 마이그레이션 004(`profiles`), httpapi `profile.go`·`import.go`, `account.Rename`. 새 모듈·라이브러리 없음 |
 | v1.20 | 2026-11-13 | kimtaesung98 | 단계 7-④ 서버: 마이그레이션 003(`conversations`·`summaries`·`long_term_memory`), httpapi `conversations.go`. 새 모듈·라이브러리 없음 |
 | v1.19 | 2026-11-13 | kimtaesung98 | 단계 7-③ 서버: `chat` 프리셋 카탈로그·Persona v1, 마이그레이션 002(`personas`), httpapi `personas.go`. 새 모듈·라이브러리 없음 |

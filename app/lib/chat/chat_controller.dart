@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../api/account_api.dart';
 import '../api/chat_api.dart';
 import 'memory_controller.dart';
 import 'persona_controller.dart';
@@ -35,6 +36,9 @@ class _Session {
 
   /// 마지막으로 정리한 메시지 수.
   int summarizedCount = 0;
+
+  /// 서버 대화 id (F-028). 로그인한 서버 모드에서 첫 메시지·음성 시작 때 연다.
+  Future<String>? conversation;
 }
 
 /// 채팅 화면 컨트롤러. 위젯은 [ListenableBuilder]로 구독만 한다.
@@ -49,6 +53,27 @@ class ChatController extends ChangeNotifier {
   /// 지난 대화 기억 (F-019). 없으면 요약하지 않고 `memory` 없이 보낸다. 페르소나가 있어야 쓴다.
   final MemoryController? memory;
   final DateTime Function() _clock;
+
+  /// 로그인한 서버 계정 (F-028). 있으면 대화를 서버에 열고(`conversationId`), 끝낼 때 서버가 요약·장기 기억을 만든다.
+  /// 없으면 지금처럼 앱이 페르소나·기억을 실어 보내고 요약을 기기에 둔다.
+  AccountApi? _server;
+  bool get serverBacked => _server != null;
+
+  /// 서버 계정에 붙인다 (로그인 뒤). 지금 대화는 새로 시작한다.
+  void attachServer(AccountApi api) {
+    if (identical(_server, api)) return;
+    _resetLocal();
+    _server = api;
+    _notify();
+  }
+
+  /// 서버 계정에서 뗀다 (로그아웃). 지금 대화를 정리한 뒤 비운다.
+  void detachServer() {
+    if (_server == null) return;
+    reset();
+    _server = null;
+    _notify();
+  }
 
   /// 지금 대화 세션. 첫 메시지를 보낼 때 정하고 [reset]에서 끝난다.
   _Session? _session;
@@ -96,56 +121,92 @@ class ChatController extends ChangeNotifier {
     final answer = ChatEntry._(Role.assistant, '', EntryStatus.streaming);
     _entries.addAll([question, answer]);
 
-    _sub = _api
-        .stream(
-          messages,
-          mode: voice ? ChatMode.voice : ChatMode.text,
-          persona: persona,
-          memory: switch (session.persona) {
-            final p? => memory?.recentFor(p.persona.id, exceptSession: session.id) ?? const [],
-            null => const [],
-          },
-          longTerm: switch (session.persona) {
-            final p? => memory?.longTermFor(p.persona.id),
-            null => null,
-          },
-        )
-        .listen(
-          (event) {
-            switch (event) {
-              case ChatDelta(:final text):
-                answer.text += text; // F-001 AC1
-              case ChatDone():
-                answer.status = EntryStatus.done;
-                _finish();
-              case ChatFailed(:final message):
-                answer
-                  ..text = message
-                  ..status = EntryStatus.error
-                  ..inHistory = false;
-                question.inHistory = false; // 실패한 질문은 내역에서 뺀다 — 다시 시도는 [retry] (F-004 AC2)
-                _finish();
-            }
-            _notify();
-          },
-          onDone: () {
-            if (answer.status == EntryStatus.streaming) {
-              answer
-                ..text = ClientMessages.ended
-                ..status = EntryStatus.error
-                ..inHistory = false;
-              question.inHistory = false;
-              _finish();
-              _notify();
-            }
-          },
-        );
+    final mode = voice ? ChatMode.voice : ChatMode.text;
+    final events = _server != null && session.persona != null
+        ? _serverStream(session, messages, mode)
+        : _api.stream(
+            messages,
+            mode: mode,
+            persona: persona,
+            memory: switch (session.persona) {
+              final p? => memory?.recentFor(p.persona.id, exceptSession: session.id) ?? const [],
+              null => const [],
+            },
+            longTerm: switch (session.persona) {
+              final p? => memory?.longTermFor(p.persona.id),
+              null => null,
+            },
+          );
+    _sub = events.listen(
+      (event) {
+        switch (event) {
+          case ChatDelta(:final text):
+            answer.text += text; // F-001 AC1
+          case ChatDone():
+            answer.status = EntryStatus.done;
+            _finish();
+          case ChatFailed(:final message):
+            answer
+              ..text = message
+              ..status = EntryStatus.error
+              ..inHistory = false;
+            question.inHistory = false; // 실패한 질문은 내역에서 뺀다 — 다시 시도는 [retry] (F-004 AC2)
+            _finish();
+        }
+        _notify();
+      },
+      onDone: () {
+        if (answer.status == EntryStatus.streaming) {
+          answer
+            ..text = ClientMessages.ended
+            ..status = EntryStatus.error
+            ..inHistory = false;
+          question.inHistory = false;
+          _finish();
+          _notify();
+        }
+      },
+    );
     _notify();
     return true;
   }
 
   _Session _ensureSession() =>
       _session ??= _Session('session-${_clock().microsecondsSinceEpoch}-${_sessionSeq++}', personas?.request);
+
+  /// 서버 대화를 열고(한 번) 그 id로 보낸다 (F-028). 열지 못하면 실패 사건 하나.
+  Stream<ChatEvent> _serverStream(_Session session, List<Message> messages, ChatMode mode) async* {
+    final String id;
+    try {
+      id = await _openConversation(session, channel: 'text');
+    } on AccountApiError catch (e) {
+      yield ChatFailed(e.message);
+      return;
+    } catch (_) {
+      yield const ChatFailed(ClientMessages.connect);
+      return;
+    }
+    yield* _api.stream(messages, mode: mode, conversationId: id);
+  }
+
+  Future<String> _openConversation(_Session session, {required String channel}) {
+    final server = _server!;
+    final personaId = session.persona!.persona.id;
+    final opening = session.conversation ??= server.openConversation(personaId, channel: channel);
+    // 실패하면 다음에 다시 연다
+    return opening.catchError((Object e) {
+      if (identical(session.conversation, opening)) session.conversation = null;
+      throw e;
+    });
+  }
+
+  /// 실시간 음성 대화(F-024)를 시작할 때 서버 대화 id. 서버 모드가 아니면 null. 열지 못하면 던진다.
+  Future<String?> voiceConversation() async {
+    if (_server == null) return null;
+    final session = _ensureSession();
+    if (session.persona == null) return null;
+    return _openConversation(session, channel: 'voice');
+  }
 
   /// 실시간 음성 대화(F-024)에서 확정된 말 한마디를 대화 내역에 넣는다. 서버에 보내지 않는다 —
   /// 답은 OpenAI Realtime이 만들고, 여기서는 화면·요약(F-019)·다시 연결용으로 남긴다.
@@ -207,9 +268,14 @@ class ChatController extends ChangeNotifier {
   void reset() {
     stop();
     endSession();
+    _resetLocal();
+    _notify();
+  }
+
+  void _resetLocal() {
+    stop();
     _entries.clear();
     _session = null;
-    _notify();
   }
 
   /// 지금 대화 세션을 요약해 기억에 넣는다 (F-019 AC3). 새 대화·페르소나 바꾸기·음성 "대화 끝내기"·앱이 뒤로 갈 때 부른다.
@@ -227,6 +293,7 @@ class ChatController extends ChangeNotifier {
     final hasAnswer = messages.any((m) => m.role == Role.assistant);
     if (!hasAnswer || messages.length == session.summarizedCount) return false;
     session.summarizedCount = messages.length;
+    if (_server case final server?) return _endOnServer(server, session, store, messages);
     final endedAt = _clock();
     final turns = messages.where((m) => m.role == Role.user).length;
     _summarizing++;
@@ -249,6 +316,34 @@ class ChatController extends ChangeNotifier {
           .catchError((Object e) {
             session.summarizedCount = 0; // 다음 정리 때 다시 시도
             debugPrint('대화 정리 실패'); // 내용은 로그에 남기지 않는다
+          })
+          .whenComplete(() {
+            _summarizing--;
+            _notify();
+          }),
+    );
+    return true;
+  }
+
+  /// 서버 대화를 끝낸다 (F-028 AC4): 원문을 한 번 보내면 서버가 요약을 저장하고, 쌓이면 장기 기억도 묶는다.
+  /// 받은 요약은 화면용으로 기억에 넣는다. 대화를 아직 열지 않았으면(첫 답 전) 아무것도 하지 않는다.
+  bool _endOnServer(AccountApi server, _Session session, MemoryController store, List<Message> messages) {
+    final opening = session.conversation;
+    if (opening == null) {
+      session.summarizedCount = 0;
+      return false;
+    }
+    _summarizing++;
+    unawaited(
+      opening
+          .then((id) => server.endConversation(id, messages))
+          .then((ended) {
+            if (!identical(server, _server)) return; // 그 사이 로그아웃함 — 남의 기억을 기기에 넣지 않는다
+            if (ended.summary case final s?) store.put(s);
+          })
+          .catchError((Object e) {
+            session.summarizedCount = 0; // 다음 정리 때 다시 시도 — 서버에는 원문이 없으니 앱이 다시 보낸다
+            debugPrint('대화 끝내기 실패'); // 내용은 로그에 남기지 않는다
           })
           .whenComplete(() {
             _summarizing--;

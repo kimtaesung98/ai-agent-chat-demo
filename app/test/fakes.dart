@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:ai_agent_chat/api/account_api.dart';
 import 'package:ai_agent_chat/api/chat_api.dart';
 import 'package:ai_agent_chat/chat/chat_controller.dart';
+import 'package:ai_agent_chat/chat/persona_controller.dart' show defaultPersonas;
 import 'package:ai_agent_chat/voice/agent_voice_controller.dart';
 import 'package:ai_agent_chat/voice/realtime_agent.dart';
 
@@ -14,6 +16,9 @@ class FakeApi implements ChatApi {
   final personas = <PersonaRequest?>[];
   final memories = <List<SessionSummary>>[];
   final longTerms = <LongTermMemory?>[];
+
+  /// 요청마다 보낸 대화 id (F-028). 기기 대화면 null.
+  final conversationIds = <String?>[];
 
   /// 장기 기억 요청 (F-020).
   final consolidateRequests = <List<SessionSummary>>[];
@@ -36,8 +41,10 @@ class FakeApi implements ChatApi {
     PersonaRequest? persona,
     List<SessionSummary> memory = const [],
     LongTermMemory? longTerm,
+    String? conversationId,
   }) {
     requests.add(messages);
+    conversationIds.add(conversationId);
     longTerms.add(longTerm);
     personas.add(persona);
     memories.add(memory);
@@ -157,4 +164,161 @@ class FakeAgent implements RealtimeAgent {
     retryDelay: const Duration(milliseconds: 100),
   );
   return (voice: voice, agent: agent);
+}
+
+/// 메모리 안의 가짜 계정 서버 (F-026~F-028). 테스트가 [fail]로 다음 요청을 실패시킨다.
+class FakeAccountApi implements AccountApi {
+  FakeAccountApi({this.user, this.google = false});
+
+  /// 지금 세션의 사람. null이면 로그인 전.
+  ServerUser? user;
+  bool google;
+  String code = 'K7QM4XPH2R';
+  final calls = <String>[];
+
+  /// 이름 → 다음 한 번 그 요청을 실패시킬 오류.
+  final fail = <String, AccountApiError>{};
+
+  ServerProfile profileValue = const ServerProfile();
+  final profileUpdates = <Map<String, Object?>>[];
+  var _seq = 0;
+  late final List<Persona> serverPersonas = [
+    for (final p in defaultPersonas) p.copyWith(id: 'per_${p.id}', presetId: p.id, revision: 1),
+  ];
+  final summaries = <SessionSummary>[];
+  final longTerms = <String, LongTermMemory>{};
+  final opened = <({String personaId, String channel})>[];
+  final ended = <({String id, List<Message> messages})>[];
+  final imports = <Map<String, Object?>>[];
+
+  /// 열린 대화 요청이 끝나지 않게 잡아 둘 때.
+  Completer<void>? holdOpen;
+
+  Future<T> _call<T>(String name, T Function() body) async {
+    calls.add(name);
+    await Future<void>.delayed(Duration.zero);
+    if (fail.remove(name) case final e?) throw e;
+    if (user == null && !name.startsWith('options') && !name.startsWith('login')) {
+      throw const AccountApiError(401, 'UNAUTHENTICATED', '로그인이 필요해요.');
+    }
+    return body();
+  }
+
+  @override
+  Future<AuthOptions> options() => _call(
+    'options',
+    () => AuthOptions(google: google, googleClientId: google ? 'cid.apps.googleusercontent.com' : ''),
+  );
+
+  static const badCode = AccountApiError(401, 'BAD_CODE', '코드를 다시 확인해 주세요.');
+
+  @override
+  Future<ServerUser> loginWithCode(String c) => _call('loginCode', () {
+    if (c.replaceAll('-', '').toUpperCase() != code) throw badCode;
+    return user = const ServerUser(id: 'usr_elder', name: '김순자', role: 'elder');
+  });
+
+  @override
+  Future<ServerUser> loginWithGoogle(String idToken) => _call('loginGoogle', () {
+    if (idToken != 'good-token') throw const AccountApiError(403, 'NOT_INVITED', '초대받지 않은 Google 계정이에요.');
+    return user = const ServerUser(id: 'usr_guard', name: '김보호', role: 'guardian', google: true);
+  });
+
+  @override
+  Future<ServerUser?> me() async {
+    calls.add('me');
+    await Future<void>.delayed(Duration.zero);
+    if (fail.remove('me') case final e?) throw e;
+    return user;
+  }
+
+  @override
+  Future<void> logout() => _call('logout', () => user = null);
+
+  @override
+  Future<ServerProfile> profile() => _call('profile', () => profileValue);
+
+  @override
+  Future<void> updateProfile({String? about, String? textSize, bool? voiceOnStart, String? lastPersonaId}) =>
+      _call('updateProfile', () {
+        profileUpdates.add({
+          'about': ?about,
+          'textSize': ?textSize,
+          'voiceOnStart': ?voiceOnStart,
+          'lastPersonaId': ?lastPersonaId,
+        });
+      });
+
+  @override
+  Future<List<Persona>> personas() => _call('personas', () => [...serverPersonas]);
+
+  @override
+  Future<Persona> createPersona(Persona p) => _call('createPersona', () {
+    final saved = p.copyWith(id: 'per_new${_seq++}', revision: 1);
+    serverPersonas.add(saved);
+    return saved;
+  });
+
+  @override
+  Future<Persona> updatePersona(Persona p) => _call('updatePersona', () {
+    final i = serverPersonas.indexWhere((e) => e.id == p.id);
+    if (i < 0) throw const AccountApiError(404, 'NOT_FOUND', '찾을 수 없어요.');
+    final current = serverPersonas[i];
+    if (current.revision != p.revision) {
+      throw AccountApiError(409, 'CONFLICT', '충돌', body: {'persona': _v1(current)});
+    }
+    return serverPersonas[i] = p.copyWith(revision: p.revision + 1);
+  });
+
+  static Map<String, Object?> _v1(Persona p) => {...p.toV1Json(), 'id': p.id, 'base': p.base};
+
+  @override
+  Future<void> deletePersona(String id) => _call('deletePersona', () => serverPersonas.removeWhere((p) => p.id == id));
+
+  @override
+  Future<ServerMemory> memory(String personaId) => _call(
+    'memory',
+    () =>
+        ServerMemory(summaries: [...summaries.where((s) => s.personaId == personaId)], longTerm: longTerms[personaId]),
+  );
+
+  @override
+  Future<void> clearMemory(String personaId) => _call('clearMemory', () {
+    summaries.removeWhere((s) => s.personaId == personaId);
+    longTerms.remove(personaId);
+  });
+
+  @override
+  Future<void> deleteSummary(String id) => _call('deleteSummary', () => summaries.removeWhere((s) => s.id == id));
+
+  @override
+  Future<String> openConversation(String personaId, {String channel = 'text'}) async {
+    if (holdOpen case final h?) await h.future;
+    return _call('openConversation', () {
+      opened.add((personaId: personaId, channel: channel));
+      return 'cnv_${opened.length}';
+    });
+  }
+
+  @override
+  Future<EndedConversation> endConversation(String id, List<Message> messages) => _call('endConversation', () {
+    ended.add((id: id, messages: messages));
+    final personaId = opened[int.parse(id.substring(4)) - 1].personaId;
+    final s = SessionSummary(
+      id: 'sum_${ended.length}',
+      personaId: personaId,
+      endedAt: DateTime.utc(2026, 11, 15),
+      summary: '서버 요약: ${messages.first.content}',
+    );
+    summaries
+      ..removeWhere((e) => e.id == s.id)
+      ..add(s);
+    return EndedConversation(s);
+  });
+
+  @override
+  Future<Map<String, Object?>> importDevice(Map<String, Object?> payload) => _call('import', () {
+    imports.add(payload);
+    return {'personasCreated': 0};
+  });
 }

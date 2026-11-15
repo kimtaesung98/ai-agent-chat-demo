@@ -125,8 +125,12 @@ class _ChatPageState extends State<ChatPage> {
     final switching = saved.id != personas.selected.id;
     if (switching && _chat.busy) return;
     if (switching && (_voice?.active ?? false)) _voice!.stop();
-    personas.save(saved);
+    final saving = personas.save(saved);
     if (switching) _chat.reset(); // 새로 만든 페르소나는 선택되고 새 대화로 시작한다
+    final error = await saving; // 서버 저장이 실패하면 이전 값으로 돌아가고 안내한다 (F-027 AC5)
+    if (error != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(key: const Key('persona-save-error'), content: Text(error)));
+    }
   }
 
   Future<void> _editProfile() async {

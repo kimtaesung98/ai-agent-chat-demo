@@ -108,3 +108,41 @@ func TestF030MockModeStaysOpen(t *testing.T) {
 		t.Fatalf("모의 모드 세션 없는 채팅: %d", res.StatusCode)
 	}
 }
+
+type noGoogle struct{}
+
+func (noGoogle) Verify(context.Context, string) (account.GoogleIdentity, error) {
+	return account.GoogleIdentity{}, account.ErrUnauthenticated
+}
+
+func TestF026AuthOptionsGoogleClientID(t *testing.T) {
+	get := func(t *testing.T, acc *account.Service, opts AuthOptions) string {
+		h := New(&realProvider{}, t.TempDir(), slog.New(slog.NewTextHandler(io.Discard, nil)), WithAccounts(acc, nil, opts))
+		srv := httptest.NewServer(h)
+		defer srv.Close()
+		res, err := http.Get(srv.URL + "/api/auth/options")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return string(b)
+	}
+	db, err := sqlite.Open("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	t.Run("F-026 AC3 Google이 켜지면 앱 로그인 버튼용 클라이언트 ID를 알려 준다", func(t *testing.T) {
+		body := get(t, account.New(db, account.WithGoogle(noGoogle{})), AuthOptions{GoogleClientID: "abc.apps.googleusercontent.com"})
+		if !strings.Contains(body, `"google":true`) || !strings.Contains(body, `"googleClientId":"abc.apps.googleusercontent.com"`) {
+			t.Fatalf("options: %s", body)
+		}
+	})
+	t.Run("F-026 AC3 Google이 꺼지면 버튼도 클라이언트 ID도 없다", func(t *testing.T) {
+		body := get(t, account.New(db), AuthOptions{GoogleClientID: "abc"})
+		if !strings.Contains(body, `"google":false`) || strings.Contains(body, "googleClientId") {
+			t.Fatalf("options: %s", body)
+		}
+	})
+}

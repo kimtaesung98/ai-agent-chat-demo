@@ -53,7 +53,9 @@ class _MemoryPageState extends State<MemoryPage> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
               Text(
-                '대화를 끝낼 때마다 짧게 정리해 이 기기에만 남겨요. 다음 대화에서 이어 가는 데 써요.',
+                widget.memory.serverBacked
+                    ? '대화를 끝낼 때마다 짧게 정리해 내 계정에 남겨요. 다음 대화에서 이어 가는 데 써요. 대화 원문은 남기지 않아요.'
+                    : '대화를 끝낼 때마다 짧게 정리해 이 기기에만 남겨요. 다음 대화에서 이어 가는 데 써요.',
                 style: TextStyle(color: c.muted, fontSize: 16, height: 1.5),
               ),
               const SizedBox(height: 16),

@@ -3,7 +3,10 @@ import 'dart:convert';
 import 'package:ai_agent_chat/chat/memory_controller.dart';
 import 'package:ai_agent_chat/chat/persona_controller.dart';
 import 'package:ai_agent_chat/storage/app_storage.dart';
+import 'package:ai_agent_chat/api/account_api.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../fakes.dart';
 
 Future<void> settle() => Future<void>.delayed(Duration.zero);
 
@@ -57,6 +60,92 @@ void main() {
       StoreKeys.voiceOnStart,
       StoreKeys.auth,
       StoreKeys.textSize,
+      StoreKeys.migrated,
+    });
+  });
+
+  group('F-026 AC8 기기 데이터 옮기기', () {
+    Future<MemoryStore> deviceWithData() async {
+      final store = MemoryStore();
+      final personas = loadPersonas(store);
+      final memory = loadMemory(store);
+      await personas.save(personas.selected.copyWith(instructions: '혈압약 챙겨 줘')); // planner에 내 요구
+      await personas.save(const Persona(id: 'custom-1', name: '면접관', base: '압박 면접처럼'));
+      personas.setAbout('70대, 무릎이 안 좋아요');
+      memory.put(
+        SessionSummary(id: 's1', personaId: 'custom-1', endedAt: DateTime.utc(2026, 11, 10), summary: '면접 연습'),
+      );
+      memory.setLongTerm(
+        LongTermMemory(
+          personaId: 'custom-1',
+          summary: '오래된 이야기',
+          updatedAt: DateTime.utc(2026, 11, 11),
+          coversUntil: DateTime.utc(2026, 11, 9),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      return store;
+    }
+
+    test('손댄 탑재·만든 페르소나·요약·장기 기억·프로필을 clientId와 함께 싣는다', () async {
+      final device = loadDeviceData(await deviceWithData())!;
+      final p = device.payload;
+      expect(p['profile'], {'about': '70대, 무릎이 안 좋아요'});
+      final personas = (p['personas'] as List).cast<Map<String, Object>>();
+      expect(personas.map((e) => e['clientId']), ['planner', 'custom-1'], reason: '손대지 않은 탑재 페르소나는 뺀다');
+      expect(personas[0], containsPair('kind', 'preset'));
+      expect(personas[0], containsPair('presetId', 'planner'));
+      expect(personas[0], containsPair('instructions', '혈압약 챙겨 줘'));
+      expect(personas[0].containsKey('base'), isFalse, reason: '탑재 기본 지시는 서버 카탈로그 값');
+      expect(personas[1], containsPair('kind', 'custom'));
+      expect(personas[1], containsPair('instructions', '압박 면접처럼'));
+      final summaries = (p['summaries'] as List).cast<Map<String, Object>>();
+      expect(summaries.single, containsPair('clientId', 's1'));
+      expect(summaries.single, containsPair('personaClientId', 'custom-1'));
+      expect((p['longTerm'] as List).single, containsPair('personaClientId', 'custom-1'));
+    });
+
+    test('옮긴 뒤에만 기기 키를 지우고, 다시 켜면 묻지 않는다', () async {
+      final store = await deviceWithData();
+      final device = loadDeviceData(store)!;
+      expect(store.read(StoreKeys.personas), isNotNull);
+      await device.markMigrated();
+      expect(store.read(StoreKeys.personas), isNull);
+      expect(store.read(StoreKeys.memory), isNull);
+      expect(store.read(StoreKeys.migrated), 'done');
+      expect(loadDeviceData(store), isNull);
+    });
+
+    test('옮기지 않기로 하면 기기 키는 남기고 다시 묻지 않는다', () async {
+      final store = await deviceWithData();
+      await loadDeviceData(store)!.markSkipped();
+      expect(store.read(StoreKeys.personas), isNotNull);
+      expect(loadDeviceData(store), isNull);
+    });
+
+    test('기기에 아무것도 없거나 손대지 않은 기본값뿐이면 묻지 않는다', () async {
+      expect(loadDeviceData(MemoryStore()), isNull);
+      final store = MemoryStore();
+      final personas = loadPersonas(store);
+      personas.select('friend'); // 고르기만 함
+      await Future<void>.delayed(Duration.zero);
+      expect(loadDeviceData(store), isNull);
+    });
+
+    test('서버 계정에 붙어 있는 동안은 페르소나·기억을 기기에 쓰지 않는다 (서버가 진실 원천)', () async {
+      final store = MemoryStore();
+      final personas = loadPersonas(store);
+      final memory = loadMemory(store);
+      final api = FakeAccountApi(
+        user: const ServerUser(id: 'u', name: '순자', role: 'elder'),
+      );
+      personas.attachServer(api, await api.personas());
+      memory.attachServer(api);
+      personas.setAbout('서버에만');
+      memory.put(SessionSummary(id: 'sum_1', personaId: 'per_planner', endedAt: DateTime.utc(2026), summary: '요약'));
+      await Future<void>.delayed(Duration.zero);
+      expect(store.read(StoreKeys.personas), isNull);
+      expect(store.read(StoreKeys.memory), isNull);
     });
   });
 

@@ -34,6 +34,8 @@ flowchart LR
     GHA -->|"arm64 이미지"| ECR[["ECR chatd"]]
     GHA -->|"run-chatd.sh<br>SSM Run Command"| EC2["EC2 chatd<br>인바운드 없음"]
     SSM[["SSM Parameter Store<br>/chatd/*"]] -->|"API 키 · 터널 토큰"| EC2
+    EC2 <-->|"계정 DB<br>/var/lib/chatd"| Disk[("EC2 디스크")]
+    EC2 -->|"매일 · 배포 전 백업"| S3[["S3 chatd-backups-…"]]
     ECR -->|"이미지"| EC2
     EC2 -->|"바깥으로만 연결"| CF[["Cloudflare Tunnel · Access"]]
     User([허용된 방문자]) -->|"HTTPS"| CF
@@ -69,8 +71,10 @@ flowchart LR
 4. **Cloudflare Tunnel** — Zero Trust → Networks → Tunnels → Create a tunnel(Cloudflared), 이름 `chatd`. 설치 화면에 나오는 토큰을 복사해 2번이 출력한 `read -rs T && aws ssm put-parameter … /chatd/cloudflare-tunnel-token …` 명령으로 넣습니다. Public hostname: 예) `chat.<도메인>` → Service `HTTP` · `chatd:3000`.
 5. **Cloudflare Access** — Zero Trust → Access → Applications → Add → Self-hosted, 도메인 `chat.<도메인>`. 정책 Allow · Include: Emails(허용할 이메일들). 로그인 방법은 One-time PIN(기본)이면 충분합니다.
 6. **Claude API 키** — 2번이 출력한 `… /chatd/anthropic-api-key …` 명령으로 넣습니다. 넣지 않으면 모의 모드로 뜹니다. 실시간 음성(F-024)을 쓰려면 `… /chatd/openai-api-key …` 명령으로 OpenAI 키도 넣습니다 (없으면 글 대화만, 발급은 `docs/OPENAI_REALTIME_SETUP.md`).
-7. **GitHub 설정** — 저장소 Settings → Environments에 `production`을 만들고(필요하면 승인자 지정), Settings → Secrets and variables → Actions → Variables에 2번이 출력한 `AWS_REGION`, `AWS_DEPLOY_ROLE_ARN`, `ECR_REPOSITORY_URI`, `EC2_INSTANCE_ID`를 넣습니다. 모두 비밀값이 아닙니다.
-8. **배포** — Actions → Deploy → Run workflow. 끝나면 `chat.<도메인>`에 접속합니다.
+7. **(선택) Google 로그인** — Google Cloud 콘솔에서 OAuth 클라이언트(웹)를 만들고 승인된 JavaScript 원본에 `https://chat.<도메인>`을 넣은 뒤, `… /chatd/google-client-id …` 명령(2번 출력)으로 클라이언트 ID를 넣습니다. 없으면 로그인 코드만 씁니다.
+8. **GitHub 설정** — 저장소 Settings → Environments에 `production`을 만들고(필요하면 승인자 지정), Settings → Secrets and variables → Actions → Variables에 2번이 출력한 `AWS_REGION`, `AWS_DEPLOY_ROLE_ARN`, `ECR_REPOSITORY_URI`, `EC2_INSTANCE_ID`를 넣습니다. 모두 비밀값이 아닙니다.
+9. **배포** — Actions → Deploy → Run workflow. 끝나면 `chat.<도메인>`에 접속합니다.
+10. **첫 최고 관리자** — `aws ssm start-session --target <인스턴스>` 후 `sudo docker exec chatd /chatd admin bootstrap -name 원장`. 나온 10자리 코드로 앱에서 로그인합니다 (72시간 안, 한 번만). 다른 계정과 코드는 관리 API로 만듭니다 (`server/README.md`).
 
 ## 배포 뒤 확인 (F-014 수동 수용 기준)
 
@@ -79,10 +83,14 @@ flowchart LR
 | AC3 | EC2 콘솔에서 `chatd-sg` 인바운드 규칙 0개, `aws ssm start-session --target <인스턴스>`로 접속됨 |
 | AC4 | 허용된 이메일로 접속, 첫 글자가 1초 안에 흐름, "아주 길게 설명해 줘"처럼 1분 넘는 답도 끊기지 않음(524 없음) |
 | AC5 | 허용 목록에 없는 이메일은 Access 화면에서 막힘 |
+| AC6 | 로그인한 뒤 Deploy를 다시 실행 → 같은 코드·세션으로 그대로 들어가짐. `sudo ls /var/lib/chatd/backups`와 S3 `db/`에 백업이 생김 |
 
 ## 운영 메모
 
 - **다시 배포**: Actions → Deploy. 같은 커밋도 다시 띄웁니다.
 - **키 바꾸기**: SSM 값을 바꾼 뒤 Deploy를 다시 실행합니다 (컨테이너를 새로 띄울 때 읽음).
 - **잠시 멈추기**: `aws ec2 stop-instances --instance-ids <인스턴스>` — 멈춘 동안 인스턴스 요금은 없고 디스크 요금만 조금 나옵니다.
+- **계정 DB**: 호스트 `/var/lib/chatd/chatd.db`(컨테이너의 `/data`). 컨테이너를 바꿔도 남고, 인스턴스를 **지우면** 디스크와 함께 사라지니 S3 백업이 마지막 보루입니다.
+- **백업**: 매일 03:00 KST와 배포 직전에 `chatd-backup.sh`가 돕니다. 기기에 14개, S3에 30일. 지금 한 번 뜨기: `sudo /usr/local/bin/chatd-backup.sh`. 타이머 확인: `systemctl list-timers chatd-backup.timer`.
+- **복구**: `sudo docker stop chatd` → `aws s3 cp s3://<버킷>/db/<파일>.db.gz /tmp/ && gunzip /tmp/<파일>.db.gz` (또는 `/var/lib/chatd/backups`의 것) → `sudo rm -f /var/lib/chatd/chatd.db-wal /var/lib/chatd/chatd.db-shm && sudo install -m 600 -o 65532 -g 65532 /tmp/<파일>.db /var/lib/chatd/chatd.db` → `sudo docker start chatd`.
 - **로그 보기**: `aws ssm start-session --target <인스턴스>` 후 `sudo docker logs --tail 100 chatd`. 서버 로그에는 메시지 본문이 없습니다 (ARCHITECTURE §7).

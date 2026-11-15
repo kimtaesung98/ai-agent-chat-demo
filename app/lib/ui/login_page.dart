@@ -1,5 +1,5 @@
-/// S-004 로그인 화면 (SPEC.md F-023, F-008 화면 기반). 큰 버튼 두 개 — Google로 시작 · 이름만 적고 시작.
-/// Google 로그인은 지금 모의다 ([AuthController]가 [GoogleSignIn]을 받는다). 진짜는 F-008에서 갈아 끼운다.
+/// S-004 로그인 화면 (SPEC.md F-026 상세 동작 2·3, F-023). 계정은 관리자가 만든다 — 받은 **로그인 코드**를 넣거나,
+/// 연결된 **Google 계정**으로 들어간다(서버에 Google이 켜져 있을 때만 버튼이 보인다). 스스로 가입하는 길은 없다.
 library;
 
 import 'package:flutter/material.dart';
@@ -12,30 +12,26 @@ import 'theme.dart';
 const appDisplayName = 'AI 말벗';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key, required this.auth, this.mockGoogle = false});
+  const LoginPage({super.key, required this.auth});
 
   final AuthController auth;
-
-  /// Google 로그인이 모의면 화면 아래에 알린다.
-  final bool mockGoogle;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _name = TextEditingController();
-  bool _askName = false;
+  final _code = TextEditingController();
 
   AuthController get _auth => widget.auth;
 
   @override
   void dispose() {
-    _name.dispose();
+    _code.dispose();
     super.dispose();
   }
 
-  void _startGuest() => _auth.continueAsGuest(_name.text);
+  void _submit() => _auth.signInWithCode(_code.text);
 
   @override
   Widget build(BuildContext context) {
@@ -54,8 +50,56 @@ class _LoginPageState extends State<LoginPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _Hero(colors: c),
-                    const SizedBox(height: 48),
-                    if (_askName) ..._nameStep(c) else ..._choices(c),
+                    const SizedBox(height: 40),
+                    Text(
+                      '받으신 로그인 코드를 넣어 주세요',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: c.text, fontSize: 22, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      key: const Key('login-code'),
+                      controller: _code,
+                      enabled: !_auth.busy,
+                      maxLength: 14,
+                      textAlign: TextAlign.center,
+                      textCapitalization: TextCapitalization.characters,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _submit(),
+                      style: const TextStyle(fontSize: 28, letterSpacing: 2, fontWeight: FontWeight.w600),
+                      decoration: InputDecoration(
+                        hintText: 'K7QM-4XPH-2R',
+                        counterText: '',
+                        filled: true,
+                        fillColor: c.panel,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '요양사·관리자에게 받은 10자리 코드예요. 한 번만 쓸 수 있어요.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: c.muted, fontSize: 16),
+                    ),
+                    const SizedBox(height: 20),
+                    BigButton(
+                      key: const Key('login-code-start'),
+                      label: _auth.busy ? '확인하는 중…' : '들어가기',
+                      onPressed: _auth.busy ? null : _submit,
+                    ),
+                    if (_auth.googleAvailable) ...[
+                      const SizedBox(height: 16),
+                      BigButton(
+                        key: const Key('login-google'),
+                        label: 'Google 계정으로 들어가기',
+                        style: BigButtonStyle.outlined,
+                        leading: const _GoogleMark(),
+                        onPressed: _auth.busy ? null : _auth.signInWithGoogle,
+                      ),
+                    ],
                     if (_auth.error case final error?) ...[
                       const SizedBox(height: 16),
                       Text(
@@ -63,20 +107,6 @@ class _LoginPageState extends State<LoginPage> {
                         key: const Key('login-error'),
                         textAlign: TextAlign.center,
                         style: TextStyle(color: c.error, fontSize: 18),
-                      ),
-                    ],
-                    if (widget.mockGoogle && !_askName) ...[
-                      const SizedBox(height: 32),
-                      Row(
-                        key: const Key('login-mock-note'),
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.info_outline, size: 18, color: c.muted),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text('시험판이라 Google 로그인은 아직 흉내만 내요', style: TextStyle(color: c.muted, fontSize: 15)),
-                          ),
-                        ],
                       ),
                     ],
                   ],
@@ -88,68 +118,6 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
-  List<Widget> _choices(ChatColors c) => [
-    BigButton(
-      key: const Key('login-google'),
-      label: _auth.busy ? 'Google에 연결하는 중…' : 'Google 계정으로 시작하기',
-      style: BigButtonStyle.outlined,
-      leading: _auth.busy
-          ? const SizedBox(width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 3))
-          : const _GoogleMark(),
-      onPressed: _auth.busy ? null : _auth.signInWithGoogle,
-    ),
-    const SizedBox(height: 16),
-    BigButton(
-      key: const Key('login-guest'),
-      label: '이름만 적고 시작하기',
-      icon: Icons.person_outline,
-      style: BigButtonStyle.outlined,
-      onPressed: _auth.busy ? null : () => setState(() => _askName = true),
-    ),
-  ];
-
-  List<Widget> _nameStep(ChatColors c) => [
-    Text(
-      '어떻게 불러 드릴까요?',
-      textAlign: TextAlign.center,
-      style: TextStyle(color: c.text, fontSize: 26, fontWeight: FontWeight.w700),
-    ),
-    const SizedBox(height: 20),
-    TextField(
-      key: const Key('login-name'),
-      controller: _name,
-      autofocus: true,
-      maxLength: Account.maxName,
-      textAlign: TextAlign.center,
-      textInputAction: TextInputAction.done,
-      onSubmitted: (_) => _startGuest(),
-      style: const TextStyle(fontSize: 24),
-      decoration: InputDecoration(
-        hintText: '예) 김순자',
-        counterText: '',
-        filled: true,
-        fillColor: c.panel,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    ),
-    const SizedBox(height: 8),
-    Text(
-      '이름은 이 기기에만 남아요',
-      textAlign: TextAlign.center,
-      style: TextStyle(color: c.muted, fontSize: 16),
-    ),
-    const SizedBox(height: 24),
-    BigButton(key: const Key('login-guest-start'), label: '시작하기', onPressed: _startGuest),
-    const SizedBox(height: 8),
-    BigButton(
-      key: const Key('login-back'),
-      label: '뒤로',
-      style: BigButtonStyle.plain,
-      onPressed: () => setState(() => _askName = false),
-    ),
-  ];
 }
 
 class _Hero extends StatelessWidget {
@@ -190,7 +158,7 @@ class _Hero extends StatelessWidget {
   }
 }
 
-/// Google 버튼 앞 "G" 표시. 진짜 Google 로그인(F-008)을 붙일 때 브랜드 지침의 공식 로고로 바꾼다.
+/// Google 버튼 앞 "G" 표시. 실제 Google 창(google.js)은 공식 버튼을 그린다.
 class _GoogleMark extends StatelessWidget {
   const _GoogleMark();
 

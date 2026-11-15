@@ -88,6 +88,20 @@ if [ "$INSTANCE_ID" = "None" ]; then
   echo "✓ EC2 $INSTANCE_ID ($INSTANCE_TYPE)"
 fi
 
+# 6. DB 백업 버킷 (F-014 AC6): 공개 차단, 암호화, 30일 뒤 지움. 이름은 SSM /chatd/backup-bucket에 둔다
+BUCKET=chatd-backups-$ACCOUNT_ID-$REGION
+if ! exists aws s3api head-bucket --bucket "$BUCKET"; then
+  aws s3api create-bucket --bucket "$BUCKET" --create-bucket-configuration LocationConstraint="$REGION" >/dev/null
+  aws s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration \
+    BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+  aws s3api put-bucket-encryption --bucket "$BUCKET" --server-side-encryption-configuration \
+    '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+  aws s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" --lifecycle-configuration \
+    '{"Rules":[{"ID":"expire-30d","Status":"Enabled","Filter":{"Prefix":"db/"},"Expiration":{"Days":30}}]}'
+  echo "✓ 백업 버킷 $BUCKET"
+fi
+aws ssm put-parameter --name /chatd/backup-bucket --type String --value "$BUCKET" --overwrite >/dev/null
+
 cat <<OUT
 
 다음 값을 GitHub 저장소 Settings → Secrets and variables → Actions → Variables 에 넣으세요 (비밀값 아님):
@@ -100,4 +114,7 @@ cat <<OUT
   read -rs K && aws ssm put-parameter --region $REGION --name /chatd/anthropic-api-key --type SecureString --value "\$K" --overwrite; unset K
   read -rs O && aws ssm put-parameter --region $REGION --name /chatd/openai-api-key --type SecureString --value "\$O" --overwrite; unset O   # 실시간 음성(F-024), 선택
   read -rs T && aws ssm put-parameter --region $REGION --name /chatd/cloudflare-tunnel-token --type SecureString --value "\$T" --overwrite; unset T
+Google 로그인을 쓰려면 (선택, 비밀값 아님):
+  aws ssm put-parameter --region $REGION --name /chatd/google-client-id --type String --value "<클라이언트 ID>.apps.googleusercontent.com" --overwrite
+DB 백업 버킷: $BUCKET (매일 03:00 KST, 30일 보관)
 OUT
