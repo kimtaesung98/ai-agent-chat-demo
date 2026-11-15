@@ -557,7 +557,7 @@
   - [x] AC8. 기기 데이터 옮기기: 같은 페르소나·요약·장기 기억이 서버에 생기고 두 번 올려도 늘지 않으며, 성공한 뒤에만 기기 키를 지운다 (단위·계약 테스트 — 앱: `app_storage_test`·`login_flow_test`, 7-⑤)
   - [x] AC9. 다른 `Origin`의 상태 변경은 403, 로그에 코드·토큰·이름·내용이 없다 (httpapi 테스트)
   - [ ] AC10. 수동 확인: 원장 bootstrap → 요양사 계정·코드 → 요양사가 어르신 계정·코드 → iPhone PWA에서 코드로 로그인해 대화 (사용자)
-- **구현 메모 (단계 7-⑤ 앱, 2026-11-15)**: `app/lib/api/account_api.dart`(API-010~018 호출), `chat/auth_controller.dart`(코드·Google 로그인·세션 확인), `chat/server_sync.dart`(로그인 뒤 프로필·페르소나를 받아 컨트롤러를 서버에 붙이고, 바뀐 프로필을 보냄, 옮기기), `storage/app_storage.dart` `loadDeviceData`(API-014 본문, `migrated.v1`), Google 창은 `web/google.js`(Google Identity Services, 처음 누를 때 스크립트를 받음)와 `ui/google_sign_in_web.dart`. 로그인한 동안은 페르소나·기억을 기기에 쓰지 않는다. `REQUIRE_LOGIN` 기본 on(끄려면 `off`).
+- **구현 메모 (단계 7-⑤ 앱, 2026-11-15)**: `app/lib/api/account_api.dart`(API-010~018 호출), `chat/auth_controller.dart`(코드·Google 로그인·세션 확인), `chat/server_sync.dart`(로그인 뒤 프로필·페르소나를 받아 컨트롤러를 서버에 붙이고, 바뀐 프로필을 보냄, 옮기기), `storage/app_storage.dart` `loadDeviceData`(API-014 본문, `migrated.v1`), Google 창은 `web/google.js`(Google Identity Services, 처음 누를 때 스크립트를 받음 — ADR-036 승인)와 `ui/google_sign_in_web.dart`. 로그인한 동안은 페르소나·기억을 기기에 쓰지 않는다. `REQUIRE_LOGIN` 기본 on(끄려면 `off`).
 - **구현 메모 (프로필·옮기기 서버)**: `server/internal/httpapi/profile.go`(API-013, 보낸 필드만 바꿈, 이름은 계정 이름), `import.go`(API-014), 마이그레이션 004 `profiles`. AC8은 서버 쪽(두 번 올려도 늘지 않음, 서버 값은 덮어쓰지 않음, 틀리면 아무것도 바꾸지 않음 — Go·계약 테스트)만, 성공한 뒤 기기 키 지우기는 앱 단계 7-⑤
 - **관련 항목**: F-008 · F-023 · F-027~F-030 · S-004 · S-006 · §7 · ADR-017·028·029
 - **Owner Folder**: `/server` (`store`·`account`·API·`chatd admin`), `/app` (코드·Google 로그인 화면, 서버 저장소로 전환, 옮기기)
