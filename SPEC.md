@@ -284,12 +284,14 @@
   3. EC2(서울, t4g.small)는 보안 그룹 인바운드 규칙이 없고, 관리 접속은 SSM Session Manager다. `ANTHROPIC_API_KEY`와 Cloudflare Tunnel 토큰은 SSM Parameter Store(SecureString)에서 컨테이너를 띄울 때 읽는다.
   4. Cloudflare Tunnel이 도메인 주소를 `chatd`로 잇고, Cloudflare Access가 허용 목록 이메일만 들여보낸다.
   5. AWS·Cloudflare 리소스는 `deploy/provision.sh`(AWS CLI)와 `deploy/README.md`의 순서대로 만든다. 사용자가 로그인한 PC에서 실행한다.
+  6. 계정 DB(F-026)는 EC2 디스크 `/var/lib/chatd`를 컨테이너 `/data`(`DATA_DIR`)로 붙여 다시 배포·재시작해도 남긴다. 배포 직전과 매일 03:00 KST에 `chatd admin backup`(SQLite `VACUUM INTO`)으로 사본을 떠 기기에 14개, S3 백업 버킷(공개 차단·암호화·30일)에 올린다. 운영 컨테이너는 `REQUIRE_LOGIN=on`, `CLIENT_IP_HEADER=CF-Connecting-IP`로 띄운다.
 - **수용 기준**:
   - [ ] AC1. Given `Dockerfile`, When CI가 이미지를 빌드, Then 비root·정적 바이너리이고, 그 컨테이너를 모의 모드로 띄워 계약 테스트(`go test ./contract -base-url=…`)가 통과한다 (CI)
   - [ ] AC2. Given 저장소·이미지·워크플로, Then AWS 액세스 키·API 키·터널 토큰이 없다. 배포는 OIDC 역할로만 한다 (검토 + 첫 배포 확인)
   - [ ] AC3. Given EC2, Then 보안 그룹 인바운드 규칙이 0개이고 SSM으로만 접속된다 (수동 확인)
   - [ ] AC4. Given 허용된 이메일로 HTTPS 주소 접속, Then 웹이 열리고 첫 응답 글자가 1초 안에 흐르기 시작하며, 1분 넘게 이어지는 답도 끊기지 않는다 (수동 확인, R-A05)
   - [ ] AC5. Given 허용 목록에 없는 이메일, Then Cloudflare Access에서 막혀 앱·API에 닿지 않는다 (수동 확인)
+  - [ ] AC6. Given 로그인한 계정, When 다시 배포, Then 계정·세션이 남고 백업 파일이 기기와 S3에 생긴다. `Backup`은 쓰는 중인 DB의 열 수 있는 사본을 뜬다 (Go 테스트 + 첫 배포 확인)
 - **사용자가 할 일**: AWS 계정·Cloudflare 계정·도메인 준비, PC에서 AWS CLI 로그인 후 `deploy/provision.sh` 실행, SSM에 키 넣기, Cloudflare에서 Tunnel·Access 만들기 (`deploy/README.md`)
 - **관련 항목**: ARCHITECTURE.md §6, ADR-011·018·019, R-A05 · Q-001 · Q-003
 - **Owner Folder**: `/deploy`, 루트 (`Dockerfile`, CI)

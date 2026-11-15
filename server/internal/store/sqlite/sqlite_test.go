@@ -136,3 +136,25 @@ func TestF030AC3UsageIsAtomic(t *testing.T) {
 		t.Fatalf("지운 행 %d", n)
 	}
 }
+
+func TestF014AC6Backup(t *testing.T) {
+	t.Run("F-014 AC6 Backup은 쓰는 중인 DB를 열 수 있는 사본으로 뜨고, 같은 파일이 있으면 덮어쓰지 않는다", func(t *testing.T) {
+		d := open(t, t.TempDir())
+		u := store.User{ID: "usr_b", Name: "요양사", Role: store.RoleCaregiver, Status: store.StatusActive, CreatedAt: time.Now()}
+		if err := d.CreateUser(ctx, u); err != nil {
+			t.Fatal(err)
+		}
+		out := t.TempDir()
+		path := out + "/chatd.db"
+		if err := d.Backup(ctx, path); err != nil {
+			t.Fatal(err)
+		}
+		cp := open(t, out)
+		if got, err := cp.GetUser(ctx, "usr_b"); err != nil || got.Name != "요양사" {
+			t.Fatalf("사본에 계정이 없어요: %+v %v", got, err)
+		}
+		if err := d.Backup(ctx, path); err == nil {
+			t.Fatal("이미 있는 파일은 덮어쓰지 않아야 해요")
+		}
+	})
+}

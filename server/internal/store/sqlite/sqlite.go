@@ -60,6 +60,16 @@ func Open(dir string) (*DB, error) {
 // Close는 DB를 닫는다.
 func (d *DB) Close() error { return d.db.Close() }
 
+// Backup은 지금 DB를 한 파일로 떠 둔다 (SQLite `VACUUM INTO` — 서버가 쓰는 중에도 일관된 사본, F-014 백업).
+// path에 이미 파일이 있으면 실패한다.
+func (d *DB) Backup(ctx context.Context, path string) error {
+	if path == "" {
+		return errors.New("백업 파일 경로가 비었어요")
+	}
+	_, err := d.db.ExecContext(ctx, "VACUUM INTO ?", path)
+	return err
+}
+
 // migrate는 migrations/NNN_*.sql을 번호 순서로 한 번씩 적용한다 (F-026 AC6).
 func (d *DB) migrate(ctx context.Context) error {
 	if _, err := d.db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {

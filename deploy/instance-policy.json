@@ -8,6 +8,12 @@
       "Resource": "arn:aws:ssm:${REGION}:${ACCOUNT_ID}:parameter/chatd/*"
     },
     {
+      "Sid": "DbBackupF014",
+      "Effect": "Allow",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::chatd-backups-${ACCOUNT_ID}-${REGION}/db/*"
+    },
+    {
       "Sid": "VoiceF015F016",
       "Effect": "Allow",
       "Action": ["polly:SynthesizeSpeech", "transcribe:StartStreamTranscription"],
