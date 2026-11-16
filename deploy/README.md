@@ -16,7 +16,7 @@
        │  입력: 운영자의 배포 실행(GitHub Actions), SSM의 비밀값(API 키 · 터널 토큰)
        ▼
 deploy — Level 1 DFD (아래 상세)
-       │  출력: EC2에서 도는 chatd · cloudflared 컨테이너, Cloudflare 주소로 들어온 요청
+       │  출력: EC2(t4g.micro)에서 도는 chatd · cloudflared 컨테이너, Cloudflare 주소로 들어온 요청
        ▼
 방문자 브라우저 (Cloudflare Access 통과) · Claude API
 ```
@@ -33,7 +33,7 @@ flowchart LR
     GHA -->|"OIDC 토큰"| STS[["AWS STS<br>chatd-github-deploy 역할"]]
     GHA -->|"arm64 이미지"| ECR[["ECR chatd"]]
     GHA -->|"run-chatd.sh<br>SSM Run Command"| EC2["EC2 chatd<br>인바운드 없음"]
-    SSM[["SSM Parameter Store<br>/chatd/*"]] -->|"API 키 · 터널 토큰"| EC2
+    SSM[["SSM Parameter Store<br>/chatd/*"]] -->|"API 키 · 터널 토큰 · 모델(선택)"| EC2
     EC2 <-->|"계정 DB<br>/var/lib/chatd"| Disk[("EC2 디스크")]
     EC2 -->|"매일 · 배포 전 백업"| S3[["S3 chatd-backups-…"]]
     ECR -->|"이미지"| EC2
@@ -65,8 +65,8 @@ flowchart LR
 
 키·토큰·비밀번호는 채팅이나 파일에 붙여 넣지 말고, 아래처럼 터미널에서 직접 넣으세요.
 
-1. **AWS CLI 로그인** — PC에 AWS CLI v2를 설치하고 `aws login`(또는 `aws configure sso`)으로 로그인합니다. 루트 계정에는 MFA를 켜고, AWS Budgets에 월 40달러 알림을 걸어 둡니다.
-2. **AWS 리소스 만들기** — 저장소 루트에서 `./deploy/provision.sh`. ECR, GitHub OIDC 배포 역할, EC2 역할, 인바운드 없는 보안 그룹, EC2(t4g.small)를 만들고 GitHub에 넣을 변수 4개와 비밀값 넣는 명령을 출력합니다.
+1. **AWS CLI 로그인** — PC에 AWS CLI v2를 설치하고 `aws login`(또는 `aws configure sso`)으로 로그인합니다. 루트 계정에는 MFA를 켜고, AWS Budgets에 월 15달러 알림을 걸어 둡니다 (1인 기준 예상 약 12달러).
+2. **AWS 리소스 만들기** — 저장소 루트에서 `./deploy/provision.sh`. ECR, GitHub OIDC 배포 역할, EC2 역할, 인바운드 없는 보안 그룹, EC2(t4g.micro — 1인 사용 기준, ADR-037)를 만들고 GitHub에 넣을 변수 4개와 비밀값 넣는 명령을 출력합니다.
 3. **Cloudflare 도메인** — Cloudflare에 도메인을 추가(Free 요금제)하고, 도메인 등록 업체에서 네임서버를 Cloudflare가 알려 준 것으로 바꿉니다.
 4. **Cloudflare Tunnel** — Zero Trust → Networks → Tunnels → Create a tunnel(Cloudflared), 이름 `chatd`. 설치 화면에 나오는 토큰을 복사해 2번이 출력한 `read -rs T && aws ssm put-parameter … /chatd/cloudflare-tunnel-token …` 명령으로 넣습니다. Public hostname: 예) `chat.<도메인>` → Service `HTTP` · `chatd:3000`.
 5. **Cloudflare Access** — Zero Trust → Access → Applications → Add → Self-hosted, 도메인 `chat.<도메인>`. 정책 Allow · Include: Emails(허용할 이메일들). 로그인 방법은 One-time PIN(기본)이면 충분합니다.
@@ -75,6 +75,23 @@ flowchart LR
 8. **GitHub 설정** — 저장소 Settings → Environments에 `production`을 만들고(필요하면 승인자 지정), Settings → Secrets and variables → Actions → Variables에 2번이 출력한 `AWS_REGION`, `AWS_DEPLOY_ROLE_ARN`, `ECR_REPOSITORY_URI`, `EC2_INSTANCE_ID`를 넣습니다. 모두 비밀값이 아닙니다.
 9. **배포** — Actions → Deploy → Run workflow. 끝나면 `chat.<도메인>`에 접속합니다.
 10. **첫 최고 관리자** — `aws ssm start-session --target <인스턴스>` 후 `sudo docker exec chatd /chatd admin bootstrap -name 원장`. 나온 10자리 코드로 앱에서 로그인합니다 (72시간 안, 한 번만). 다른 계정과 코드는 관리 API로 만듭니다 (`server/README.md`).
+
+## 한 달 비용 (1인 사용 기준, ADR-037)
+
+서울 리전 온디맨드 기준 어림값입니다. 실제 금액은 AWS Billing에서 확인하세요.
+
+| 항목 | 예전(t4g.small) | 지금(t4g.micro) | 메모 |
+|---|---|---|---|
+| EC2 인스턴스 | 약 15.2달러 | 약 7.6달러 | 2 vCPU · 1GB, 스왑 1GB를 `run-chatd.sh`가 만듦 |
+| 공인 IPv4 | 약 3.7달러 | 약 3.7달러 | 터널이 바깥으로 나가려면 필요 (NAT는 월 30달러 넘어 더 비쌈) |
+| 디스크 8GB gp3 | 약 0.7달러 | 약 0.7달러 | |
+| ECR · S3 백업 · SSM | 0.1달러 안팎 | 0.1달러 안팎 | 이미지 5개만 보관, 백업 30일 |
+| Cloudflare Tunnel · Access | 0 | 0 | Free 요금제(50명까지) |
+| **서버 합계** | **약 20달러** | **약 12달러** | 도메인은 별도(연 10달러 안팎) |
+
+- **더 줄이기**: 안 쓰는 기간엔 인스턴스를 **중지**하면 인스턴스 요금이 0이 됩니다(공인 IP·디스크 약 4.4달러만 남음). `t4g.nano`(0.5GB, 약 3.8달러)도 되지만 이미지를 받을 때 느리거나 멈출 수 있어 기본값으로 두지 않습니다.
+- **AI 사용료는 따로**: Claude는 글 대화 한 번에 대략 1센트 안팎(기본 Sonnet 5.5), 실시간 음성(OpenAI)은 분당 수십 센트까지 나와 가장 큽니다. 두 곳 모두 콘솔에서 **월 사용 한도**를 걸어 두세요. 더 싸게 쓰려면 SSM `/chatd/anthropic-model`(예: `claude-haiku-5-5`), `/chatd/openai-realtime-model`(예: `gpt-realtime-mini`)을 넣고 다시 배포합니다.
+- **이미 t4g.small로 만들었다면**: EC2 콘솔에서 인스턴스 **중지** → 작업 → 인스턴스 설정 → **인스턴스 유형 변경** → `t4g.micro` → **시작**. 디스크와 계정 DB는 그대로 남습니다. 그다음 Deploy를 한 번 다시 실행해 스왑을 켭니다.
 
 ## 배포 뒤 확인 (F-014 수동 수용 기준)
 
@@ -88,7 +105,7 @@ flowchart LR
 ## 운영 메모
 
 - **다시 배포**: Actions → Deploy. 같은 커밋도 다시 띄웁니다.
-- **키 바꾸기**: SSM 값을 바꾼 뒤 Deploy를 다시 실행합니다 (컨테이너를 새로 띄울 때 읽음).
+- **키·모델 바꾸기**: SSM 값(`/chatd/anthropic-api-key`, 선택 `/chatd/anthropic-model`·`/chatd/openai-realtime-model`)을 바꾼 뒤 Deploy를 다시 실행합니다 (컨테이너를 새로 띄울 때 읽음).
 - **잠시 멈추기**: `aws ec2 stop-instances --instance-ids <인스턴스>` — 멈춘 동안 인스턴스 요금은 없고 디스크 요금만 조금 나옵니다.
 - **계정 DB**: 호스트 `/var/lib/chatd/chatd.db`(컨테이너의 `/data`). 컨테이너를 바꿔도 남고, 인스턴스를 **지우면** 디스크와 함께 사라지니 S3 백업이 마지막 보루입니다.
 - **백업**: 매일 03:00 KST와 배포 직전에 `chatd-backup.sh`가 돕니다. 기기에 14개, S3에 30일. 지금 한 번 뜨기: `sudo /usr/local/bin/chatd-backup.sh`. 타이머 확인: `systemctl list-timers chatd-backup.timer`.
