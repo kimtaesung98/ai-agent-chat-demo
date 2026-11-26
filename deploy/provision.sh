@@ -9,7 +9,8 @@ cd "$(dirname "$0")"
 
 REGION=${AWS_REGION:-ap-northeast-2}
 GITHUB_REPO=${GITHUB_REPO:-kimtaesung98/ai-agent-chat-demo}
-INSTANCE_TYPE=${INSTANCE_TYPE:-t4g.small}
+# 1인 사용 기준 t4g.micro(2 vCPU·1GB, ADR-037). 메모리가 부족하면 INSTANCE_TYPE=t4g.small로 다시 만들거나 크기만 바꾼다 (deploy/README.md)
+INSTANCE_TYPE=${INSTANCE_TYPE:-t4g.micro}
 export AWS_REGION=$REGION AWS_PAGER=""
 
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -17,12 +18,12 @@ echo "계정 $ACCOUNT_ID · 리전 $REGION · 저장소 $GITHUB_REPO"
 fill() { sed -e "s|\${REGION}|$REGION|g" -e "s|\${ACCOUNT_ID}|$ACCOUNT_ID|g" -e "s|\${GITHUB_REPO}|$GITHUB_REPO|g" "$1"; }
 exists() { "$@" >/dev/null 2>&1; }
 
-# 1. ECR 저장소 (이미지 10개만 보관)
+# 1. ECR 저장소 (이미지 5개만 보관 — 되돌릴 때 쓸 만큼만)
 if ! exists aws ecr describe-repositories --repository-names chatd; then
   aws ecr create-repository --repository-name chatd --image-scanning-configuration scanOnPush=true \
     --encryption-configuration encryptionType=AES256 >/dev/null
   aws ecr put-lifecycle-policy --repository-name chatd --lifecycle-policy-text \
-    '{"rules":[{"rulePriority":1,"description":"keep 10","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":10},"action":{"type":"expire"}}]}' >/dev/null
+    '{"rules":[{"rulePriority":1,"description":"keep 5","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":5},"action":{"type":"expire"}}]}' >/dev/null
   echo "✓ ECR chatd"
 fi
 ECR_URI=$(aws ecr describe-repositories --repository-names chatd --query 'repositories[0].repositoryUri' --output text)
@@ -43,7 +44,7 @@ aws iam put-role-policy --role-name chatd-github-deploy --policy-name deploy \
   --policy-document "$(fill github-deploy-policy.json)"
 DEPLOY_ROLE_ARN=$(aws iam get-role --role-name chatd-github-deploy --query Role.Arn --output text)
 
-# 3. EC2 역할: SSM 접속, ECR 읽기, /chatd/* 파라미터, Polly·Transcribe
+# 3. EC2 역할: SSM 접속, ECR 읽기, /chatd/* 파라미터, DB 백업, Polly·Transcribe
 if ! exists aws iam get-role --role-name chatd-ec2; then
   aws iam create-role --role-name chatd-ec2 --assume-role-policy-document \
     '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}' >/dev/null
@@ -117,4 +118,7 @@ cat <<OUT
 Google 로그인을 쓰려면 (선택, 비밀값 아님):
   aws ssm put-parameter --region $REGION --name /chatd/google-client-id --type String --value "<클라이언트 ID>.apps.googleusercontent.com" --overwrite
 DB 백업 버킷: $BUCKET (매일 03:00 KST, 30일 보관)
+(선택) 더 싼 모델로 바꾸기 (비밀값 아님, 다시 배포하면 적용):
+  aws ssm put-parameter --region $REGION --name /chatd/anthropic-model --type String --value claude-haiku-5-5 --overwrite
+  aws ssm put-parameter --region $REGION --name /chatd/openai-realtime-model --type String --value gpt-realtime-mini --overwrite
 OUT

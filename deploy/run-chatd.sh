@@ -18,6 +18,14 @@ docker pull -q "$IMAGE"
 docker pull -q "$CLOUDFLARED_IMAGE"
 docker network inspect chatnet >/dev/null 2>&1 || docker network create chatnet >/dev/null
 
+# 작은 인스턴스(t4g.micro 1GB, ADR-037)에서 이미지 받기·백업이 겹쳐도 멈추지 않게 1GB 스왑을 한 번 만든다
+if [ "$(awk '/MemTotal/ {print $2}' /proc/meminfo)" -lt 2000000 ] && ! swapon --show=NAME --noheadings | grep -q .; then
+  [ -f /swapfile ] || { dd if=/dev/zero of=/swapfile bs=1M count=1024 status=none && chmod 600 /swapfile && mkswap /swapfile >/dev/null; }
+  swapon /swapfile
+  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >>/etc/fstab
+  echo "스왑 1GB 켬"
+fi
+
 # 계정 DB 폴더 — 이미지의 nonroot(65532)만 읽고 쓴다
 DATA_HOST=/var/lib/chatd
 install -d -m 700 -o 65532 -g 65532 "$DATA_HOST" "$DATA_HOST/backups"
@@ -89,6 +97,14 @@ if gid=$(param /chatd/google-client-id 2>/dev/null); then
   printf 'GOOGLE_CLIENT_ID=%s\n' "$gid" >>"$envdir/chatd.env"
 fi
 unset gid
+# 모델 바꾸기 (선택, ADR-037) — 비밀값 아님. 없으면 서버 기본값(ANTHROPIC_MODEL → claude-sonnet-5-5, 실시간 음성 → gpt-realtime)
+if m=$(param /chatd/anthropic-model 2>/dev/null); then
+  printf 'ANTHROPIC_MODEL=%s\n' "$m" >>"$envdir/chatd.env"
+fi
+if m=$(param /chatd/openai-realtime-model 2>/dev/null); then
+  printf 'OPENAI_REALTIME_MODEL=%s\n' "$m" >>"$envdir/chatd.env"
+fi
+unset m
 # 계정·로그인 (F-026·F-030): 파일 DB, 로그인 없는 AI 막기, Cloudflare가 넣는 진짜 IP로 상한 세기
 cat >>"$envdir/chatd.env" <<'ENV'
 DATA_DIR=/data

@@ -281,7 +281,7 @@
 - **상세 동작**:
   1. 저장소 루트 `Dockerfile`이 Go `chatd`(cgo 없음)와 Flutter 웹 빌드(`app/build/web`, CI가 만든 것)를 비root 정적 이미지 하나로 묶는다. 이미지에는 키가 없다.
   2. 배포 워크플로(`.github/workflows/deploy.yml`, 수동 실행)가 GitHub OIDC로 AWS 역할을 받아(장기 키 없음) arm64 이미지를 ECR에 올리고, SSM Run Command로 EC2에서 `chatd`·`cloudflared` 컨테이너를 다시 띄운다.
-  3. EC2(서울, t4g.small)는 보안 그룹 인바운드 규칙이 없고, 관리 접속은 SSM Session Manager다. `ANTHROPIC_API_KEY`와 Cloudflare Tunnel 토큰은 SSM Parameter Store(SecureString)에서 컨테이너를 띄울 때 읽는다.
+  3. EC2(서울, t4g.micro — 1인 사용 기준, ADR-037)는 보안 그룹 인바운드 규칙이 없고, 관리 접속은 SSM Session Manager다. `ANTHROPIC_API_KEY`와 Cloudflare Tunnel 토큰은 SSM Parameter Store(SecureString)에서 컨테이너를 띄울 때 읽는다.
   4. Cloudflare Tunnel이 도메인 주소를 `chatd`로 잇고, Cloudflare Access가 허용 목록 이메일만 들여보낸다.
   5. AWS·Cloudflare 리소스는 `deploy/provision.sh`(AWS CLI)와 `deploy/README.md`의 순서대로 만든다. 사용자가 로그인한 PC에서 실행한다.
   6. 계정 DB(F-026)는 EC2 디스크 `/var/lib/chatd`를 컨테이너 `/data`(`DATA_DIR`)로 붙여 다시 배포·재시작해도 남긴다. 배포 직전과 매일 03:00 KST에 `chatd admin backup`(SQLite `VACUUM INTO`)으로 사본을 떠 기기에 14개, S3 백업 버킷(공개 차단·암호화·30일)에 올린다. 운영 컨테이너는 `REQUIRE_LOGIN=on`, `CLIENT_IP_HEADER=CF-Connecting-IP`로 띄운다.
@@ -1151,6 +1151,7 @@ data: {"message":"AI 서비스에 일시적인 문제가 있어요. 잠시 후 �
 | v1.24 | 2026-11-13 | kimtaesung98 | F-025 단계 6-③ 구현: AC1~AC4 체크, 상세 동작 1(서비스 워커 방식) |
 | v1.25 | 2026-11-13 | kimtaesung98 | 서비스화 제안(사용자 요청 "개개인의 사용을 위한 서비스 수준의 내부 데이터 백엔드 + 백엔드에 맞물리는 페르소나 형식"): F-026 계정·서버 저장소, F-027 페르소나 형식 v1, F-028 대화·요약·기억 서버 처리. §7 ERD·엔티티(Persona v1), API-010~018 초안, Q-009·Q-010 |
 | v1.26 | 2026-11-13 | kimtaesung98 | 사용자 결정 반영: 로그인은 관리자 발급 코드 또는 Google(Q-010, 이름만 계정 없앰), DB 라이브러리 승인, F-029 역할 계층(최고 관리자·요양사·어르신·보호자, 위에서 아래로 만들기·부여), F-030 게스트 체험·사용량 제한. F-026~028 승인. §7 역할·코드·담당·보호자·감사·사용량, API-019~022, Q-011·Q-012 |
+| v1.34 | 2026-11-16 | kimtaesung98 | F-014 상세 동작 3: EC2를 1인 사용 기준 t4g.micro로 (사용자 "1인 대상으로 다시 정의", ADR-037) |
 | v1.33 | 2026-11-15 | kimtaesung98 | 단계 7-⑤ 앱(사용자 "배포 이전에서 남은 일을 진행"): 코드·Google 로그인 화면, 서버 페르소나·대화·기억 연결, 기기 데이터 옮기기 — F-026 AC8·F-027 AC4·AC5·F-028 AC4 체크, F-023 상세 1·6 개정, `REQUIRE_LOGIN` 기본 on. F-014 상세 6·AC6(계정 DB 볼륨·백업) |
 | v1.32 | 2026-11-14 | kimtaesung98 | 서버: API-013 프로필·API-014 기기 데이터 옮기기, F-028 AC1 체크(`about` DB 값) |
 | v1.31 | 2026-11-13 | kimtaesung98 | 단계 7-④ 서버: F-028 대화 열기·끝내기·`conversationId`·기억 보기·지우기, AC2·F-029 AC3 체크, API-017·018 요약 |
